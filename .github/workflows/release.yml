@@ -39,29 +39,31 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-latest
           - target: x86_64-apple-darwin
-            runner: macos-13
+            runner: macos-latest
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Install cargo-bundle
         run: cargo install cargo-bundle
 
       - name: Create macOS .app bundle
-        run: cargo bundle --release
+        run: cargo bundle --release --target ${{ matrix.target }}
 
       - name: Create DMG
         run: |
-          APP_DIR="target/release/bundle/osx"
+          APP_DIR="target/${{ matrix.target }}/release/bundle/osx"
           DMG_NAME="Awebo-${{ github.ref_name }}-${{ matrix.target }}.dmg"
           STAGING="$(mktemp -d)"
 
@@ -81,8 +83,8 @@ jobs:
         with:
           name: awebo-${{ matrix.target }}
           path: |
-            target/release/bundle/osx/*.dmg
-            target/release/bundle/osx/*.sha256
+            target/${{ matrix.target }}/release/bundle/osx/*.dmg
+            target/${{ matrix.target }}/release/bundle/osx/*.sha256
 
   release:
     needs: build
