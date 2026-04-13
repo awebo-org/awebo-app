@@ -415,7 +415,7 @@ impl App {
             } else if self.overlay.new_tab_hovered {
                 Some(("New Tab".into(), self.cursor_pos.0, self.cursor_pos.1))
             } else if self.overlay.shell_picker_btn_hovered {
-                Some(("Shell Picker".into(), self.cursor_pos.0, self.cursor_pos.1))
+                Some(("New Session".into(), self.cursor_pos.0, self.cursor_pos.1))
             } else if self.overlay.avatar_hovered {
                 Some(("Awebo".into(), self.cursor_pos.0, self.cursor_pos.1))
             } else if self.overlay.git_panel_hovered {

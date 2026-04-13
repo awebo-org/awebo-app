@@ -334,6 +334,22 @@ impl GitRepo {
         }
         output
     }
+
+    pub fn diff_stat(&self) -> (usize, usize) {
+        let head_tree = self.repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+        let diff = self.repo.diff_tree_to_workdir_with_index(
+            head_tree.as_ref(),
+            Some(
+                git2::DiffOptions::new()
+                    .include_untracked(false)
+                    .ignore_whitespace(true),
+            ),
+        );
+        match diff.and_then(|d| d.stats()) {
+            Ok(stats) => (stats.insertions(), stats.deletions()),
+            Err(_) => (0, 0),
+        }
+    }
 }
 
 #[cfg(test)]

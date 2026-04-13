@@ -111,6 +111,7 @@ impl Terminal {
         cell_height: u16,
         event_proxy: JsonEventProxy,
         shell_path: Option<&str>,
+        working_directory: Option<std::path::PathBuf>,
     ) -> Self {
         let config = Config::default();
 
@@ -152,6 +153,7 @@ impl Terminal {
 
         let pty_config = tty::Options {
             shell: Some(tty::Shell::new(shell, vec!["-l".to_string()])),
+            working_directory,
             env,
             ..tty::Options::default()
         };

@@ -200,6 +200,13 @@ impl Tab {
     pub fn route(&self) -> Route {
         self.router.current()
     }
+
+    pub fn cwd(&self) -> Option<String> {
+        match &self.kind {
+            TabKind::Terminal { terminal, .. } => terminal.cwd(),
+            _ => None,
+        }
+    }
 }
 
 /// Owns the tab collection and active-tab index.
@@ -376,6 +383,12 @@ impl super::App {
             None => return,
         };
 
+        let working_directory = self
+            .tab_mgr
+            .active_tab()
+            .and_then(|t| t.cwd())
+            .map(std::path::PathBuf::from);
+
         let is_alt = false;
         let term_h = renderer.terminal_height(is_alt);
         let cols = (renderer.terminal_width(is_alt) as f32 / renderer.cell_width) as u16;
@@ -401,6 +414,7 @@ impl super::App {
             renderer.cell_height as u16,
             event_proxy,
             shell_path,
+            working_directory,
         );
 
         self.tab_mgr.push(Tab::new_terminal(terminal));
@@ -785,6 +799,7 @@ impl super::App {
             renderer.cell_width as u16,
             renderer.cell_height as u16,
             event_proxy,
+            None,
             None,
         );
 

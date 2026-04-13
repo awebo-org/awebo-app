@@ -2580,6 +2580,9 @@ impl super::super::App {
                     let right_resize_active =
                         self.overlay.git_panel_open && self.panel_layout.right_resize.hovered;
 
+                    let shell_picker_interactive = self.overlay.shell_picker_open
+                        && self.overlay.shell_picker_hovered.is_some();
+
                     if panel_resize_active || right_resize_active {
                         window.set_cursor(winit::window::CursorIcon::ColResize);
                     } else if tab_bar_interactive
@@ -2589,6 +2592,7 @@ impl super::super::App {
                         || settings_interactive
                         || banner_interactive
                         || git_panel_interactive
+                        || shell_picker_interactive
                     {
                         window.set_cursor(winit::window::CursorIcon::Pointer);
                     } else {

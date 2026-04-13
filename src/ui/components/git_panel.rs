@@ -8,7 +8,7 @@ use cosmic_text::{Family, FontSystem, Metrics, SwashCache};
 use crate::git::{BranchEntry, FileStatus, GitRepo, StatusEntry};
 use crate::renderer::icons::{Icon, IconRenderer};
 use crate::renderer::pixel_buffer::{PixelBuffer, Rgb};
-use crate::renderer::text::draw_text_at;
+use crate::renderer::text::{draw_text_at, draw_text_at_bold, measure_text_width_bold};
 use crate::renderer::theme;
 use crate::ui::panel_layout::{GitPanelTab, PanelLayout};
 const HEADER_HEIGHT: f32 = 40.0;
@@ -60,6 +60,8 @@ pub struct GitPanelData {
     pub branches: Vec<BranchEntry>,
     pub current_branch: String,
     pub has_repo: bool,
+    pub additions: usize,
+    pub deletions: usize,
 }
 
 /// Persistent UI state for the git panel.
@@ -123,6 +125,9 @@ impl GitPanelState {
             self.data.current_branch = repo.current_branch();
             self.data.entries = repo.status_entries();
             self.data.branches = repo.branches();
+            let (additions, deletions) = repo.diff_stat();
+            self.data.additions = additions;
+            self.data.deletions = deletions;
         } else {
             self.data = GitPanelData::default();
         }
@@ -542,6 +547,8 @@ pub fn draw(
     let header_h = (HEADER_HEIGHT * sf) as usize;
     draw_toolbar(
         buf,
+        font_system,
+        swash_cache,
         icon_renderer,
         state,
         panel_layout,
@@ -603,6 +610,8 @@ pub fn draw(
     buf.fill_rect(panel_x, bar_h, border_w, header_h, theme::BORDER);
     draw_toolbar(
         buf,
+        font_system,
+        swash_cache,
         icon_renderer,
         state,
         panel_layout,
@@ -611,8 +620,7 @@ pub fn draw(
         panel_w,
         header_h,
         sf,
-    );
-    buf.fill_rect(panel_x, hdr_border_y, panel_w, border_w, theme::BORDER);
+    );    buf.fill_rect(panel_x, hdr_border_y, panel_w, border_w, theme::BORDER);
 
     panel_w
 }
@@ -653,6 +661,8 @@ pub fn hit_test(
 
 fn draw_toolbar(
     buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
     icon_renderer: &mut IconRenderer,
     state: &GitPanelState,
     panel_layout: &PanelLayout,
@@ -704,7 +714,54 @@ fn draw_toolbar(
         icon_renderer.draw(buf, *icon, ix, iy, btn_sz, color);
     }
 
-    let _ = panel_w;
+    let additions = state.data.additions;
+    let deletions = state.data.deletions;
+    if additions > 0 || deletions > 0 {
+        const ADD_FG: Rgb = (63, 185, 80);
+        const DEL_FG: Rgb = (248, 81, 73);
+
+        let metrics = Metrics::new(12.0 * sf, 16.0 * sf);
+        let add_label = format!("+{additions}");
+        let del_label = format!("-{deletions}");
+        let inner_gap = (4.0 * sf) as usize;
+        let add_w =
+            measure_text_width_bold(font_system, &add_label, metrics, Family::Monospace).ceil()
+                as usize;
+        let del_w =
+            measure_text_width_bold(font_system, &del_label, metrics, Family::Monospace).ceil()
+                as usize;
+        let total_w = add_w + inner_gap + del_w;
+
+        let right_margin = pad_x;
+        let tx = panel_x + panel_w - right_margin - total_w;
+        let text_y = toolbar_y + ((header_h as f32 - metrics.line_height) / 2.0) as usize;
+        let clip_h = toolbar_y + header_h;
+
+        draw_text_at_bold(
+            buf,
+            font_system,
+            swash_cache,
+            tx,
+            text_y,
+            clip_h,
+            &add_label,
+            metrics,
+            ADD_FG,
+            Family::Monospace,
+        );
+        draw_text_at_bold(
+            buf,
+            font_system,
+            swash_cache,
+            tx + add_w + inner_gap,
+            text_y,
+            clip_h,
+            &del_label,
+            metrics,
+            DEL_FG,
+            Family::Monospace,
+        );
+    }
 }
 
 fn toolbar_hit_test(rel_x: f64, _header_h: f64, sf: f64) -> GitPanelHit {
