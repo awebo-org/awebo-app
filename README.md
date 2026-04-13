@@ -29,6 +29,49 @@ cargo build --release
 
 The binary will be at `target/release/awebo`.
 
+## Releasing
+
+Releases are automated via GitHub Actions. Pushing a version tag triggers the full pipeline: tests → build (aarch64 + x86_64) → DMG packaging → GitHub Release.
+
+### Stable release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+### Pre-release (alpha → beta → rc → stable)
+
+```bash
+# Alpha — early testing, expect breaking changes
+git tag v1.0.0-alpha.1
+git push origin v1.0.0-alpha.1
+
+# Beta — feature-complete, bug fixes only
+git tag v1.0.0-beta.1
+git push origin v1.0.0-beta.1
+
+# Release candidate — final validation before stable
+git tag v1.0.0-rc.1
+git push origin v1.0.0-rc.1
+
+# Stable
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Tags containing `-alpha`, `-beta`, or `-rc` are automatically marked as **prerelease** on GitHub.
+
+### Version format
+
+Follows [Semantic Versioning](https://semver.org): `vMAJOR.MINOR.PATCH[-prerelease.N]`
+
+| Bump | When |
+|---|---|
+| `MAJOR` | Breaking changes |
+| `MINOR` | New features, backwards-compatible |
+| `PATCH` | Bug fixes |
+
 ## Configuration
 
 Awebo stores its configuration in `~/.config/awebo/config.toml`:
