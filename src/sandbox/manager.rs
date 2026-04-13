@@ -38,6 +38,28 @@ impl fmt::Display for SandboxError {
 
 impl std::error::Error for SandboxError {}
 
+/// Strip potential credentials from an OCI image reference for safe display.
+///
+/// OCI refs may embed credentials as `user:token@registry/image:tag`.
+/// This replaces the userinfo portion with `***` to avoid leaking secrets
+/// in toast messages or logs.
+fn sanitize_oci_ref(oci_ref: &str) -> String {
+    // OCI digests use `@sha256:...` — those must not be stripped.
+    if let Some(at) = oci_ref.find('@') {
+        let prefix = &oci_ref[..at];
+        let suffix = &oci_ref[at + 1..];
+        // If the part after @ looks like a digest (e.g. sha256:…), keep as-is.
+        if suffix.starts_with("sha256:") || suffix.starts_with("sha512:") {
+            return oci_ref.to_string();
+        }
+        // If the prefix contains a colon but no slash, it's likely `user:pass`.
+        if prefix.contains(':') && !prefix.contains('/') {
+            return format!("***@{suffix}");
+        }
+    }
+    oci_ref.to_string()
+}
+
 impl From<microsandbox::MicrosandboxError> for SandboxError {
     fn from(err: microsandbox::MicrosandboxError) -> Self {
         Self::Runtime(err.to_string())
@@ -85,11 +107,13 @@ impl SandboxManager {
             ));
             return;
         }
+        let display_ref = sanitize_oci_ref(&oci_ref);
         let _ = proxy.send_event(crate::terminal::TerminalEvent::Toast(format!(
             "Pulling image: {}…",
-            oci_ref
+            display_ref
         )));
         tokio::spawn(async move {
+            let display_ref = sanitize_oci_ref(&oci_ref);
             let sandbox_name = format!("awebo-pull-{}", std::process::id());
             let result = microsandbox::Sandbox::builder(&sandbox_name)
                 .image(oci_ref.as_str())
@@ -102,13 +126,13 @@ impl SandboxManager {
                 Ok(handle) => {
                     let _ = handle.kill().await;
                     let _ = proxy.send_event(crate::terminal::TerminalEvent::ToastLevel(
-                        format!("Image pulled successfully: {}", oci_ref),
+                        format!("Image pulled successfully: {}", display_ref),
                         crate::ui::components::toast::ToastLevel::Success,
                     ));
                 }
                 Err(e) => {
                     let _ = proxy.send_event(crate::terminal::TerminalEvent::SandboxError(
-                        format!("Failed to pull {}: {}", oci_ref, e),
+                        format!("Failed to pull {}: {}", display_ref, e),
                     ));
                 }
             }
@@ -128,9 +152,10 @@ impl SandboxManager {
             ));
             return;
         }
+        let display_ref = sanitize_oci_ref(&oci_ref);
         tokio::spawn(async move {
             let _ = proxy.send_event(crate::terminal::TerminalEvent::ToastLevel(
-                format!("Image cache removal requested: {}", oci_ref),
+                format!("Image cache removal requested: {}", display_ref),
                 crate::ui::components::toast::ToastLevel::Info,
             ));
         });

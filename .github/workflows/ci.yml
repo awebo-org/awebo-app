@@ -6,11 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   check:
+    permissions:
+      contents: read
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +34,8 @@ jobs:
         run: cargo clippy -- -D warnings
 
   test:
+    permissions:
+      contents: read
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +50,8 @@ jobs:
         run: cargo test
 
   build:
+    permissions:
+      contents: read
     needs: [check, test]
     runs-on: macos-latest
     steps:

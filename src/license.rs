@@ -6,7 +6,8 @@ use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-const LICENSE_VERSION: u8 = 1;
+const LICENSE_VERSION: u8 = 2;
+const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,10 +223,9 @@ pub fn machine_id() -> String {
     hex_encode(&hash[..16])
 }
 
-fn derive_key() -> [u8; 32] {
+fn derive_key(salt: &[u8]) -> [u8; 32] {
     let mid = machine_id();
-    let salt = b"awebo-license-v1";
-    let input = format!("{mid}-{}", String::from_utf8_lossy(salt));
+    let input = format!("{mid}-{}", hex_encode(salt));
     let hash = Sha256::digest(input.as_bytes());
     let mut key = [0u8; 32];
     key.copy_from_slice(&hash);
@@ -236,7 +236,10 @@ fn save_encrypted_license(data: &LicenseData) -> Result<(), ActivationError> {
     let json =
         serde_json::to_string(data).map_err(|e| ActivationError::StorageError(e.to_string()))?;
 
-    let key = derive_key();
+    let mut salt = [0u8; SALT_LEN];
+    chacha20poly1305::aead::rand_core::RngCore::fill_bytes(&mut OsRng, &mut salt);
+
+    let key = derive_key(&salt);
     let cipher = ChaCha20Poly1305::new_from_slice(&key)
         .map_err(|e| ActivationError::StorageError(e.to_string()))?;
 
@@ -248,8 +251,9 @@ fn save_encrypted_license(data: &LicenseData) -> Result<(), ActivationError> {
         .encrypt(nonce, json.as_bytes())
         .map_err(|e| ActivationError::StorageError(e.to_string()))?;
 
-    let mut out = Vec::with_capacity(1 + NONCE_LEN + ciphertext.len());
+    let mut out = Vec::with_capacity(1 + SALT_LEN + NONCE_LEN + ciphertext.len());
     out.push(LICENSE_VERSION);
+    out.extend_from_slice(&salt);
     out.extend_from_slice(&nonce_bytes);
     out.extend_from_slice(&ciphertext);
 
@@ -267,7 +271,7 @@ fn load_encrypted_license() -> Option<LicenseData> {
     let path = license_path();
     let bytes = std::fs::read(&path).ok()?;
 
-    if bytes.len() < 1 + NONCE_LEN + 16 {
+    if bytes.len() < 1 + SALT_LEN + NONCE_LEN + 16 {
         return None;
     }
 
@@ -276,10 +280,11 @@ fn load_encrypted_license() -> Option<LicenseData> {
         return None;
     }
 
-    let nonce_bytes = &bytes[1..1 + NONCE_LEN];
-    let ciphertext = &bytes[1 + NONCE_LEN..];
+    let salt = &bytes[1..1 + SALT_LEN];
+    let nonce_bytes = &bytes[1 + SALT_LEN..1 + SALT_LEN + NONCE_LEN];
+    let ciphertext = &bytes[1 + SALT_LEN + NONCE_LEN..];
 
-    let key = derive_key();
+    let key = derive_key(salt);
     let cipher = ChaCha20Poly1305::new_from_slice(&key).ok()?;
     let nonce = Nonce::from_slice(nonce_bytes);
 
@@ -305,10 +310,18 @@ mod tests {
     }
 
     #[test]
-    fn derive_key_is_deterministic() {
-        let k1 = derive_key();
-        let k2 = derive_key();
+    fn derive_key_is_deterministic_for_same_salt() {
+        let salt = b"test-salt-value!";
+        let k1 = derive_key(salt);
+        let k2 = derive_key(salt);
         assert_eq!(k1, k2);
+    }
+
+    #[test]
+    fn derive_key_differs_for_different_salts() {
+        let k1 = derive_key(b"salt-aaaaaaaaaa!!");
+        let k2 = derive_key(b"salt-bbbbbbbbbb!!");
+        assert_ne!(k1, k2);
     }
 
     #[test]
