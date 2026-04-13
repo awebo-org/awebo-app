@@ -31,7 +31,6 @@ const BANNER_KEY_TEXT: Rgb = theme::FG_DIM;
 const BANNER_DISMISS_TEXT: Rgb = theme::FG_MUTED;
 const BANNER_DISMISS_HOVER: Rgb = theme::FG_PRIMARY;
 
-
 /// Which banner variant to show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HintBannerKind {
@@ -60,7 +59,6 @@ impl Default for HintBannerState {
 }
 
 impl HintBannerState {
-
     /// Dismiss the currently visible banner.
     pub fn dismiss(&mut self) {
         if self.kind == Some(HintBannerKind::Welcome) {
@@ -86,12 +84,10 @@ impl HintBannerState {
         self.dismiss_hovered = false;
     }
 
-
     pub fn is_visible(&self) -> bool {
         self.kind.is_some()
     }
 }
-
 
 struct HintLine {
     keys: &'static str,
@@ -100,18 +96,39 @@ struct HintLine {
 
 fn welcome_hints() -> &'static [HintLine] {
     &[
-        HintLine { keys: "/agent <task>", description: "start an agent conversation" },
-        HintLine { keys: "/ask <question>", description: "ask AI about your terminal" },
-        HintLine { keys: "↑ ↓", description: "cycle past commands" },
-        HintLine { keys: "/help", description: "show all available commands" },
+        HintLine {
+            keys: "/agent <task>",
+            description: "start an agent conversation",
+        },
+        HintLine {
+            keys: "/ask <question>",
+            description: "ask AI about your terminal",
+        },
+        HintLine {
+            keys: "↑ ↓",
+            description: "cycle past commands",
+        },
+        HintLine {
+            keys: "/help",
+            description: "show all available commands",
+        },
     ]
 }
 
 fn agent_mode_hints() -> &'static [HintLine] {
     &[
-        HintLine { keys: "Enter", description: "send task to agent" },
-        HintLine { keys: "/close", description: "exit agent mode" },
-        HintLine { keys: "Esc", description: "cancel running inference" },
+        HintLine {
+            keys: "Enter",
+            description: "send task to agent",
+        },
+        HintLine {
+            keys: "/close",
+            description: "exit agent mode",
+        },
+        HintLine {
+            keys: "Esc",
+            description: "cancel running inference",
+        },
     ]
 }
 
@@ -128,7 +145,6 @@ fn banner_hints(kind: HintBannerKind) -> &'static [HintLine] {
         HintBannerKind::AgentMode => agent_mode_hints(),
     }
 }
-
 
 /// Total height of the banner in physical pixels.
 /// Returns 0 if the banner is not visible.
@@ -151,8 +167,6 @@ pub fn banner_height(state: &HintBannerState, sf: f32) -> usize {
     };
     sep_h + pad_y + title_h + title_gap + hints_total + pad_y
 }
-
-
 
 /// Check if mouse position is over the dismiss button area.
 pub fn hit_test_dismiss(
@@ -180,10 +194,11 @@ pub fn hit_test_dismiss(
 
     let px = mx as usize;
     let py = my as usize;
-    px >= dismiss_x && px < dismiss_x + dismiss_w
-        && py >= dismiss_row_y && py < dismiss_row_y + title_h
+    px >= dismiss_x
+        && px < dismiss_x + dismiss_w
+        && py >= dismiss_row_y
+        && py < dismiss_row_y + title_h
 }
-
 
 /// Draw the hint banner. Call this from the renderer between block view and prompt bar.
 /// `x_edge` is the left edge for the full-width separator (accounts for sidebar).
@@ -232,32 +247,65 @@ pub fn draw(
 
     let title_x = icon_x + icon_sz as usize + (8.0 * sf) as usize;
     draw_text_at_bold(
-        buf, font_system, swash_cache,
-        title_x, row_y, buf.height,
-        title, title_metrics, BANNER_TITLE, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        title_x,
+        row_y,
+        buf.height,
+        title,
+        title_metrics,
+        BANNER_TITLE,
+        Family::SansSerif,
     );
 
     let dismiss_text = "Don't show again";
     let dismiss_font_size = 11.0 * sf;
     let dismiss_line_height = 16.0 * sf;
     let dismiss_metrics = Metrics::new(dismiss_font_size, dismiss_line_height);
-    let dismiss_text_w = measure_text_width(font_system, dismiss_text, dismiss_metrics, Family::SansSerif) as usize;
+    let dismiss_text_w = measure_text_width(
+        font_system,
+        dismiss_text,
+        dismiss_metrics,
+        Family::SansSerif,
+    ) as usize;
     let dismiss_pad = (8.0 * sf) as usize;
     let dismiss_btn_w = dismiss_text_w + dismiss_pad * 2;
     let dismiss_btn_h = (22.0 * sf) as usize;
     let dismiss_btn_x = (x_start + max_w).saturating_sub(pad_x + dismiss_btn_w);
-    let dismiss_btn_y = row_y + ((title_line_height - dismiss_btn_h as f32) / 2.0).max(0.0) as usize;
+    let dismiss_btn_y =
+        row_y + ((title_line_height - dismiss_btn_h as f32) / 2.0).max(0.0) as usize;
     let dismiss_r = (4.0 * sf) as usize;
 
     if state.dismiss_hovered {
-        fill_rounded_rect(buf, dismiss_btn_x, dismiss_btn_y, dismiss_btn_w, dismiss_btn_h, dismiss_r, theme::BG_HOVER);
+        fill_rounded_rect(
+            buf,
+            dismiss_btn_x,
+            dismiss_btn_y,
+            dismiss_btn_w,
+            dismiss_btn_h,
+            dismiss_r,
+            theme::BG_HOVER,
+        );
     }
-    let dismiss_color = if state.dismiss_hovered { BANNER_DISMISS_HOVER } else { BANNER_DISMISS_TEXT };
-    let dismiss_text_y = dismiss_btn_y + ((dismiss_btn_h as f32 - dismiss_line_height) / 2.0) as usize;
+    let dismiss_color = if state.dismiss_hovered {
+        BANNER_DISMISS_HOVER
+    } else {
+        BANNER_DISMISS_TEXT
+    };
+    let dismiss_text_y =
+        dismiss_btn_y + ((dismiss_btn_h as f32 - dismiss_line_height) / 2.0) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        dismiss_btn_x + dismiss_pad, dismiss_text_y, buf.height,
-        dismiss_text, dismiss_metrics, dismiss_color, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        dismiss_btn_x + dismiss_pad,
+        dismiss_text_y,
+        buf.height,
+        dismiss_text,
+        dismiss_metrics,
+        dismiss_color,
+        Family::SansSerif,
     );
 
     let hint_font_size = 12.0 * sf;
@@ -275,25 +323,48 @@ pub fn draw(
         let ly = hints_start_y + i * (line_h + hint_gap);
         let lx = x_start + pad_x;
 
-        let key_w = measure_text_width(font_system, hint.keys, key_metrics, Family::Monospace) as usize;
+        let key_w =
+            measure_text_width(font_system, hint.keys, key_metrics, Family::Monospace) as usize;
         let badge_pad = (4.0 * sf) as usize;
         let badge_h = (key_line_height + 4.0 * sf) as usize;
         let badge_y = ly + ((line_h as f32 - badge_h as f32) / 2.0).max(0.0) as usize;
         let badge_r = (3.0 * sf) as usize;
-        fill_rounded_rect(buf, lx, badge_y, key_w + badge_pad * 2, badge_h, badge_r, BANNER_KEY_BG);
+        fill_rounded_rect(
+            buf,
+            lx,
+            badge_y,
+            key_w + badge_pad * 2,
+            badge_h,
+            badge_r,
+            BANNER_KEY_BG,
+        );
         let key_text_y = badge_y + ((badge_h as f32 - key_line_height) / 2.0) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            lx + badge_pad, key_text_y, buf.height,
-            hint.keys, key_metrics, BANNER_KEY_TEXT, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            lx + badge_pad,
+            key_text_y,
+            buf.height,
+            hint.keys,
+            key_metrics,
+            BANNER_KEY_TEXT,
+            Family::Monospace,
         );
 
         let desc_x = lx + key_w + badge_pad * 2 + (10.0 * sf) as usize;
         let desc_y = ly + ((line_h as f32 - hint_line_height) / 2.0) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            desc_x, desc_y, buf.height,
-            hint.description, hint_metrics, BANNER_HINT_TEXT, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            desc_x,
+            desc_y,
+            buf.height,
+            hint.description,
+            hint_metrics,
+            BANNER_HINT_TEXT,
+            Family::SansSerif,
         );
     }
 }
@@ -345,7 +416,11 @@ mod tests {
 
     #[test]
     fn banner_height_zero_when_hidden() {
-        let state = HintBannerState { kind: None, dismiss_hovered: false, welcome_dismissed: true };
+        let state = HintBannerState {
+            kind: None,
+            dismiss_hovered: false,
+            welcome_dismissed: true,
+        };
         assert_eq!(banner_height(&state, 2.0), 0);
     }
 

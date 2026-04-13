@@ -18,17 +18,17 @@ impl super::super::App {
         self.settings_state.font_picker_open = false;
         self.settings_state.font_picker_hovered = None;
 
-        if self.settings_state.font_options.is_empty() {
-            if let Some(renderer) = &mut self.renderer {
-                renderer.ensure_system_fonts_loaded();
-                self.settings_state.font_options =
-                    crate::ui::components::overlay::detect_monospace_fonts(
-                        &renderer.font_system,
-                    );
-            }
+        if self.settings_state.font_options.is_empty()
+            && let Some(renderer) = &mut self.renderer
+        {
+            renderer.ensure_system_fonts_loaded();
+            self.settings_state.font_options =
+                crate::ui::components::overlay::detect_monospace_fonts(&renderer.font_system);
         }
 
-        if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); }
+        if let Some(r) = self.renderer.as_mut() {
+            r.invalidate_grid_cache();
+        }
         self.request_redraw();
     }
 
@@ -38,13 +38,16 @@ impl super::super::App {
             self.tab_mgr.remove(idx);
             self.settings_state.font_picker_open = false;
             self.settings_state.font_picker_hovered = None;
-            if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); }
+            if let Some(r) = self.renderer.as_mut() {
+                r.invalidate_grid_cache();
+            }
             self.request_redraw();
         }
     }
 
     pub(crate) fn is_settings_active(&self) -> bool {
-        self.tab_mgr.get(self.tab_mgr.active_index())
+        self.tab_mgr
+            .get(self.tab_mgr.active_index())
             .map(|t| t.route() == router::Route::Settings)
             .unwrap_or(false)
     }
@@ -54,7 +57,11 @@ impl super::super::App {
         if !self.overlay.sidebar_open {
             return 0;
         }
-        let sf = self.renderer.as_ref().map(|r| r.scale_factor as f32).unwrap_or(1.0);
+        let sf = self
+            .renderer
+            .as_ref()
+            .map(|r| r.scale_factor as f32)
+            .unwrap_or(1.0);
         self.panel_layout.left_physical_width(sf)
     }
 
@@ -81,7 +88,8 @@ impl super::super::App {
         );
 
         let prev_btn = self.settings_state.hovered_btn;
-        if self.settings_state.active == crate::ui::components::overlay::SettingsCategory::AiModels {
+        if self.settings_state.active == crate::ui::components::overlay::SettingsCategory::AiModels
+        {
             let sidebar_w = (200.0 * sf) as usize;
             let content_x = x_off + sidebar_w;
             let content_w = (renderer.width as usize).saturating_sub(content_x);
@@ -195,8 +203,7 @@ impl super::super::App {
                 font_count,
             ) {
                 if idx < font_count {
-                    self.settings_state.font_family =
-                        self.settings_state.font_options[idx].clone();
+                    self.settings_state.font_family = self.settings_state.font_options[idx].clone();
                     self.settings_state.font_picker_open = false;
                     self.settings_state.font_picker_hovered = None;
                     self.apply_font_settings();
@@ -315,37 +322,33 @@ impl super::super::App {
                     self.overlay.usage_panel_open = false;
                     self.overlay.pro_panel_hovered = None;
                 }
-                Some(AboutHit::DeactivateLicense) => {
-                    match self.license_mgr.deactivate() {
-                        Ok(()) => {
-                            self.usage_tracker.set_pro(false);
-                            self.toast_mgr.push(
-                                "License deactivated".to_string(),
-                                crate::ui::components::toast::ToastLevel::Info,
-                            );
-                            self.overlay.pro_panel_open = false;
-                        }
-                        Err(e) => {
-                            self.toast_mgr.push(
-                                format!("Deactivation failed: {e}"),
-                                crate::ui::components::toast::ToastLevel::Error,
-                            );
-                        }
+                Some(AboutHit::DeactivateLicense) => match self.license_mgr.deactivate() {
+                    Ok(()) => {
+                        self.usage_tracker.set_pro(false);
+                        self.toast_mgr.push(
+                            "License deactivated".to_string(),
+                            crate::ui::components::toast::ToastLevel::Info,
+                        );
+                        self.overlay.pro_panel_open = false;
                     }
-                }
+                    Err(e) => {
+                        self.toast_mgr.push(
+                            format!("Deactivation failed: {e}"),
+                            crate::ui::components::toast::ToastLevel::Error,
+                        );
+                    }
+                },
                 Some(AboutHit::ResetSettings) => {
                     self.config = crate::config::AppConfig::default();
                     self.settings_state.input_type =
                         crate::ui::components::overlay::InputType::Smart;
-                    self.settings_state.font_family =
-                        self.config.appearance.font_family.clone();
+                    self.settings_state.font_family = self.config.appearance.font_family.clone();
                     self.settings_state.font_size_px = self.config.appearance.font_size;
                     self.settings_state.line_height_px = self.config.appearance.line_height;
                     self.settings_state.models_path = self.config.ai.models_path.clone();
                     self.settings_state.web_search_enabled = self.config.ai.web_search;
                     self.settings_state.sandbox.cpus = self.config.sandbox.default_cpus;
-                    self.settings_state.sandbox.memory_mib =
-                        self.config.sandbox.default_memory_mib;
+                    self.settings_state.sandbox.memory_mib = self.config.sandbox.default_memory_mib;
                     self.config.save();
                     self.apply_font_settings();
                     self.toast_mgr.push(
@@ -402,8 +405,8 @@ impl super::super::App {
                 return;
             }
 
-            let mouse_dy = self.cursor_pos.1 as f32
-                - self.settings_state.sandbox.scrollbar_drag_anchor_y;
+            let mouse_dy =
+                self.cursor_pos.1 as f32 - self.settings_state.sandbox.scrollbar_drag_anchor_y;
             let scroll_delta = mouse_dy * (max_scroll / track_space);
             self.settings_state.sandbox.scroll_offset =
                 (self.settings_state.sandbox.scrollbar_drag_anchor_offset + scroll_delta)
@@ -429,7 +432,9 @@ impl super::super::App {
         let pad = (24.0 * sf) as usize;
         let track_x = content_x + pad;
         let track_w = content_w.saturating_sub(pad * 2);
-        if track_w == 0 { return; }
+        if track_w == 0 {
+            return;
+        }
         let frac = ((self.cursor_pos.0 as f32 - track_x as f32) / track_w as f32).clamp(0.0, 1.0);
         self.apply_sandbox_slider(dragging, frac);
         self.request_redraw();
@@ -441,7 +446,9 @@ impl super::super::App {
         slider: crate::ui::components::overlay::settings::SandboxSlider,
         frac: f32,
     ) {
-        use crate::ui::components::overlay::settings::{SandboxSlider, sandbox_settings::fraction_to_value};
+        use crate::ui::components::overlay::settings::{
+            SandboxSlider, sandbox_settings::fraction_to_value,
+        };
         let sb = &mut self.settings_state.sandbox;
         match slider {
             SandboxSlider::Cpu => {
@@ -505,17 +512,25 @@ impl super::super::App {
                 }
             }
             SandboxSettingsHit::AddImage => {
-                let input = self.settings_state.sandbox.add_image_input.trim().to_string();
+                let input = self
+                    .settings_state
+                    .sandbox
+                    .add_image_input
+                    .trim()
+                    .to_string();
                 if !input.is_empty() {
                     let display = input.rsplit('/').next().unwrap_or(&input).to_string();
-                    self.config.sandbox.custom_images.push(crate::config::CustomImageConfig {
-                        oci_ref: input.clone(),
-                        display_name: display,
-                        tag: "latest".into(),
-                        default_shell: "/bin/sh".into(),
-                        default_workdir: "/root".into(),
-                        last_pulled: String::new(),
-                    });
+                    self.config
+                        .sandbox
+                        .custom_images
+                        .push(crate::config::CustomImageConfig {
+                            oci_ref: input.clone(),
+                            display_name: display,
+                            tag: "latest".into(),
+                            default_shell: "/bin/sh".into(),
+                            default_workdir: "/root".into(),
+                            last_pulled: String::new(),
+                        });
                     self.config.save();
                     self.settings_state.sandbox.add_image_input.clear();
                     self.settings_state.sandbox.add_image_focused = false;

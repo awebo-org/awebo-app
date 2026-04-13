@@ -21,7 +21,7 @@ use super::gpu_grid::GpuGridRenderer;
 
 /// Active render backend — either GPU-accelerated or pure-CPU.
 pub enum RenderBackend {
-    Gpu(GpuBackend),
+    Gpu(Box<GpuBackend>),
     Soft(SoftBackend),
 }
 
@@ -51,7 +51,7 @@ impl RenderBackend {
         if force != "soft" {
             if let Some(gpu) = Self::try_gpu(window.clone(), width, height) {
                 log::info!("Using GPU (wgpu) backend");
-                return RenderBackend::Gpu(gpu);
+                return RenderBackend::Gpu(Box::new(gpu));
             }
             if force == "gpu" {
                 panic!("TERMINAL_BACKEND=gpu but wgpu initialisation failed");
@@ -71,12 +71,12 @@ impl RenderBackend {
         let surface = instance.create_surface(window).ok()?;
 
         let adapter = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(
-                instance.request_adapter(&wgpu::RequestAdapterOptions {
+            tokio::runtime::Handle::current().block_on(instance.request_adapter(
+                &wgpu::RequestAdapterOptions {
                     compatible_surface: Some(&surface),
                     ..Default::default()
-                }),
-            )
+                },
+            ))
         })
         .ok()?;
 
@@ -219,7 +219,8 @@ impl RenderBackend {
                             },
                             aspect: wgpu::TextureAspect::All,
                         },
-                        &pixel_data[offset as usize..(offset + upload_h as u64 * row_bytes as u64) as usize],
+                        &pixel_data[offset as usize
+                            ..(offset + upload_h as u64 * row_bytes as u64) as usize],
                         wgpu::TexelCopyBufferLayout {
                             offset: 0,
                             bytes_per_row: Some(row_bytes),

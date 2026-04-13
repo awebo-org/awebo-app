@@ -71,32 +71,68 @@ impl GitRepo {
             let bits = s.status();
 
             if bits.intersects(git2::Status::INDEX_NEW) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Added, staged: true });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Added,
+                    staged: true,
+                });
             }
             if bits.intersects(git2::Status::INDEX_MODIFIED) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Modified, staged: true });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Modified,
+                    staged: true,
+                });
             }
             if bits.intersects(git2::Status::INDEX_DELETED) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Deleted, staged: true });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Deleted,
+                    staged: true,
+                });
             }
             if bits.intersects(git2::Status::INDEX_RENAMED) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Renamed, staged: true });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Renamed,
+                    staged: true,
+                });
             }
 
             if bits.intersects(git2::Status::WT_NEW) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Untracked, staged: false });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Untracked,
+                    staged: false,
+                });
             }
             if bits.intersects(git2::Status::WT_MODIFIED) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Modified, staged: false });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Modified,
+                    staged: false,
+                });
             }
             if bits.intersects(git2::Status::WT_DELETED) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Deleted, staged: false });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Deleted,
+                    staged: false,
+                });
             }
             if bits.intersects(git2::Status::WT_RENAMED) {
-                entries.push(StatusEntry { path: path.clone(), status: FileStatus::Renamed, staged: false });
+                entries.push(StatusEntry {
+                    path: path.clone(),
+                    status: FileStatus::Renamed,
+                    staged: false,
+                });
             }
             if bits.intersects(git2::Status::CONFLICTED) {
-                entries.push(StatusEntry { path, status: FileStatus::Conflicted, staged: false });
+                entries.push(StatusEntry {
+                    path,
+                    status: FileStatus::Conflicted,
+                    staged: false,
+                });
             }
         }
         entries
@@ -116,7 +152,11 @@ impl GitRepo {
                 }
                 let is_remote = btype == git2::BranchType::Remote;
                 let is_current = !is_remote && name == current;
-                result.push(BranchEntry { name, is_current, is_remote });
+                result.push(BranchEntry {
+                    name,
+                    is_current,
+                    is_remote,
+                });
             }
         }
         result
@@ -125,14 +165,16 @@ impl GitRepo {
     /// Stage a file (add to index).
     pub fn stage_file(&self, path: &str) -> Result<(), String> {
         let mut index = self.repo.index().map_err(|e| e.message().to_string())?;
-        let abs = self.repo.workdir()
-            .ok_or("bare repo")?
-            .join(path);
+        let abs = self.repo.workdir().ok_or("bare repo")?.join(path);
 
         if abs.exists() {
-            index.add_path(Path::new(path)).map_err(|e| e.message().to_string())?;
+            index
+                .add_path(Path::new(path))
+                .map_err(|e| e.message().to_string())?;
         } else {
-            index.remove_path(Path::new(path)).map_err(|e| e.message().to_string())?;
+            index
+                .remove_path(Path::new(path))
+                .map_err(|e| e.message().to_string())?;
         }
         index.write().map_err(|e| e.message().to_string())
     }
@@ -149,7 +191,8 @@ impl GitRepo {
     /// Checkout a local branch by name.
     pub fn checkout_branch(&self, name: &str) -> Result<(), String> {
         let refname = format!("refs/heads/{name}");
-        let obj = self.repo
+        let obj = self
+            .repo
             .revparse_single(&refname)
             .map_err(|e| e.message().to_string())?;
         let mut opts = git2::build::CheckoutBuilder::new();
@@ -188,10 +231,12 @@ impl GitRepo {
     pub fn commit(&self, message: &str) -> Result<(), String> {
         let mut index = self.repo.index().map_err(|e| e.message().to_string())?;
         let tree_oid = index.write_tree().map_err(|e| e.message().to_string())?;
-        let tree = self.repo.find_tree(tree_oid).map_err(|e| e.message().to_string())?;
+        let tree = self
+            .repo
+            .find_tree(tree_oid)
+            .map_err(|e| e.message().to_string())?;
         let sig = self.repo.signature().map_err(|e| e.message().to_string())?;
-        let parent = self.repo.head().ok()
-            .and_then(|h| h.peel_to_commit().ok());
+        let parent = self.repo.head().ok().and_then(|h| h.peel_to_commit().ok());
         let parents: Vec<&git2::Commit> = parent.iter().collect();
         self.repo
             .commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)
@@ -202,7 +247,8 @@ impl GitRepo {
     /// Stage all unstaged files.
     pub fn stage_all(&self) -> Result<(), String> {
         let mut index = self.repo.index().map_err(|e| e.message().to_string())?;
-        index.add_all(["."], git2::IndexAddOption::DEFAULT, None)
+        index
+            .add_all(["."], git2::IndexAddOption::DEFAULT, None)
             .map_err(|e| e.message().to_string())?;
         index.write().map_err(|e| e.message().to_string())
     }
@@ -222,12 +268,13 @@ impl GitRepo {
         opts.pathspec(path);
 
         let diff = if staged {
-            let head_tree = self.repo.head().ok()
-                .and_then(|h| h.peel_to_tree().ok());
-            self.repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))
+            let head_tree = self.repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+            self.repo
+                .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))
         } else {
             self.repo.diff_index_to_workdir(None, Some(&mut opts))
-        }.map_err(|e| e.message().to_string())?;
+        }
+        .map_err(|e| e.message().to_string())?;
 
         let mut output = String::new();
         diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
@@ -239,7 +286,8 @@ impl GitRepo {
                 output.push_str(content);
             }
             true
-        }).map_err(|e| e.message().to_string())?;
+        })
+        .map_err(|e| e.message().to_string())?;
 
         Ok(output)
     }
@@ -257,7 +305,9 @@ impl GitRepo {
         let n = diff.deltas().len();
         for i in 0..n {
             if let Some(delta) = diff.get_delta(i) {
-                let path = delta.new_file().path()
+                let path = delta
+                    .new_file()
+                    .path()
                     .or_else(|| delta.old_file().path())
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_default();
@@ -270,12 +320,16 @@ impl GitRepo {
                 };
                 output.push_str(&format!("{path} ({kind})\n"));
             }
-            if output.len() > 4000 { break; }
+            if output.len() > 4000 {
+                break;
+            }
         }
         if let Some(s) = stats {
             output.push_str(&format!(
                 "\n{} file(s), +{} -{}\n",
-                s.files_changed(), s.insertions(), s.deletions()
+                s.files_changed(),
+                s.insertions(),
+                s.deletions()
             ));
         }
         output
@@ -289,8 +343,12 @@ mod tests {
     #[test]
     fn file_status_variants() {
         let variants = [
-            FileStatus::Modified, FileStatus::Added, FileStatus::Deleted,
-            FileStatus::Renamed, FileStatus::Untracked, FileStatus::Conflicted,
+            FileStatus::Modified,
+            FileStatus::Added,
+            FileStatus::Deleted,
+            FileStatus::Renamed,
+            FileStatus::Untracked,
+            FileStatus::Conflicted,
         ];
         for (i, a) in variants.iter().enumerate() {
             for (j, b) in variants.iter().enumerate() {
@@ -301,7 +359,11 @@ mod tests {
 
     #[test]
     fn status_entry_clone() {
-        let e = StatusEntry { path: "foo.rs".into(), status: FileStatus::Modified, staged: true };
+        let e = StatusEntry {
+            path: "foo.rs".into(),
+            status: FileStatus::Modified,
+            staged: true,
+        };
         let e2 = e.clone();
         assert_eq!(e.path, e2.path);
         assert_eq!(e.status, e2.status);
@@ -310,7 +372,11 @@ mod tests {
 
     #[test]
     fn branch_entry_fields() {
-        let b = BranchEntry { name: "main".into(), is_current: true, is_remote: false };
+        let b = BranchEntry {
+            name: "main".into(),
+            is_current: true,
+            is_remote: false,
+        };
         assert!(b.is_current);
         assert!(!b.is_remote);
     }
@@ -334,7 +400,10 @@ mod tests {
         if let Some(r) = GitRepo::discover(".") {
             let branches = r.branches();
             assert!(!branches.is_empty(), "expected at least one branch");
-            assert!(branches.iter().any(|b| b.is_current), "expected a current branch");
+            assert!(
+                branches.iter().any(|b| b.is_current),
+                "expected a current branch"
+            );
         }
     }
 

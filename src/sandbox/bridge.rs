@@ -10,13 +10,13 @@
 //! 3. Stdin is written via a `tokio::sync::mpsc` channel from the sync side
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
+use alacritty_terminal::Term;
 use alacritty_terminal::event::WindowSize;
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::Config;
-use alacritty_terminal::Term;
 use alacritty_terminal::vte::ansi;
 
 use crate::terminal::{JsonEventProxy, TerminalEvent};
@@ -139,10 +139,14 @@ impl SandboxBridge {
 
         let cpus = config.cpus;
         let memory_mib = config.memory_mib;
-        let volumes: Vec<VolumeMountInfo> = config.volumes.iter().map(|v| VolumeMountInfo {
-            guest_path: v.guest_path.clone(),
-            host_path: v.host_path.to_string_lossy().into_owned(),
-        }).collect();
+        let volumes: Vec<VolumeMountInfo> = config
+            .volumes
+            .iter()
+            .map(|v| VolumeMountInfo {
+                guest_path: v.guest_path.clone(),
+                host_path: v.host_path.to_string_lossy().into_owned(),
+            })
+            .collect();
 
         let initializing = Arc::new(AtomicBool::new(true));
         let init_flag = initializing.clone();
@@ -154,7 +158,16 @@ impl SandboxBridge {
         let pull_state_clone = pull_state.clone();
 
         let task_handle = tokio::spawn(async move {
-            match Self::io_loop(config, term_clone, stdin_rx, proxy.clone(), init_flag, pull_state_clone).await {
+            match Self::io_loop(
+                config,
+                term_clone,
+                stdin_rx,
+                proxy.clone(),
+                init_flag,
+                pull_state_clone,
+            )
+            .await
+            {
                 Ok(()) => {}
                 Err(e) => {
                     let msg = format!("Sandbox '{}' error: {}", display_for_task, e);
@@ -235,10 +248,13 @@ impl SandboxBridge {
         ));
         let _ = proxy.send_event(TerminalEvent::Wakeup);
 
-        log::info!("[sandbox] Creating VM '{}' with pull progress...", sandbox_name);
+        log::info!(
+            "[sandbox] Creating VM '{}' with pull progress...",
+            sandbox_name
+        );
 
-        let (mut progress_handle, create_task) = builder.create_with_pull_progress()
-            .map_err(|e| {
+        let (mut progress_handle, create_task) =
+            builder.create_with_pull_progress().map_err(|e| {
                 initializing.store(false, Ordering::Relaxed);
                 super::manager::SandboxError::Runtime(e.to_string())
             })?;
@@ -252,7 +268,8 @@ impl SandboxBridge {
             }
         });
 
-        let sandbox = create_task.await
+        let sandbox = create_task
+            .await
             .map_err(|e| {
                 initializing.store(false, Ordering::Relaxed);
                 super::manager::SandboxError::Runtime(format!("task join: {}", e))
@@ -275,7 +292,9 @@ impl SandboxBridge {
 
         log::info!("[sandbox] VM '{}' ready, starting shell...", sandbox.name());
 
-        let shell = config.env.iter()
+        let shell = config
+            .env
+            .iter()
             .find(|(k, _)| k == "SHELL")
             .map(|(_, v)| v.as_str())
             .unwrap_or("/bin/sh");
@@ -298,9 +317,10 @@ impl SandboxBridge {
 
         let mut parser = ansi::Processor::<ansi::StdSyncHandler>::new();
 
-        let _ = proxy.send_event(TerminalEvent::Toast(
-            format!("Sandbox '{}' ready", sandbox_name),
-        ));
+        let _ = proxy.send_event(TerminalEvent::Toast(format!(
+            "Sandbox '{}' ready",
+            sandbox_name
+        )));
         let _ = proxy.send_event(TerminalEvent::Wakeup);
 
         loop {
@@ -361,10 +381,7 @@ impl SandboxBridge {
     }
 
     /// Apply a single pull progress event to the shared state.
-    fn apply_pull_event(
-        state: &Arc<Mutex<PullState>>,
-        evt: &microsandbox::sandbox::PullProgress,
-    ) {
+    fn apply_pull_event(state: &Arc<Mutex<PullState>>, evt: &microsandbox::sandbox::PullProgress) {
         use microsandbox::sandbox::PullProgress;
         let mut s = state.lock().unwrap();
         match evt {
@@ -373,22 +390,34 @@ impl SandboxBridge {
             }
             PullProgress::Resolved { layer_count, .. } => {
                 s.phase = PullPhase::Pulling;
-                s.layers.resize(*layer_count, LayerProgress {
-                    phase: LayerPhase::Waiting,
-                    downloaded: 0,
-                    total: None,
-                    extracted: 0,
-                    extract_total: 0,
-                });
+                s.layers.resize(
+                    *layer_count,
+                    LayerProgress {
+                        phase: LayerPhase::Waiting,
+                        downloaded: 0,
+                        total: None,
+                        extracted: 0,
+                        extract_total: 0,
+                    },
+                );
             }
-            PullProgress::LayerDownloadProgress { layer_index, downloaded_bytes, total_bytes, .. } => {
+            PullProgress::LayerDownloadProgress {
+                layer_index,
+                downloaded_bytes,
+                total_bytes,
+                ..
+            } => {
                 if let Some(layer) = s.layers.get_mut(*layer_index) {
                     layer.phase = LayerPhase::Downloading;
                     layer.downloaded = *downloaded_bytes;
                     layer.total = *total_bytes;
                 }
             }
-            PullProgress::LayerDownloadComplete { layer_index, downloaded_bytes, .. } => {
+            PullProgress::LayerDownloadComplete {
+                layer_index,
+                downloaded_bytes,
+                ..
+            } => {
                 if let Some(layer) = s.layers.get_mut(*layer_index) {
                     layer.phase = LayerPhase::Downloaded;
                     layer.downloaded = *downloaded_bytes;
@@ -399,7 +428,11 @@ impl SandboxBridge {
                     layer.phase = LayerPhase::Extracting;
                 }
             }
-            PullProgress::LayerExtractProgress { layer_index, bytes_read, total_bytes } => {
+            PullProgress::LayerExtractProgress {
+                layer_index,
+                bytes_read,
+                total_bytes,
+            } => {
                 if let Some(layer) = s.layers.get_mut(*layer_index) {
                     layer.phase = LayerPhase::Extracting;
                     layer.extracted = *bytes_read;

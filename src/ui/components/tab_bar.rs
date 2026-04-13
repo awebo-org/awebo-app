@@ -27,7 +27,11 @@ const LEFT_PADDING_MACOS: f32 = 84.0;
 pub fn left_padding(is_fullscreen: bool) -> f32 {
     #[cfg(target_os = "macos")]
     {
-        if is_fullscreen { 0.0 } else { LEFT_PADDING_MACOS }
+        if is_fullscreen {
+            0.0
+        } else {
+            LEFT_PADDING_MACOS
+        }
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -107,11 +111,7 @@ impl DragState {
 
         self.reset();
 
-        if from != to {
-            Some((from, to))
-        } else {
-            None
-        }
+        if from != to { Some((from, to)) } else { None }
     }
 
     pub fn reset(&mut self) {
@@ -145,7 +145,9 @@ fn tab_logical_width(tab_count: usize, buf_width_phys: f64, sf: f64, is_fullscre
         - AVATAR_ICON_SIZE as f64
         - RIGHT_GAP as f64
         - RIGHT_MARGIN as f64;
-    (avail / tab_count as f64).max(0.0).min(TAB_MAX_WIDTH as f64)
+    (avail / tab_count as f64)
+        .max(0.0)
+        .min(TAB_MAX_WIDTH as f64)
 }
 
 pub fn hit_test(
@@ -234,7 +236,8 @@ pub fn hovered_close_tab(
         return None;
     }
     let left_pad = left_padding(is_fullscreen) as f64 * sf + sidebar_icon_logical_width() * sf;
-    if phys_x < left_pad {        return None;
+    if phys_x < left_pad {
+        return None;
     }
     let tab_w = tab_logical_width(tab_count, buf_width_phys, sf, is_fullscreen) * sf;
     let x = phys_x - left_pad;
@@ -400,17 +403,30 @@ pub fn draw(
         let hover_x = sidebar_icon_x.saturating_sub(hover_pad);
         let hover_y = sidebar_icon_y.saturating_sub(hover_pad);
         let r = (4.0 * sf) as usize;
-        super::overlay::fill_rounded_rect(buf, hover_x, hover_y, hover_size, hover_size, r, theme::TAB_ACTIVE_BG);
+        super::overlay::fill_rounded_rect(
+            buf,
+            hover_x,
+            hover_y,
+            hover_size,
+            hover_size,
+            r,
+            theme::TAB_ACTIVE_BG,
+        );
     }
 
-    let sidebar_color = if sidebar_open {
-        theme::TAB_ACTIVE_TEXT
-    } else if sidebar_hovered {
+    let sidebar_color = if sidebar_open || sidebar_hovered {
         theme::TAB_ACTIVE_TEXT
     } else {
         theme::PLUS_TEXT
     };
-    icon_renderer.draw(buf, Icon::PanelLeft, sidebar_icon_x, sidebar_icon_y, sidebar_icon_sz, sidebar_color);
+    icon_renderer.draw(
+        buf,
+        Icon::PanelLeft,
+        sidebar_icon_x,
+        sidebar_icon_y,
+        sidebar_icon_sz,
+        sidebar_color,
+    );
 
     let left_pad = traffic_pad + sidebar_margin + sidebar_icon_sz as usize + sidebar_margin;
 
@@ -425,13 +441,7 @@ pub fn draw(
         let draw_w = tab_w.min(w.saturating_sub(tab_x));
 
         if tab.is_active {
-            buf.fill_rect(
-                tab_x,
-                tab_top,
-                draw_w,
-                tab_h,
-                theme::TAB_ACTIVE_BG,
-            );
+            buf.fill_rect(tab_x, tab_top, draw_w, tab_h, theme::TAB_ACTIVE_BG);
         }
 
         if i < tab_count - 1 && !tab.is_active && !tabs.get(i + 1).is_some_and(|t| t.is_active) {
@@ -455,12 +465,12 @@ pub fn draw(
             let tab_icon_x = tab_x + (10.0 * sf) as usize + dot_offset;
             let tab_icon_y = tab_top + ((tab_h as f32 - tab_icon_sz as f32) / 2.0) as usize;
             let icon_color = if tab.is_muted {
-                    theme::FG_MUTED
-                } else if tab.is_active {
-                    theme::TAB_ACTIVE_TEXT
-                } else {
-                    theme::TAB_INACTIVE_TEXT
-                };
+                theme::FG_MUTED
+            } else if tab.is_active {
+                theme::TAB_ACTIVE_TEXT
+            } else {
+                theme::TAB_INACTIVE_TEXT
+            };
             icon_renderer.draw(buf, icon, tab_icon_x, tab_icon_y, tab_icon_sz, icon_color);
             tab_icon_sz as usize + (4.0 * sf) as usize
         } else {
@@ -469,7 +479,11 @@ pub fn draw(
 
         let text_avail = tab_w_logical - 42.0;
         if text_avail > 0.0 {
-            let effective_avail = if has_dot { text_avail - 10.0 } else { text_avail };
+            let effective_avail = if has_dot {
+                text_avail - 10.0
+            } else {
+                text_avail
+            };
             let max_chars = (effective_avail / 7.5).max(1.0) as usize;
             let display: String = if tab.title.len() > max_chars && max_chars > 3 {
                 format!("{}...", &tab.title[..max_chars.saturating_sub(3)])
@@ -507,7 +521,13 @@ pub fn draw(
             let dot_r = (3.0 * sf).max(1.0) as usize;
             let dot_x = tab_x + (12.0 * sf) as usize;
             let dot_cy = bar_h / 2;
-            fill_circle(buf, dot_x, dot_cy.saturating_sub(dot_r), dot_r, theme::ERROR);
+            fill_circle(
+                buf,
+                dot_x,
+                dot_cy.saturating_sub(dot_r),
+                dot_r,
+                theme::ERROR,
+            );
         }
 
         let is_close_hovered = hovered_close == Some(i);
@@ -534,7 +554,15 @@ pub fn draw(
         let hover_x = (plus_cx - 11.0 * sf) as usize;
         let hover_y = (content_cy - 11.0 * sf) as usize;
         let r = (4.0 * sf) as usize;
-        super::overlay::fill_rounded_rect(buf, hover_x, hover_y, hover_size, hover_size, r, theme::TAB_ACTIVE_BG);
+        super::overlay::fill_rounded_rect(
+            buf,
+            hover_x,
+            hover_y,
+            hover_size,
+            hover_size,
+            r,
+            theme::TAB_ACTIVE_BG,
+        );
     }
 
     let plus_metrics = Metrics::new(16.0 * sf, 22.0 * sf);
@@ -565,7 +593,15 @@ pub fn draw(
         let hover_x = (picker_cx - 10.0 * sf) as usize;
         let hover_y = (content_cy - 10.0 * sf) as usize;
         let r = (4.0 * sf) as usize;
-        super::overlay::fill_rounded_rect(buf, hover_x, hover_y, hover_size, hover_size, r, theme::TAB_ACTIVE_BG);
+        super::overlay::fill_rounded_rect(
+            buf,
+            hover_x,
+            hover_y,
+            hover_size,
+            hover_size,
+            r,
+            theme::TAB_ACTIVE_BG,
+        );
     }
 
     let chev_sz = (14.0 * sf).round() as u32;
@@ -600,17 +636,30 @@ pub fn draw(
         let hover_x = git_icon_x.saturating_sub(hover_pad);
         let hover_y = git_icon_y.saturating_sub(hover_pad);
         let r = (4.0 * sf) as usize;
-        super::overlay::fill_rounded_rect(buf, hover_x, hover_y, hover_size, hover_size, r, theme::TAB_ACTIVE_BG);
+        super::overlay::fill_rounded_rect(
+            buf,
+            hover_x,
+            hover_y,
+            hover_size,
+            hover_size,
+            r,
+            theme::TAB_ACTIVE_BG,
+        );
     }
 
-    let git_color = if git_panel_open {
-        theme::TAB_ACTIVE_TEXT
-    } else if git_panel_hovered {
+    let git_color = if git_panel_open || git_panel_hovered {
         theme::TAB_ACTIVE_TEXT
     } else {
         theme::PLUS_TEXT
     };
-    icon_renderer.draw(buf, Icon::Diff, git_icon_x, git_icon_y, git_icon_sz, git_color);
+    icon_renderer.draw(
+        buf,
+        Icon::Diff,
+        git_icon_x,
+        git_icon_y,
+        git_icon_sz,
+        git_color,
+    );
 
     draw_user_avatar(buf, avatar_renderer, avatar_cx, content_cy, sf);
 }
@@ -644,7 +693,15 @@ fn draw_close_button(
         let hover_x = (cx - 7.0 * sf) as usize;
         let hover_y = (cy - 7.0 * sf) as usize;
         let r = (3.0 * sf) as usize;
-        super::overlay::fill_rounded_rect(buf, hover_x, hover_y, hover_size, hover_size, r, theme::TAB_CLOSE_HOVER_BG);
+        super::overlay::fill_rounded_rect(
+            buf,
+            hover_x,
+            hover_y,
+            hover_size,
+            hover_size,
+            r,
+            theme::TAB_CLOSE_HOVER_BG,
+        );
     }
 
     let color = if is_hovered {
@@ -659,7 +716,13 @@ fn draw_close_button(
     icon_renderer.draw(buf, Icon::Close, icon_x, icon_y, icon_sz, color);
 }
 
-fn draw_user_avatar(buf: &mut PixelBuffer, avatar_renderer: &mut AvatarRenderer, cx: f32, cy: f32, sf: f32) {
+fn draw_user_avatar(
+    buf: &mut PixelBuffer,
+    avatar_renderer: &mut AvatarRenderer,
+    cx: f32,
+    cy: f32,
+    sf: f32,
+) {
     let icon_sz = (20.0 * sf).round() as u32;
     let icon_x = (cx - icon_sz as f32 / 2.0) as usize;
     let icon_y = (cy - icon_sz as f32 / 2.0) as usize;
@@ -686,16 +749,25 @@ fn user_menu_rect(buf_width: f64, bar_h: f64, sf: f64, is_pro: bool) -> (f64, f6
     let item_h = USER_MENU_ITEM_H as f64 * sf;
     let items = user_menu_item_count(is_pro) as f64;
 
-    let menu_x = (buf_width - margin - icon_size / 2.0 - menu_w / 2.0).min(buf_width - menu_w - margin);
+    let menu_x =
+        (buf_width - margin - icon_size / 2.0 - menu_w / 2.0).min(buf_width - menu_w - margin);
     let menu_y = bar_h + USER_MENU_GAP as f64 * sf;
     let menu_h = items * item_h + sep_h + label_h;
     (menu_x, menu_y, menu_w, menu_h)
 }
 
-fn user_menu_item_at(phys_x: f64, phys_y: f64, bar_h: f64, buf_width: f64, sf: f64, is_pro: bool) -> Option<usize> {
+fn user_menu_item_at(
+    phys_x: f64,
+    phys_y: f64,
+    bar_h: f64,
+    buf_width: f64,
+    sf: f64,
+    is_pro: bool,
+) -> Option<usize> {
     let (menu_x, menu_y, menu_w, menu_h) = user_menu_rect(buf_width, bar_h, sf, is_pro);
 
-    if phys_x < menu_x || phys_x >= menu_x + menu_w || phys_y < menu_y || phys_y >= menu_y + menu_h {
+    if phys_x < menu_x || phys_x >= menu_x + menu_w || phys_y < menu_y || phys_y >= menu_y + menu_h
+    {
         return None;
     }
 
@@ -736,15 +808,36 @@ pub fn draw_user_menu(
     let inner_r = corner_r.saturating_sub(1);
     let items = user_menu_item_count(is_pro);
 
-    super::overlay::fill_rounded_rect(buf, menu_x, menu_y, menu_w, menu_h, corner_r, theme::BG_ELEVATED);
-    super::overlay::draw_border_rounded(buf, menu_x, menu_y, menu_w, menu_h, border_w, corner_r, theme::BORDER);
+    super::overlay::fill_rounded_rect(
+        buf,
+        menu_x,
+        menu_y,
+        menu_w,
+        menu_h,
+        corner_r,
+        theme::BG_ELEVATED,
+    );
+    super::overlay::draw_border_rounded(
+        buf,
+        menu_x,
+        menu_y,
+        menu_w,
+        menu_h,
+        border_w,
+        corner_r,
+        theme::BORDER,
+    );
 
     let text_metrics = Metrics::new(13.0 * sf, 18.0 * sf);
 
     let labels: Vec<(&str, bool)> = if is_pro {
         vec![("Settings", false), ("Local Models", false)]
     } else {
-        vec![("Settings", false), ("Local Models", false), ("Upgrade to Pro", true)]
+        vec![
+            ("Settings", false),
+            ("Local Models", false),
+            ("Upgrade to Pro", true),
+        ]
     };
 
     for (i, (label, bold)) in labels.iter().enumerate() {
@@ -756,7 +849,15 @@ pub fn draw_user_menu(
             if i == 0 {
                 let h = item_h.saturating_sub(border_w);
                 if items == 1 {
-                    super::overlay::fill_rounded_rect(buf, inner_x, iy + border_w, inner_w, h, inner_r, theme::BG_HOVER);
+                    super::overlay::fill_rounded_rect(
+                        buf,
+                        inner_x,
+                        iy + border_w,
+                        inner_w,
+                        h,
+                        inner_r,
+                        theme::BG_HOVER,
+                    );
                 } else {
                     buf.fill_rect(inner_x, iy + border_w, inner_w, h, theme::BG_HOVER);
                 }
@@ -765,27 +866,74 @@ pub fn draw_user_menu(
             }
         }
 
-        let text_y = if i == 0 { menu_y + ((item_h as f32 - 18.0 * sf) / 2.0) as usize } else { iy + ((item_h as f32 - 18.0 * sf) / 2.0) as usize };
-        let color = if hovered == Some(i) { theme::FG_BRIGHT } else { theme::FG_PRIMARY };
+        let text_y = if i == 0 {
+            menu_y + ((item_h as f32 - 18.0 * sf) / 2.0) as usize
+        } else {
+            iy + ((item_h as f32 - 18.0 * sf) / 2.0) as usize
+        };
+        let color = if hovered == Some(i) {
+            theme::FG_BRIGHT
+        } else {
+            theme::FG_PRIMARY
+        };
 
         if *bold {
-            draw_text_at_bold(buf, font_system, swash_cache, menu_x + pad_x, text_y, buf.height, label, text_metrics, color, Family::SansSerif);
+            draw_text_at_bold(
+                buf,
+                font_system,
+                swash_cache,
+                menu_x + pad_x,
+                text_y,
+                buf.height,
+                label,
+                text_metrics,
+                color,
+                Family::SansSerif,
+            );
         } else {
-            draw_text_at(buf, font_system, swash_cache, menu_x + pad_x, text_y, buf.height, label, text_metrics, color, Family::SansSerif);
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                menu_x + pad_x,
+                text_y,
+                buf.height,
+                label,
+                text_metrics,
+                color,
+                Family::SansSerif,
+            );
         }
     }
 
     let sep_y = menu_y + items * item_h + sep_h / 2;
-    buf.fill_rect(menu_x + pad_x, sep_y, menu_w.saturating_sub(pad_x * 2), 1, theme::BORDER);
+    buf.fill_rect(
+        menu_x + pad_x,
+        sep_y,
+        menu_w.saturating_sub(pad_x * 2),
+        1,
+        theme::BORDER,
+    );
 
     let label_metrics = Metrics::new(11.0 * sf, 15.0 * sf);
-    let version_label = if is_pro { "Awebo Pro v0.1.0" } else { "Awebo v0.1.0" };
+    let version_label = if is_pro {
+        "Awebo Pro v0.1.0"
+    } else {
+        "Awebo v0.1.0"
+    };
     let label_y_start = menu_y + items * item_h + sep_h;
     let label_y = label_y_start + ((label_h as f32 - 15.0 * sf) / 2.0) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        menu_x + pad_x, label_y, buf.height,
-        version_label, label_metrics, theme::FG_DIM, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        menu_x + pad_x,
+        label_y,
+        buf.height,
+        version_label,
+        label_metrics,
+        theme::FG_DIM,
+        Family::SansSerif,
     );
 }
 

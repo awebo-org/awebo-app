@@ -1,4 +1,4 @@
-use muda::accelerator::{Accelerator, Code, CMD_OR_CTRL};
+use muda::accelerator::{Accelerator, CMD_OR_CTRL, Code};
 use muda::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 
 pub struct AppMenu {

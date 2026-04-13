@@ -60,7 +60,15 @@ pub fn draw_usage_panel(
     buf.dim(0.5);
 
     fill_rounded_rect(buf, x, y, w, content_h, (6.0 * sf) as usize, BG);
-    draw_border(buf, x, y, w, content_h, (1.0 * sf).max(1.0) as usize, BORDER);
+    draw_border(
+        buf,
+        x,
+        y,
+        w,
+        content_h,
+        (1.0 * sf).max(1.0) as usize,
+        BORDER,
+    );
 
     let title_metrics = Metrics::new(15.0 * sf, 20.0 * sf);
     let text_metrics = Metrics::new(12.0 * sf, 17.0 * sf);
@@ -68,21 +76,44 @@ pub fn draw_usage_panel(
 
     let ty = y + pad;
     draw_text_at_bold(
-        buf, font_system, swash_cache,
-        x + pad, ty, buf.height,
-        "Daily Usage", title_metrics, TITLE_COLOR, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        x + pad,
+        ty,
+        buf.height,
+        "Daily Usage",
+        title_metrics,
+        TITLE_COLOR,
+        Family::SansSerif,
     );
 
     let reset_label = if tracker.is_pro() {
         "Pro — unlimited".to_string()
     } else {
-        format!("Resets in {}", crate::usage::format_duration_short(tracker.time_until_reset()))
+        format!(
+            "Resets in {}",
+            crate::usage::format_duration_short(tracker.time_until_reset())
+        )
     };
-    let reset_w = crate::renderer::text::measure_text_width(font_system, &reset_label, small_metrics, Family::SansSerif).ceil() as usize;
+    let reset_w = crate::renderer::text::measure_text_width(
+        font_system,
+        &reset_label,
+        small_metrics,
+        Family::SansSerif,
+    )
+    .ceil() as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        x + w - pad - reset_w, ty + (4.0 * sf) as usize, buf.height,
-        &reset_label, small_metrics, TEXT_DIM, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        x + w - pad - reset_w,
+        ty + (4.0 * sf) as usize,
+        buf.height,
+        &reset_label,
+        small_metrics,
+        TEXT_DIM,
+        Family::SansSerif,
     );
 
     let rows_y = ty + title_h;
@@ -93,9 +124,16 @@ pub fn draw_usage_panel(
         let label = feature.label();
 
         draw_text_at(
-            buf, font_system, swash_cache,
-            x + pad, ry, buf.height,
-            label, text_metrics, TEXT_COLOR, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            x + pad,
+            ry,
+            buf.height,
+            label,
+            text_metrics,
+            TEXT_COLOR,
+            Family::SansSerif,
         );
 
         let count_str = if tracker.is_pro() {
@@ -103,16 +141,37 @@ pub fn draw_usage_panel(
         } else {
             format!("{used}/{limit}")
         };
-        let count_w = crate::renderer::text::measure_text_width(font_system, &count_str, text_metrics, Family::SansSerif).ceil() as usize;
+        let count_w = crate::renderer::text::measure_text_width(
+            font_system,
+            &count_str,
+            text_metrics,
+            Family::SansSerif,
+        )
+        .ceil() as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            x + w - pad - count_w, ry, buf.height,
-            &count_str, text_metrics, TEXT_DIM, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            x + w - pad - count_w,
+            ry,
+            buf.height,
+            &count_str,
+            text_metrics,
+            TEXT_DIM,
+            Family::SansSerif,
         );
 
         let bar_y = ry + row_h - bar_h - (2.0 * sf) as usize;
         let bar_w = w - pad * 2;
-        fill_rounded_rect(buf, x + pad, bar_y, bar_w, bar_h, (2.0 * sf) as usize, BAR_BG);
+        fill_rounded_rect(
+            buf,
+            x + pad,
+            bar_y,
+            bar_w,
+            bar_h,
+            (2.0 * sf) as usize,
+            BAR_BG,
+        );
 
         if !tracker.is_pro() && limit > 0 {
             let ratio = (used as f32 / limit as f32).min(1.0);
@@ -125,7 +184,15 @@ pub fn draw_usage_panel(
                 BAR_FILL_OK
             };
             if fill_w > 0 {
-                fill_rounded_rect(buf, x + pad, bar_y, fill_w, bar_h, (2.0 * sf) as usize, fill_color);
+                fill_rounded_rect(
+                    buf,
+                    x + pad,
+                    bar_y,
+                    fill_w,
+                    bar_h,
+                    (2.0 * sf) as usize,
+                    fill_color,
+                );
             }
         }
     }
@@ -137,16 +204,31 @@ pub fn draw_usage_panel(
         let btn_h = (BTN_H * sf) as usize;
         let btn_x = x + (w - btn_w) / 2;
         let btn_y = footer_y;
-        let bg = if hovered == Some(0) { BTN_HOVER } else { BTN_BG };
+        let bg = if hovered == Some(0) {
+            BTN_HOVER
+        } else {
+            BTN_BG
+        };
         fill_rounded_rect(buf, btn_x, btn_y, btn_w, btn_h, (4.0 * sf) as usize, bg);
         let lbl = "Upgrade to Pro";
-        let lbl_w = crate::renderer::text::measure_text_width_bold(font_system, lbl, text_metrics, Family::SansSerif).ceil() as usize;
+        let lbl_w = crate::renderer::text::measure_text_width_bold(
+            font_system,
+            lbl,
+            text_metrics,
+            Family::SansSerif,
+        )
+        .ceil() as usize;
         draw_text_at_bold(
-            buf, font_system, swash_cache,
+            buf,
+            font_system,
+            swash_cache,
             btn_x + (btn_w - lbl_w) / 2,
             btn_y + ((btn_h as f32 - text_metrics.line_height) / 2.0) as usize,
             buf.height,
-            lbl, text_metrics, (255, 255, 255), Family::SansSerif,
+            lbl,
+            text_metrics,
+            (255, 255, 255),
+            Family::SansSerif,
         );
     }
 
@@ -154,16 +236,39 @@ pub fn draw_usage_panel(
     let close_btn_h = (BTN_H * sf) as usize;
     let close_x = x + (w - close_btn_w) / 2;
     let close_y = footer_y + (BTN_H * sf) as usize + (8.0 * sf) as usize;
-    let close_bg = if hovered == Some(1) { CLOSE_BTN_HOVER } else { CLOSE_BTN_BG };
-    fill_rounded_rect(buf, close_x, close_y, close_btn_w, close_btn_h, (4.0 * sf) as usize, close_bg);
+    let close_bg = if hovered == Some(1) {
+        CLOSE_BTN_HOVER
+    } else {
+        CLOSE_BTN_BG
+    };
+    fill_rounded_rect(
+        buf,
+        close_x,
+        close_y,
+        close_btn_w,
+        close_btn_h,
+        (4.0 * sf) as usize,
+        close_bg,
+    );
     let close_lbl = "Close";
-    let close_lbl_w = crate::renderer::text::measure_text_width_bold(font_system, close_lbl, text_metrics, Family::SansSerif).ceil() as usize;
+    let close_lbl_w = crate::renderer::text::measure_text_width_bold(
+        font_system,
+        close_lbl,
+        text_metrics,
+        Family::SansSerif,
+    )
+    .ceil() as usize;
     draw_text_at_bold(
-        buf, font_system, swash_cache,
+        buf,
+        font_system,
+        swash_cache,
         close_x + (close_btn_w - close_lbl_w) / 2,
         close_y + ((close_btn_h as f32 - text_metrics.line_height) / 2.0) as usize,
         buf.height,
-        close_lbl, text_metrics, TEXT_COLOR, Family::SansSerif,
+        close_lbl,
+        text_metrics,
+        TEXT_COLOR,
+        Family::SansSerif,
     );
 }
 

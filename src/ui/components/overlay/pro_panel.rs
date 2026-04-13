@@ -1,8 +1,8 @@
 use cosmic_text::{Family, FontSystem, Metrics, SwashCache};
 
+use crate::license::LicenseManager;
 use crate::renderer::pixel_buffer::{PixelBuffer, Rgb};
 use crate::renderer::text::{draw_text_at, draw_text_at_bold, measure_text_width};
-use crate::license::LicenseManager;
 use crate::renderer::theme;
 
 use super::{draw_border, fill_rounded_rect};
@@ -72,9 +72,26 @@ pub fn draw_pro_panel(
     let is_pro = license_mgr.is_pro();
 
     let content_h = if is_pro {
-        pad + title_h + section_gap + (feature_row_h * 3) + section_gap + btn_h + section_gap + btn_h + pad
+        pad + title_h
+            + section_gap
+            + (feature_row_h * 3)
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + pad
     } else {
-        pad + title_h + (feature_row_h * FEATURES.len()) + section_gap * 2 + input_h + section_gap + btn_h + section_gap + btn_h + section_gap + btn_h + pad
+        pad + title_h
+            + (feature_row_h * FEATURES.len())
+            + section_gap * 2
+            + input_h
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + pad
     };
 
     let x = (buf.width.saturating_sub(w)) / 2;
@@ -83,7 +100,15 @@ pub fn draw_pro_panel(
     buf.dim(0.5);
 
     fill_rounded_rect(buf, x, y, w, content_h, (8.0 * sf) as usize, BG);
-    draw_border(buf, x, y, w, content_h, (1.0 * sf).max(1.0) as usize, BORDER);
+    draw_border(
+        buf,
+        x,
+        y,
+        w,
+        content_h,
+        (1.0 * sf).max(1.0) as usize,
+        BORDER,
+    );
 
     let title_metrics = Metrics::new(16.0 * sf, 22.0 * sf);
     let text_metrics = Metrics::new(12.0 * sf, 17.0 * sf);
@@ -93,9 +118,16 @@ pub fn draw_pro_panel(
 
     if is_pro {
         draw_text_at_bold(
-            buf, font_system, swash_cache,
-            x + pad, cy, buf.height,
-            "Awebo Pro ✓", title_metrics, PRO_BADGE, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            x + pad,
+            cy,
+            buf.height,
+            "Awebo Pro ✓",
+            title_metrics,
+            PRO_BADGE,
+            Family::SansSerif,
         );
         cy += title_h;
 
@@ -107,9 +139,16 @@ pub fn draw_pro_panel(
             ];
             for line in &info_lines {
                 draw_text_at(
-                    buf, font_system, swash_cache,
-                    x + pad, cy, buf.height,
-                    line, text_metrics, TEXT_COLOR, Family::SansSerif,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    x + pad,
+                    cy,
+                    buf.height,
+                    line,
+                    text_metrics,
+                    TEXT_COLOR,
+                    Family::SansSerif,
                 );
                 cy += feature_row_h;
             }
@@ -119,30 +158,60 @@ pub fn draw_pro_panel(
 
         let deact_w = (BTN_W * sf) as usize;
         let deact_x = x + (w - deact_w) / 2;
-        let bg = if hovered == Some(2) { BTN_DEACTIVATE_HOVER } else { BTN_DEACTIVATE_BG };
+        let bg = if hovered == Some(2) {
+            BTN_DEACTIVATE_HOVER
+        } else {
+            BTN_DEACTIVATE_BG
+        };
         fill_rounded_rect(buf, deact_x, cy, deact_w, btn_h, (4.0 * sf) as usize, bg);
         let lbl = "Deactivate License";
-        let lbl_w = crate::renderer::text::measure_text_width_bold(font_system, lbl, text_metrics, Family::SansSerif).ceil() as usize;
+        let lbl_w = crate::renderer::text::measure_text_width_bold(
+            font_system,
+            lbl,
+            text_metrics,
+            Family::SansSerif,
+        )
+        .ceil() as usize;
         draw_text_at_bold(
-            buf, font_system, swash_cache,
+            buf,
+            font_system,
+            swash_cache,
             deact_x + (deact_w - lbl_w) / 2,
             cy + ((btn_h as f32 - text_metrics.line_height) / 2.0) as usize,
-            buf.height, lbl, text_metrics, (255, 255, 255), Family::SansSerif,
+            buf.height,
+            lbl,
+            text_metrics,
+            (255, 255, 255),
+            Family::SansSerif,
         );
         cy += btn_h + section_gap;
     } else {
         draw_text_at_bold(
-            buf, font_system, swash_cache,
-            x + pad, cy, buf.height,
-            "Upgrade to Awebo Pro", title_metrics, TITLE_COLOR, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            x + pad,
+            cy,
+            buf.height,
+            "Upgrade to Awebo Pro",
+            title_metrics,
+            TITLE_COLOR,
+            Family::SansSerif,
         );
         cy += title_h;
 
         for &feature in FEATURES {
             draw_text_at(
-                buf, font_system, swash_cache,
-                x + pad, cy, buf.height,
-                feature, text_metrics, TEXT_COLOR, Family::SansSerif,
+                buf,
+                font_system,
+                swash_cache,
+                x + pad,
+                cy,
+                buf.height,
+                feature,
+                text_metrics,
+                TEXT_COLOR,
+                Family::SansSerif,
             );
             cy += feature_row_h;
         }
@@ -151,50 +220,109 @@ pub fn draw_pro_panel(
 
         let buy_w = (BTN_W * sf) as usize;
         let buy_x = x + (w - buy_w) / 2;
-        let bg = if hovered == Some(0) { BTN_PRIMARY_HOVER } else { BTN_PRIMARY_BG };
+        let bg = if hovered == Some(0) {
+            BTN_PRIMARY_HOVER
+        } else {
+            BTN_PRIMARY_BG
+        };
         fill_rounded_rect(buf, buy_x, cy, buy_w, btn_h, (4.0 * sf) as usize, bg);
         let lbl = "Upgrade to Pro";
-        let lbl_w = crate::renderer::text::measure_text_width_bold(font_system, lbl, text_metrics, Family::SansSerif).ceil() as usize;
+        let lbl_w = crate::renderer::text::measure_text_width_bold(
+            font_system,
+            lbl,
+            text_metrics,
+            Family::SansSerif,
+        )
+        .ceil() as usize;
         draw_text_at_bold(
-            buf, font_system, swash_cache,
+            buf,
+            font_system,
+            swash_cache,
             buy_x + (buy_w - lbl_w) / 2,
             cy + ((btn_h as f32 - text_metrics.line_height) / 2.0) as usize,
-            buf.height, lbl, text_metrics, (255, 255, 255), Family::SansSerif,
+            buf.height,
+            lbl,
+            text_metrics,
+            (255, 255, 255),
+            Family::SansSerif,
         );
         cy += btn_h + section_gap;
 
         draw_text_at(
-            buf, font_system, swash_cache,
-            x + pad, cy, buf.height,
-            "Already have a license key?", text_metrics, TEXT_DIM, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            x + pad,
+            cy,
+            buf.height,
+            "Already have a license key?",
+            text_metrics,
+            TEXT_DIM,
+            Family::SansSerif,
         );
         cy += (18.0 * sf) as usize;
 
         let input_w = w - pad * 2;
-        let input_border = if input_focused { CURSOR_COLOR } else { INPUT_BORDER };
-        fill_rounded_rect(buf, x + pad, cy, input_w, input_h, (4.0 * sf) as usize, INPUT_BG);
-        draw_border(buf, x + pad, cy, input_w, input_h, (1.0 * sf).max(1.0) as usize, input_border);
+        let input_border = if input_focused {
+            CURSOR_COLOR
+        } else {
+            INPUT_BORDER
+        };
+        fill_rounded_rect(
+            buf,
+            x + pad,
+            cy,
+            input_w,
+            input_h,
+            (4.0 * sf) as usize,
+            INPUT_BG,
+        );
+        draw_border(
+            buf,
+            x + pad,
+            cy,
+            input_w,
+            input_h,
+            (1.0 * sf).max(1.0) as usize,
+            input_border,
+        );
 
         let text_pad = (8.0 * sf) as usize;
         let text_y = cy + ((input_h as f32 - input_metrics.line_height) / 2.0) as usize;
         if license_input.is_empty() {
             draw_text_at(
-                buf, font_system, swash_cache,
-                x + pad + text_pad, text_y,
-                buf.height, "XXXX-XXXX-XXXX-XXXX", input_metrics, TEXT_DIM, Family::Monospace,
+                buf,
+                font_system,
+                swash_cache,
+                x + pad + text_pad,
+                text_y,
+                buf.height,
+                "XXXX-XXXX-XXXX-XXXX",
+                input_metrics,
+                TEXT_DIM,
+                Family::Monospace,
             );
         } else {
             draw_text_at(
-                buf, font_system, swash_cache,
-                x + pad + text_pad, text_y,
-                buf.height, license_input, input_metrics, TEXT_COLOR, Family::Monospace,
+                buf,
+                font_system,
+                swash_cache,
+                x + pad + text_pad,
+                text_y,
+                buf.height,
+                license_input,
+                input_metrics,
+                TEXT_COLOR,
+                Family::Monospace,
             );
         }
 
         if input_focused {
             let clamped = cursor_pos.min(license_input.len());
             let before_cursor = &license_input[..clamped];
-            let cursor_x_offset = measure_text_width(font_system, before_cursor, input_metrics, Family::Monospace).ceil() as usize;
+            let cursor_x_offset =
+                measure_text_width(font_system, before_cursor, input_metrics, Family::Monospace)
+                    .ceil() as usize;
             let cursor_x = x + pad + text_pad + cursor_x_offset;
             let cursor_h = (input_metrics.line_height * 0.75) as usize;
             let cursor_y = cy + (input_h.saturating_sub(cursor_h)) / 2;
@@ -206,30 +334,70 @@ pub fn draw_pro_panel(
 
         let act_w = (BTN_W * sf) as usize;
         let act_x = x + (w - act_w) / 2;
-        let bg = if hovered == Some(1) { BTN_PRIMARY_HOVER } else { BTN_PRIMARY_BG };
+        let bg = if hovered == Some(1) {
+            BTN_PRIMARY_HOVER
+        } else {
+            BTN_PRIMARY_BG
+        };
         fill_rounded_rect(buf, act_x, cy, act_w, btn_h, (4.0 * sf) as usize, bg);
         let lbl = "Activate Key";
-        let lbl_w = crate::renderer::text::measure_text_width_bold(font_system, lbl, text_metrics, Family::SansSerif).ceil() as usize;
+        let lbl_w = crate::renderer::text::measure_text_width_bold(
+            font_system,
+            lbl,
+            text_metrics,
+            Family::SansSerif,
+        )
+        .ceil() as usize;
         draw_text_at_bold(
-            buf, font_system, swash_cache,
+            buf,
+            font_system,
+            swash_cache,
             act_x + (act_w - lbl_w) / 2,
             cy + ((btn_h as f32 - text_metrics.line_height) / 2.0) as usize,
-            buf.height, lbl, text_metrics, (255, 255, 255), Family::SansSerif,
+            buf.height,
+            lbl,
+            text_metrics,
+            (255, 255, 255),
+            Family::SansSerif,
         );
         cy += btn_h + section_gap;
     }
 
     let close_w = (80.0 * sf) as usize;
     let close_x = x + (w - close_w) / 2;
-    let close_bg = if hovered == Some(3) { BTN_CLOSE_HOVER } else { BTN_CLOSE_BG };
-    fill_rounded_rect(buf, close_x, cy, close_w, btn_h, (4.0 * sf) as usize, close_bg);
+    let close_bg = if hovered == Some(3) {
+        BTN_CLOSE_HOVER
+    } else {
+        BTN_CLOSE_BG
+    };
+    fill_rounded_rect(
+        buf,
+        close_x,
+        cy,
+        close_w,
+        btn_h,
+        (4.0 * sf) as usize,
+        close_bg,
+    );
     let close_lbl = "Close";
-    let close_lbl_w = crate::renderer::text::measure_text_width_bold(font_system, close_lbl, text_metrics, Family::SansSerif).ceil() as usize;
+    let close_lbl_w = crate::renderer::text::measure_text_width_bold(
+        font_system,
+        close_lbl,
+        text_metrics,
+        Family::SansSerif,
+    )
+    .ceil() as usize;
     draw_text_at_bold(
-        buf, font_system, swash_cache,
+        buf,
+        font_system,
+        swash_cache,
         close_x + (close_w - close_lbl_w) / 2,
         cy + ((btn_h as f32 - text_metrics.line_height) / 2.0) as usize,
-        buf.height, close_lbl, text_metrics, TEXT_COLOR, Family::SansSerif,
+        buf.height,
+        close_lbl,
+        text_metrics,
+        TEXT_COLOR,
+        Family::SansSerif,
     );
 }
 
@@ -250,9 +418,26 @@ pub fn pro_panel_hit_test(
     let btn_h = (BTN_H * sf) as usize;
 
     let content_h = if is_pro {
-        pad + title_h + section_gap + (feature_row_h * 3) + section_gap + btn_h + section_gap + btn_h + pad
+        pad + title_h
+            + section_gap
+            + (feature_row_h * 3)
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + pad
     } else {
-        pad + title_h + (feature_row_h * FEATURES.len()) + section_gap * 2 + input_h + section_gap + btn_h + section_gap + btn_h + section_gap + btn_h + pad
+        pad + title_h
+            + (feature_row_h * FEATURES.len())
+            + section_gap * 2
+            + input_h
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + pad
     };
 
     let x = (buf_w.saturating_sub(w)) / 2;
@@ -322,9 +507,26 @@ pub fn pro_panel_hover_test(
     let btn_h = (BTN_H * sf) as usize;
 
     let content_h = if is_pro {
-        pad + title_h + section_gap + (feature_row_h * 3) + section_gap + btn_h + section_gap + btn_h + pad
+        pad + title_h
+            + section_gap
+            + (feature_row_h * 3)
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + pad
     } else {
-        pad + title_h + (feature_row_h * FEATURES.len()) + section_gap * 2 + input_h + section_gap + btn_h + section_gap + btn_h + section_gap + btn_h + pad
+        pad + title_h
+            + (feature_row_h * FEATURES.len())
+            + section_gap * 2
+            + input_h
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + section_gap
+            + btn_h
+            + pad
     };
 
     let x = (buf_w.saturating_sub(w)) / 2;

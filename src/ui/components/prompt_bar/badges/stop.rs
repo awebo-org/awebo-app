@@ -4,7 +4,7 @@ use crate::renderer::icons::Icon;
 use crate::renderer::pixel_buffer::Rgb;
 use crate::renderer::theme;
 
-use super::{draw_badge_with_icon, BadgeCtx, BadgeResult};
+use super::{BadgeCtx, BadgeResult, draw_badge_with_icon};
 
 const STOP_FG: Rgb = theme::ERROR;
 const STOP_BORDER: Rgb = (120, 40, 40);

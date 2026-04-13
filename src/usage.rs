@@ -116,10 +116,7 @@ impl UsageTracker {
         } else if grace > 0 && grace_used < grace {
             UsageResult::Grace
         } else {
-            UsageResult::Denied {
-                used,
-                limit,
-            }
+            UsageResult::Denied { used, limit }
         }
     }
 
@@ -144,11 +141,19 @@ impl UsageTracker {
     }
 
     pub fn count(&self, feature: Feature) -> u32 {
-        self.data.counts.get(&feature_key(feature)).copied().unwrap_or(0)
+        self.data
+            .counts
+            .get(&feature_key(feature))
+            .copied()
+            .unwrap_or(0)
     }
 
     pub fn grace_count(&self, feature: Feature) -> u32 {
-        self.data.grace_used.get(&feature_key(feature)).copied().unwrap_or(0)
+        self.data
+            .grace_used
+            .get(&feature_key(feature))
+            .copied()
+            .unwrap_or(0)
     }
 
     pub fn time_until_reset(&self) -> Duration {
@@ -169,12 +174,11 @@ impl UsageTracker {
 
     fn load(&mut self) {
         let path = usage_path();
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            if let Ok(data) = serde_json::from_str::<DailyData>(&content) {
-                if data.date == today_str() {
-                    self.data = data;
-                }
-            }
+        if let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(data) = serde_json::from_str::<DailyData>(&content)
+            && data.date == today_str()
+        {
+            self.data = data;
         }
     }
 
@@ -341,7 +345,10 @@ mod tests {
             pro: true,
         };
         for _ in 0..100 {
-            assert!(matches!(tracker.can_use(Feature::Ask), UsageResult::Allowed));
+            assert!(matches!(
+                tracker.can_use(Feature::Ask),
+                UsageResult::Allowed
+            ));
         }
     }
 
@@ -354,7 +361,10 @@ mod tests {
         };
         let today = today_str();
         if data.date != today {
-            data = DailyData { date: today, ..Default::default() };
+            data = DailyData {
+                date: today,
+                ..Default::default()
+            };
         }
         assert!(data.counts.is_empty());
     }

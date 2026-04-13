@@ -147,7 +147,8 @@ impl Renderer {
         const JBM_REGULAR: &[u8] = include_bytes!("../../assets/fonts/JetBrainsMono-Regular.ttf");
         const JBM_BOLD: &[u8] = include_bytes!("../../assets/fonts/JetBrainsMono-Bold.ttf");
         const JBM_ITALIC: &[u8] = include_bytes!("../../assets/fonts/JetBrainsMono-Italic.ttf");
-        const JBM_BOLD_ITALIC: &[u8] = include_bytes!("../../assets/fonts/JetBrainsMono-BoldItalic.ttf");
+        const JBM_BOLD_ITALIC: &[u8] =
+            include_bytes!("../../assets/fonts/JetBrainsMono-BoldItalic.ttf");
         db.load_font_data(JBM_REGULAR.to_vec());
         db.load_font_data(JBM_BOLD.to_vec());
         db.load_font_data(JBM_ITALIC.to_vec());
@@ -276,7 +277,9 @@ impl Renderer {
     /// Returns prompt bar hit-test rects for mouse interaction.
     pub fn render(
         &mut self,
-        term_handle: Option<&Arc<alacritty_terminal::sync::FairMutex<alacritty_terminal::Term<JsonEventProxy>>>>,
+        term_handle: Option<
+            &Arc<alacritty_terminal::sync::FairMutex<alacritty_terminal::Term<JsonEventProxy>>>,
+        >,
         is_app_controlled: bool,
         is_sandbox: bool,
         tab_infos: &[TabInfo],
@@ -309,7 +312,12 @@ impl Renderer {
         scrollbar_hovered: bool,
         editor_scrollbar: crate::ui::components::editor_renderer::ScrollbarHit,
         settings: Option<&crate::ui::components::overlay::SettingsState>,
-        models_view: Option<(&crate::app::views::models_view::ModelsViewState, Option<&str>, bool, &str)>,
+        models_view: Option<(
+            &crate::app::views::models_view::ModelsViewState,
+            Option<&str>,
+            bool,
+            &str,
+        )>,
         sessions: &[&crate::session::Session],
         side_panel_state: &crate::ui::components::side_panel::SidePanelState,
         file_tree_state: &crate::ui::file_tree::FileTreeState,
@@ -323,8 +331,17 @@ impl Renderer {
         toast_mgr: &crate::ui::components::toast::ToastManager,
         git_panel_state: &crate::ui::components::git_panel::GitPanelState,
         usage_panel: Option<(&crate::usage::UsageTracker, Option<usize>)>,
-        pro_panel: Option<(&crate::license::LicenseManager, &str, usize, bool, Option<usize>)>,
-        usage_limit_banner: Option<(&crate::ui::components::usage_limit_banner::UsageLimitBannerState, &crate::usage::UsageTracker)>,
+        pro_panel: Option<(
+            &crate::license::LicenseManager,
+            &str,
+            usize,
+            bool,
+            Option<usize>,
+        )>,
+        usage_limit_banner: Option<(
+            &crate::ui::components::usage_limit_banner::UsageLimitBannerState,
+            &crate::usage::UsageTracker,
+        )>,
     ) -> Option<crate::ui::components::prompt_bar::PromptBarHitRects> {
         let w = self.width as usize;
         let h = self.height as usize;
@@ -492,7 +509,11 @@ impl Renderer {
             };
 
             let grid_y = bar_h;
-            let grid_h = h.saturating_sub(grid_y).saturating_sub(prompt_h).saturating_sub(banner_h).saturating_sub(banner_gap);
+            let grid_h = h
+                .saturating_sub(grid_y)
+                .saturating_sub(prompt_h)
+                .saturating_sub(banner_h)
+                .saturating_sub(banner_gap);
 
             if use_block_renderer {
                 if grid_h > 0 {
@@ -521,7 +542,12 @@ impl Renderer {
                         overlay_active,
                     );
                     if !block_glyphs.is_empty() {
-                        glyph_scissor = Some((content_x_offset as u32, grid_y as u32, (content_right_edge - content_x_offset) as u32, grid_h as u32));
+                        glyph_scissor = Some((
+                            content_x_offset as u32,
+                            grid_y as u32,
+                            (content_right_edge - content_x_offset) as u32,
+                            grid_h as u32,
+                        ));
                         pending_cell_glyphs = Some(block_glyphs);
                     }
                 }
@@ -529,12 +555,17 @@ impl Renderer {
                 if grid_h > 0 {
                     let grid_bg = if is_sandbox { Some((0, 0, 0)) } else { None };
                     if is_sandbox {
-                        self.pixel_buf.fill_rect(content_x_offset, grid_y, content_right_edge.saturating_sub(content_x_offset), grid_h, (0, 0, 0));
+                        self.pixel_buf.fill_rect(
+                            content_x_offset,
+                            grid_y,
+                            content_right_edge.saturating_sub(content_x_offset),
+                            grid_h,
+                            (0, 0, 0),
+                        );
                     }
 
-                    let sandbox_initializing = sandbox_info
-                        .map(|s| s.is_initializing)
-                        .unwrap_or(false);
+                    let sandbox_initializing =
+                        sandbox_info.map(|s| s.is_initializing).unwrap_or(false);
 
                     if is_sandbox && sandbox_initializing {
                         self.draw_sandbox_pull_progress(
@@ -565,39 +596,50 @@ impl Renderer {
                             grid_bg,
                         );
                         pending_cell_glyphs = Some(cell_glyphs);
-                        glyph_scissor = Some((content_x_offset as u32, grid_y as u32, (content_right_edge - content_x_offset) as u32, grid_h as u32));
+                        glyph_scissor = Some((
+                            content_x_offset as u32,
+                            grid_y as u32,
+                            (content_right_edge - content_x_offset) as u32,
+                            grid_h as u32,
+                        ));
                     }
                 }
             }
 
-            if prompt_h > 0 {
-                if let Some(info) = prompt_info {
-                    let prompt_y = h.saturating_sub(prompt_h);
-                    let command_running = block_list.last_is_running();
-                    prompt_hit_rects = crate::ui::components::prompt_bar::draw(
-                        &mut self.pixel_buf,
-                        &mut self.font_system,
-                        &mut self.swash_cache,
-                        &mut self.icon_renderer,
-                        info,
-                        input_field,
-                        pad + content_x_offset,
-                        pad + git_panel_w,
-                        prompt_y,
-                        sf,
-                        cursor_visible,
-                        command_running,
-                        model_name,
-                        ai_thinking,
-                    );
-                }
+            if prompt_h > 0
+                && let Some(info) = prompt_info
+            {
+                let prompt_y = h.saturating_sub(prompt_h);
+                let command_running = block_list.last_is_running();
+                prompt_hit_rects = crate::ui::components::prompt_bar::draw(
+                    &mut self.pixel_buf,
+                    &mut self.font_system,
+                    &mut self.swash_cache,
+                    &mut self.icon_renderer,
+                    info,
+                    input_field,
+                    pad + content_x_offset,
+                    pad + git_panel_w,
+                    prompt_y,
+                    sf,
+                    cursor_visible,
+                    command_running,
+                    model_name,
+                    ai_thinking,
+                );
             }
 
             if banner_h > 0 {
                 let banner_y = h.saturating_sub(prompt_h + banner_h);
                 if banner_gap > 0 {
                     let gap_y = banner_y.saturating_sub(banner_gap);
-                    self.pixel_buf.fill_rect(content_x_offset, gap_y, content_right_edge.saturating_sub(content_x_offset), banner_gap, crate::renderer::theme::BG);
+                    self.pixel_buf.fill_rect(
+                        content_x_offset,
+                        gap_y,
+                        content_right_edge.saturating_sub(content_x_offset),
+                        banner_gap,
+                        crate::renderer::theme::BG,
+                    );
                 }
                 let banner_w = content_right_edge.saturating_sub(content_x_offset);
                 crate::ui::components::hint_banner::draw(
@@ -640,10 +682,8 @@ impl Renderer {
             || input_field.slash_menu_open
             || context_menu.is_some();
 
-        if has_overlay {
-            if let Some(glyphs) = &pending_cell_glyphs {
-                self.blit_glyphs_cpu(glyphs);
-            }
+        if has_overlay && let Some(glyphs) = &pending_cell_glyphs {
+            self.blit_glyphs_cpu(glyphs);
         }
 
         if input_field.slash_menu_open && slash_prompt_h > 0 {
@@ -692,7 +732,8 @@ impl Renderer {
         if let Some(picker) = shell_picker {
             let tab_count = tab_infos.len();
             let sidebar_logical = 8.0 + 18.0 + 8.0;
-            let left_logical = crate::ui::components::tab_bar::left_padding(is_fullscreen) as f64 + sidebar_logical;
+            let left_logical = crate::ui::components::tab_bar::left_padding(is_fullscreen) as f64
+                + sidebar_logical;
             let tab_w_logical = if tab_count == 0 {
                 220.0
             } else {
@@ -824,10 +865,11 @@ impl Renderer {
             crate::ui::debug_viewer::draw(&mut ctx, &backend_label);
         }
 
-        if !self.backend.is_gpu() && !has_overlay {
-            if let Some(glyphs) = &pending_cell_glyphs {
-                self.blit_glyphs_cpu(glyphs);
-            }
+        if !self.backend.is_gpu()
+            && !has_overlay
+            && let Some(glyphs) = &pending_cell_glyphs
+        {
+            self.blit_glyphs_cpu(glyphs);
         }
 
         let dirty = self.pixel_buf.dirty_range();
@@ -836,25 +878,23 @@ impl Renderer {
             .begin_frame(&self.pixel_buf.data, w as u32, h as u32, dirty);
 
         if let Some(frame) = frame {
-            if !has_overlay {
-                if let backend::RenderBackend::Gpu(g) = &mut self.backend {
-                    if let Some(glyphs) = &pending_cell_glyphs {
-                        if !glyphs.is_empty() {
-                            g.gpu_grid.render(
-                                glyphs,
-                                &mut self.glyph_atlas,
-                                &mut self.font_system,
-                                &mut self.swash_cache,
-                                &g.device,
-                                &g.queue,
-                                &frame.view,
-                                w as f32,
-                                h as f32,
-                                glyph_scissor,
-                            );
-                        }
-                    }
-                }
+            if !has_overlay
+                && let backend::RenderBackend::Gpu(g) = &mut self.backend
+                && let Some(glyphs) = &pending_cell_glyphs
+                && !glyphs.is_empty()
+            {
+                g.gpu_grid.render(
+                    glyphs,
+                    &mut self.glyph_atlas,
+                    &mut self.font_system,
+                    &mut self.swash_cache,
+                    &g.device,
+                    &g.queue,
+                    &frame.view,
+                    w as f32,
+                    h as f32,
+                    glyph_scissor,
+                );
             }
             self.backend.end_frame(frame);
         }
@@ -872,7 +912,7 @@ impl Renderer {
         area_h: usize,
         sf: f32,
     ) {
-        use crate::sandbox::bridge::{PullPhase, LayerPhase};
+        use crate::sandbox::bridge::{LayerPhase, PullPhase};
 
         let ps = match sandbox_info {
             Some(info) => &info.pull_state,
@@ -901,15 +941,31 @@ impl Renderer {
             PullPhase::Complete => "Starting sandbox...",
         };
         crate::renderer::text::draw_text_at(
-            &mut self.pixel_buf, &mut self.font_system, &mut self.swash_cache,
-            cx, y, clip_h, title, title_metrics, text_color, cosmic_text::Family::Monospace,
+            &mut self.pixel_buf,
+            &mut self.font_system,
+            &mut self.swash_cache,
+            cx,
+            y,
+            clip_h,
+            title,
+            title_metrics,
+            text_color,
+            cosmic_text::Family::Monospace,
         );
         y += line_h + (8.0 * sf) as usize;
 
         if ps.layers.is_empty() && ps.phase == PullPhase::Resolving {
             crate::renderer::text::draw_text_at(
-                &mut self.pixel_buf, &mut self.font_system, &mut self.swash_cache,
-                cx, y, clip_h, "Contacting registry...", label_metrics, muted, cosmic_text::Family::Monospace,
+                &mut self.pixel_buf,
+                &mut self.font_system,
+                &mut self.swash_cache,
+                cx,
+                y,
+                clip_h,
+                "Contacting registry...",
+                label_metrics,
+                muted,
+                cosmic_text::Family::Monospace,
             );
             return;
         }
@@ -949,19 +1005,39 @@ impl Renderer {
 
             let label = format!("Layer {}: {}", i + 1, status);
             crate::renderer::text::draw_text_at(
-                &mut self.pixel_buf, &mut self.font_system, &mut self.swash_cache,
-                cx, y, clip_h, &label, label_metrics, phase_color, cosmic_text::Family::Monospace,
+                &mut self.pixel_buf,
+                &mut self.font_system,
+                &mut self.swash_cache,
+                cx,
+                y,
+                clip_h,
+                &label,
+                label_metrics,
+                phase_color,
+                cosmic_text::Family::Monospace,
             );
             y += line_h;
 
             if layer.phase != LayerPhase::Waiting && layer.phase != LayerPhase::Done {
                 let bar_x = cx;
                 crate::ui::components::overlay::fill_rounded_rect(
-                    &mut self.pixel_buf, bar_x, y, bar_w, bar_h, bar_r, bar_bg,
+                    &mut self.pixel_buf,
+                    bar_x,
+                    y,
+                    bar_w,
+                    bar_h,
+                    bar_r,
+                    bar_bg,
                 );
                 let fill_w = ((bar_w as f32 * pct.clamp(0.0, 1.0)) as usize).max(1);
                 crate::ui::components::overlay::fill_rounded_rect(
-                    &mut self.pixel_buf, bar_x, y, fill_w, bar_h, bar_r, bar_fill,
+                    &mut self.pixel_buf,
+                    bar_x,
+                    y,
+                    fill_w,
+                    bar_h,
+                    bar_r,
+                    bar_fill,
                 );
             }
             y += bar_h + (6.0 * sf) as usize;

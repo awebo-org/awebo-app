@@ -89,11 +89,14 @@ fn try_parse_tool_call(text: &str) -> Option<ToolCallRequest> {
         .trim()
         .to_string();
 
-    let args_str = extract_tag(inner, TAG_ARGS_OPEN, TAG_ARGS_CLOSE)
-        .unwrap_or_default();
+    let args_str = extract_tag(inner, TAG_ARGS_OPEN, TAG_ARGS_CLOSE).unwrap_or_default();
     let args = parse_json_args(args_str.trim());
 
-    Some(ToolCallRequest { tool_name, args, reasoning })
+    Some(ToolCallRequest {
+        tool_name,
+        args,
+        reasoning,
+    })
 }
 
 fn try_parse_final_answer(text: &str) -> Option<(String, String)> {
@@ -194,7 +197,9 @@ System updated successfully. Nginx restarted.
     fn has_complete_block_checks() {
         assert!(!has_complete_block("just some text"));
         assert!(!has_complete_block("<tool_call>partial"));
-        assert!(has_complete_block("<tool_call><name>x</name><args>{}</args></tool_call>"));
+        assert!(has_complete_block(
+            "<tool_call><name>x</name><args>{}</args></tool_call>"
+        ));
         assert!(has_complete_block("<final_answer>done</final_answer>"));
     }
 

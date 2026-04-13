@@ -130,8 +130,16 @@ pub fn draw_shell_picker(
                 let tx = px + pad + (8.0 * sf) as usize;
                 let ty = y + ((rh as f32 - LINE_HEIGHT * sf) / 2.0) as usize;
                 draw_text_at(
-                    buf, font_system, swash_cache, tx, ty, buf.height,
-                    label, desc_metrics, header_color, Family::SansSerif,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    tx,
+                    ty,
+                    buf.height,
+                    label,
+                    desc_metrics,
+                    header_color,
+                    Family::SansSerif,
                 );
             }
             RowKind::Separator => {
@@ -149,8 +157,16 @@ pub fn draw_shell_picker(
                 let tx = px + pad + (8.0 * sf) as usize;
                 let ty = y + ((rh as f32 - LINE_HEIGHT * sf) / 2.0) as usize;
                 draw_text_at(
-                    buf, font_system, swash_cache, tx, ty, buf.height,
-                    &picker.local_shells[*idx].name, metrics, text_color, Family::Monospace,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    tx,
+                    ty,
+                    buf.height,
+                    &picker.local_shells[*idx].name,
+                    metrics,
+                    text_color,
+                    Family::Monospace,
                 );
             }
             RowKind::SandboxImage(idx) => {
@@ -161,22 +177,42 @@ pub fn draw_shell_picker(
                 let tx = px + pad + (8.0 * sf) as usize;
                 let ty = y + (4.0 * sf) as usize;
                 draw_text_at(
-                    buf, font_system, swash_cache, tx, ty, buf.height,
-                    &img.name, metrics, text_color, Family::Monospace,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    tx,
+                    ty,
+                    buf.height,
+                    &img.name,
+                    metrics,
+                    text_color,
+                    Family::Monospace,
                 );
                 let desc_text = format!("{} · {}", img.category, img.description);
                 let desc_y = ty + (LINE_HEIGHT * sf) as usize;
                 let avail_w = pw.saturating_sub(pad * 2 + (16.0 * sf) as usize);
                 let char_w = (DESC_SIZE * sf * 0.55) as usize;
-                let max_chars = if char_w > 0 { avail_w / char_w } else { desc_text.len() };
+                let max_chars = if char_w > 0 {
+                    avail_w / char_w
+                } else {
+                    desc_text.len()
+                };
                 let truncated = if desc_text.len() > max_chars && max_chars > 3 {
                     format!("{}…", &desc_text[..max_chars.saturating_sub(1)])
                 } else {
                     desc_text
                 };
                 draw_text_at(
-                    buf, font_system, swash_cache, tx, desc_y, buf.height,
-                    &truncated, desc_metrics, desc_color, Family::SansSerif,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    tx,
+                    desc_y,
+                    buf.height,
+                    &truncated,
+                    desc_metrics,
+                    desc_color,
+                    Family::SansSerif,
                 );
             }
             RowKind::InstallHint => {
@@ -186,8 +222,16 @@ pub fn draw_shell_picker(
                 let tx = px + pad + (8.0 * sf) as usize;
                 let ty = y + ((rh as f32 - LINE_HEIGHT * sf) / 2.0) as usize;
                 draw_text_at(
-                    buf, font_system, swash_cache, tx, ty, buf.height,
-                    "Install microsandbox…", metrics, desc_color, Family::Monospace,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    tx,
+                    ty,
+                    buf.height,
+                    "Install microsandbox…",
+                    metrics,
+                    desc_color,
+                    Family::Monospace,
                 );
             }
         }
@@ -218,7 +262,7 @@ pub fn shell_picker_hit_test(
     }
 
     let mut y = py + pad;
-    for (_ri, row) in rows.iter().enumerate() {
+    for row in rows.iter() {
         let rh = row_height(row, sf) as f64;
         if phys_y >= y && phys_y < y + rh {
             return match row {
@@ -258,7 +302,9 @@ pub fn shell_picker_hover_test(
         let rh = row_height(row, sf) as f64;
         if phys_y >= y && phys_y < y + rh {
             return match row {
-                RowKind::LocalShell(_) | RowKind::SandboxImage(_) | RowKind::InstallHint => Some(ri),
+                RowKind::LocalShell(_) | RowKind::SandboxImage(_) | RowKind::InstallHint => {
+                    Some(ri)
+                }
                 _ => None,
             };
         }
@@ -275,15 +321,15 @@ mod tests {
         ShellPickerState {
             local_shells: vec![
                 ShellInfo { name: "zsh".into() },
-                ShellInfo { name: "bash".into() },
-            ],
-            sandbox_images: vec![
-                SandboxImageInfo {
-                    name: "Alpine Linux".into(),
-                    description: "Minimal 5MB Linux".into(),
-                    category: "Base".into(),
+                ShellInfo {
+                    name: "bash".into(),
                 },
             ],
+            sandbox_images: vec![SandboxImageInfo {
+                name: "Alpine Linux".into(),
+                description: "Minimal 5MB Linux".into(),
+                category: "Base".into(),
+            }],
             sandbox_available: true,
             hovered: None,
         }
@@ -323,4 +369,3 @@ mod tests {
         assert!(result.is_some());
     }
 }
-

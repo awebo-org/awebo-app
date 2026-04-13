@@ -105,14 +105,20 @@ fn emit_rerun_directives(grammars: &BTreeMap<String, GrammarEntry>) {
         let src = grammar.dir.join("src");
         let queries = grammar.dir.join("queries");
 
-        println!("cargo:rerun-if-changed={}", grammar.dir.join("grammar.toml").display());
+        println!(
+            "cargo:rerun-if-changed={}",
+            grammar.dir.join("grammar.toml").display()
+        );
         println!("cargo:rerun-if-changed={}", src.join("parser.c").display());
 
         if grammar.has_scanner_c {
             println!("cargo:rerun-if-changed={}", src.join("scanner.c").display());
         }
         if grammar.has_scanner_cc {
-            println!("cargo:rerun-if-changed={}", src.join("scanner.cc").display());
+            println!(
+                "cargo:rerun-if-changed={}",
+                src.join("scanner.cc").display()
+            );
         }
         for name in &["highlights.scm", "injections.scm", "locals.scm"] {
             let p = queries.join(name);
@@ -197,8 +203,7 @@ fn generate_rust_bindings(
     out_dir: &Path,
 ) {
     // Only generate bindings for grammars with highlight queries
-    let usable: Vec<&GrammarEntry> =
-        grammars.values().filter(|g| g.has_highlights).collect();
+    let usable: Vec<&GrammarEntry> = grammars.values().filter(|g| g.has_highlights).collect();
 
     let mut code = String::with_capacity(8192);
 
@@ -207,17 +212,12 @@ fn generate_rust_bindings(
     // Extern "C" declarations
     code.push_str("unsafe extern \"C\" {\n");
     for g in &usable {
-        code.push_str(&format!(
-            "    fn {}() -> *const ();\n",
-            g.config.parser_fn,
-        ));
+        code.push_str(&format!("    fn {}() -> *const ();\n", g.config.parser_fn,));
     }
     code.push_str("}\n\n");
 
     // Type alias for the FFI function pointer
-    code.push_str(
-        "type ParserFn = unsafe extern \"C\" fn() -> *const ();\n\n",
-    );
+    code.push_str("type ParserFn = unsafe extern \"C\" fn() -> *const ();\n\n");
 
     // GrammarDef struct
     code.push_str(
@@ -244,8 +244,12 @@ fn generate_rust_bindings(
             .join(&g.config.id)
             .join("queries");
 
-        let ext_list: Vec<String> =
-            g.config.extensions.iter().map(|e| format!("\"{e}\"")).collect();
+        let ext_list: Vec<String> = g
+            .config
+            .extensions
+            .iter()
+            .map(|e| format!("\"{e}\""))
+            .collect();
 
         code.push_str("        GrammarDef {\n");
         code.push_str(&format!("            name: \"{}\",\n", g.config.name));

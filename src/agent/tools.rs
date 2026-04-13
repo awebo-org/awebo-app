@@ -67,7 +67,10 @@ impl ToolRegistry {
 
     /// Look up a tool by name.
     pub fn get(&self, name: &str) -> Option<&dyn Tool> {
-        self.tools.iter().find(|t| t.spec().name == name).map(|t| t.as_ref())
+        self.tools
+            .iter()
+            .find(|t| t.spec().name == name)
+            .map(|t| t.as_ref())
     }
 
     /// Specs of all registered tools (for prompt building).
@@ -114,7 +117,12 @@ impl Tool for ShellExecTool {
             }
         };
 
-        match Command::new("sh").arg("-c").arg(cmd).current_dir(cwd).output() {
+        match Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .current_dir(cwd)
+            .output()
+        {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -133,7 +141,7 @@ impl Tool for ShellExecTool {
                 let code = output.status.code();
                 ToolResult {
                     output: text,
-                    is_error: code.map_or(true, |c| c != 0),
+                    is_error: code != Some(0),
                 }
             }
             Err(e) => ToolResult {
@@ -185,7 +193,10 @@ impl Tool for ReadFileTool {
                     text.truncate(MAX_READ);
                     text.push_str("\n... (file truncated)");
                 }
-                ToolResult { output: text, is_error: false }
+                ToolResult {
+                    output: text,
+                    is_error: false,
+                }
             }
             Err(e) => ToolResult {
                 output: format!("Error reading file: {e}"),
@@ -278,10 +289,7 @@ impl Tool for ListDirTool {
     }
 
     fn execute(&self, args: &ToolCallArgs, cwd: &str) -> ToolResult {
-        let dir = args
-            .get("path")
-            .and_then(|v| v.as_str())
-            .unwrap_or(".");
+        let dir = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
 
         let full = if std::path::Path::new(dir).is_absolute() {
             std::path::PathBuf::from(dir)
@@ -294,7 +302,7 @@ impl Tool for ListDirTool {
                 let mut lines: Vec<String> = Vec::new();
                 for entry in entries.flatten() {
                     let name = entry.file_name().to_string_lossy().into_owned();
-                    let is_dir = entry.file_type().map_or(false, |ft| ft.is_dir());
+                    let is_dir = entry.file_type().is_ok_and(|ft| ft.is_dir());
                     if is_dir {
                         lines.push(format!("{name}/"));
                     } else {
@@ -401,7 +409,10 @@ mod tests {
     fn shell_exec_runs_echo() {
         let tool = ShellExecTool;
         let mut args = ToolCallArgs::new();
-        args.insert("command".into(), serde_json::Value::String("echo hello".into()));
+        args.insert(
+            "command".into(),
+            serde_json::Value::String("echo hello".into()),
+        );
         let result = tool.execute(&args, "/tmp");
         assert!(!result.is_error);
         assert!(result.output.trim() == "hello");
@@ -456,7 +467,10 @@ mod tests {
         let write_tool = WriteFileTool;
         let mut args = ToolCallArgs::new();
         args.insert("path".into(), serde_json::Value::String(path.into()));
-        args.insert("content".into(), serde_json::Value::String("test content 123".into()));
+        args.insert(
+            "content".into(),
+            serde_json::Value::String("test content 123".into()),
+        );
         let wr = write_tool.execute(&args, "/tmp");
         assert!(!wr.is_error);
 

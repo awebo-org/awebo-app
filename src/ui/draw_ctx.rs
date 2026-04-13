@@ -136,5 +136,4 @@ impl<'a> DrawCtx<'a> {
         buffer.shape_until_scroll(self.font, true);
         buffer.layout_runs().map(|r| r.line_w).next().unwrap_or(0.0)
     }
-
 }

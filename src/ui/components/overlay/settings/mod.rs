@@ -12,7 +12,7 @@ use crate::renderer::theme;
 
 use super::fill_rounded_rect;
 
-pub use ai_models::{settings_ai_models_hit_test, AiModelsHit};
+pub use ai_models::{AiModelsHit, settings_ai_models_hit_test};
 pub use font_picker::{detect_monospace_fonts, draw_font_picker, font_picker_hit_test};
 
 /// Settings panel category tabs.
@@ -358,11 +358,7 @@ pub fn settings_sidebar_hit_test(
 
     let idx = (rel_y / item_h) as usize;
     let count = SettingsCategory::all().len();
-    if idx < count {
-        Some(idx)
-    } else {
-        None
-    }
+    if idx < count { Some(idx) } else { None }
 }
 
 #[cfg(test)]

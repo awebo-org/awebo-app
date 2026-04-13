@@ -7,11 +7,9 @@ use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::draw_text_at_buffered;
 use crate::renderer::theme;
 use crate::ui::editor::{
-    DiffLineKind, EditorMode, EditorState,
-    HEX_FONT_SIZE, HEX_LINE_HEIGHT, HEX_PAD_X, HEX_PAD_Y,
-    TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TEXT_PAD_X, TEXT_PAD_Y, GUTTER_PAD_RIGHT,
+    DiffLineKind, EditorMode, EditorState, GUTTER_PAD_RIGHT, HEX_FONT_SIZE, HEX_LINE_HEIGHT,
+    HEX_PAD_X, HEX_PAD_Y, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TEXT_PAD_X, TEXT_PAD_Y,
 };
-
 
 const GUTTER_BG: (u8, u8, u8) = theme::BG;
 const GUTTER_TEXT: (u8, u8, u8) = theme::FG_MUTED;
@@ -35,14 +33,12 @@ const SCROLLBAR_WIDTH: f32 = 6.0;
 const SCROLLBAR_MIN_THUMB: f32 = 20.0;
 const SCROLLBAR_COLOR: (u8, u8, u8) = theme::SCROLLBAR_THUMB;
 
-
 /// Convert a column (byte offset) to a pixel X offset using monospace char width.
 fn col_to_pixel_x(line: &str, col: usize, char_w: usize) -> usize {
     let safe_col = col.min(line.len());
     let chars_before = line[..safe_col].chars().count();
     chars_before * char_w
 }
-
 
 /// Computed viewport rectangle in physical pixels.
 struct Viewport {
@@ -51,7 +47,6 @@ struct Viewport {
     w: usize,
     h: usize,
 }
-
 
 /// Draw the editor content into the pixel buffer.
 pub fn draw(
@@ -68,13 +63,27 @@ pub fn draw(
     scrollbar_state: ScrollbarHit,
     cursor_visible: bool,
 ) {
-    let vp = Viewport { x: x_start, y: y_start, w: content_w, h: content_h };
+    let vp = Viewport {
+        x: x_start,
+        y: y_start,
+        w: content_w,
+        h: content_h,
+    };
 
     buf.fill_rect(vp.x, vp.y, vp.w, vp.h, theme::BG);
 
     match state.mode {
-        EditorMode::Text => draw_text_mode(buf, font_system, swash_cache, glyph_atlas, state, &vp, sf, cursor_visible),
-        EditorMode::Hex  => draw_hex_mode(buf, font_system, swash_cache, state, &vp, sf),
+        EditorMode::Text => draw_text_mode(
+            buf,
+            font_system,
+            swash_cache,
+            glyph_atlas,
+            state,
+            &vp,
+            sf,
+            cursor_visible,
+        ),
+        EditorMode::Hex => draw_hex_mode(buf, font_system, swash_cache, state, &vp, sf),
         EditorMode::Image => draw_image_mode(buf, state, &vp, sf),
     }
 
@@ -91,10 +100,14 @@ pub fn hit_test_cursor(
     y_start: usize,
     sf: f32,
 ) -> Option<(usize, usize)> {
-    if state.mode != EditorMode::Text { return None; }
+    if state.mode != EditorMode::Text {
+        return None;
+    }
 
     let line_h = (TEXT_LINE_HEIGHT * sf) as usize;
-    if line_h == 0 { return None; }
+    if line_h == 0 {
+        return None;
+    }
 
     let pad_y = (TEXT_PAD_Y * sf) as usize;
     let gutter_w = gutter_width(state.lines.len(), sf);
@@ -113,14 +126,22 @@ pub fn hit_test_cursor(
         return Some((line, 0));
     }
 
-    if phys_x < code_x { return None; }
+    if phys_x < code_x {
+        return None;
+    }
 
     let x_in_line = phys_x.saturating_sub(code_x);
     let line_str = &state.lines[line];
-    let char_idx = if char_w > 0 { (x_in_line + char_w / 2) / char_w } else { 0 };
+    let char_idx = if char_w > 0 {
+        (x_in_line + char_w / 2) / char_w
+    } else {
+        0
+    };
     let mut byte_off = 0;
     for (i, ch) in line_str.chars().enumerate() {
-        if i >= char_idx { break; }
+        if i >= char_idx {
+            break;
+        }
         byte_off += ch.len_utf8();
     }
     let col = byte_off.min(line_str.len());
@@ -147,12 +168,20 @@ pub enum ScrollbarHit {
 /// Hit-test whether a physical (px, py) is on the vertical scrollbar thumb.
 pub fn scrollbar_hit_test(
     state: &EditorState,
-    px: usize, py: usize,
-    x_start: usize, y_start: usize,
-    content_w: usize, content_h: usize,
+    px: usize,
+    py: usize,
+    x_start: usize,
+    y_start: usize,
+    content_w: usize,
+    content_h: usize,
     sf: f32,
 ) -> ScrollbarHit {
-    let vp = Viewport { x: x_start, y: y_start, w: content_w, h: content_h };
+    let vp = Viewport {
+        x: x_start,
+        y: y_start,
+        w: content_w,
+        h: content_h,
+    };
 
     if let Some((tx, ty, tw, th)) = vertical_thumb_rect(state, &vp, sf) {
         let margin = (4.0 * sf) as usize;
@@ -172,9 +201,15 @@ pub fn scrollbar_hit_test(
 }
 
 /// Compute vertical thumb rect: (x, y, w, h). Returns None if no scrollbar needed.
-fn vertical_thumb_rect(state: &EditorState, vp: &Viewport, sf: f32) -> Option<(usize, usize, usize, usize)> {
+fn vertical_thumb_rect(
+    state: &EditorState,
+    vp: &Viewport,
+    sf: f32,
+) -> Option<(usize, usize, usize, usize)> {
     let total_h = content_height_px(state, sf);
-    if total_h <= vp.h || vp.h == 0 { return None; }
+    if total_h <= vp.h || vp.h == 0 {
+        return None;
+    }
 
     let sb_w = (SCROLLBAR_WIDTH * sf).max(4.0) as usize;
     let track_x = vp.x + vp.w - sb_w - (2.0 * sf) as usize;
@@ -183,14 +218,22 @@ fn vertical_thumb_rect(state: &EditorState, vp: &Viewport, sf: f32) -> Option<(u
         .max(SCROLLBAR_MIN_THUMB as f64 * sf as f64) as usize;
     let max_scroll = total_h.saturating_sub(vp.h);
     let scroll = state.scroll_offset.max(0.0) as usize;
-    let frac = if max_scroll > 0 { scroll.min(max_scroll) as f64 / max_scroll as f64 } else { 0.0 };
+    let frac = if max_scroll > 0 {
+        scroll.min(max_scroll) as f64 / max_scroll as f64
+    } else {
+        0.0
+    };
     let thumb_y = vp.y + (frac * (track_h.saturating_sub(thumb_h)) as f64) as usize;
 
     Some((track_x, thumb_y, sb_w, thumb_h))
 }
 
 /// Compute horizontal thumb rect: (x, y, w, h). Returns None if no scrollbar needed.
-fn horizontal_thumb_rect(state: &EditorState, vp: &Viewport, sf: f32) -> Option<(usize, usize, usize, usize)> {
+fn horizontal_thumb_rect(
+    state: &EditorState,
+    vp: &Viewport,
+    sf: f32,
+) -> Option<(usize, usize, usize, usize)> {
     let font_size = TEXT_FONT_SIZE * sf;
     let char_w = (font_size * 0.6) as usize;
     let gutter_w = gutter_width(state.lines.len(), sf);
@@ -199,7 +242,9 @@ fn horizontal_thumb_rect(state: &EditorState, vp: &Viewport, sf: f32) -> Option<
     let code_x = vp.x + gutter_w + divider_w + pad_x;
     let code_w = vp.w.saturating_sub(gutter_w + divider_w + pad_x);
     let max_w = max_line_width_px(state, char_w);
-    if max_w <= code_w || code_w == 0 { return None; }
+    if max_w <= code_w || code_w == 0 {
+        return None;
+    }
 
     let sb_h = (SCROLLBAR_WIDTH * sf).max(4.0) as usize;
     let track_y = vp.y + vp.h - sb_h - (2.0 * sf) as usize;
@@ -208,7 +253,11 @@ fn horizontal_thumb_rect(state: &EditorState, vp: &Viewport, sf: f32) -> Option<
         .max(SCROLLBAR_MIN_THUMB as f64 * sf as f64) as usize;
     let max_scroll = max_w.saturating_sub(code_w);
     let scroll_x = state.scroll_x().max(0.0) as usize;
-    let frac = if max_scroll > 0 { scroll_x.min(max_scroll) as f64 / max_scroll as f64 } else { 0.0 };
+    let frac = if max_scroll > 0 {
+        scroll_x.min(max_scroll) as f64 / max_scroll as f64
+    } else {
+        0.0
+    };
     let thumb_x = code_x + (frac * (track_w.saturating_sub(thumb_w)) as f64) as usize;
 
     Some((thumb_x, track_y, thumb_w, sb_h))
@@ -218,11 +267,14 @@ fn horizontal_thumb_rect(state: &EditorState, vp: &Viewport, sf: f32) -> Option<
 pub fn vertical_drag_to_scroll(
     state: &EditorState,
     py: f64,
-    y_start: usize, content_h: usize,
+    y_start: usize,
+    content_h: usize,
     sf: f32,
 ) -> f32 {
     let total_h = content_height_px(state, sf);
-    if total_h <= content_h || content_h == 0 { return 0.0; }
+    if total_h <= content_h || content_h == 0 {
+        return 0.0;
+    }
 
     let sb_w_unused = (SCROLLBAR_WIDTH * sf).max(4.0) as usize;
     let _ = sb_w_unused;
@@ -230,7 +282,9 @@ pub fn vertical_drag_to_scroll(
     let thumb_h = ((content_h as f64 / total_h as f64) * track_h as f64)
         .max(SCROLLBAR_MIN_THUMB as f64 * sf as f64) as usize;
     let usable = track_h.saturating_sub(thumb_h) as f64;
-    if usable <= 0.0 { return 0.0; }
+    if usable <= 0.0 {
+        return 0.0;
+    }
 
     let max_scroll = total_h.saturating_sub(content_h) as f64;
     let rel = (py - y_start as f64 - thumb_h as f64 / 2.0).clamp(0.0, usable);
@@ -241,7 +295,8 @@ pub fn vertical_drag_to_scroll(
 pub fn horizontal_drag_to_scroll(
     state: &EditorState,
     px: f64,
-    x_start: usize, content_w: usize,
+    x_start: usize,
+    content_w: usize,
     sf: f32,
 ) -> f32 {
     let font_size = TEXT_FONT_SIZE * sf;
@@ -252,19 +307,22 @@ pub fn horizontal_drag_to_scroll(
     let code_x = x_start + gutter_w + divider_w + pad_x;
     let code_w = content_w.saturating_sub(gutter_w + divider_w + pad_x);
     let max_w = max_line_width_px(state, char_w);
-    if max_w <= code_w || code_w == 0 { return 0.0; }
+    if max_w <= code_w || code_w == 0 {
+        return 0.0;
+    }
 
     let track_w = code_w;
     let thumb_w = ((code_w as f64 / max_w as f64) * track_w as f64)
         .max(SCROLLBAR_MIN_THUMB as f64 * sf as f64) as usize;
     let usable = track_w.saturating_sub(thumb_w) as f64;
-    if usable <= 0.0 { return 0.0; }
+    if usable <= 0.0 {
+        return 0.0;
+    }
 
     let max_scroll = max_w.saturating_sub(code_w) as f64;
     let rel = (px - code_x as f64 - thumb_w as f64 / 2.0).clamp(0.0, usable);
     (rel / usable * max_scroll) as f32
 }
-
 
 fn draw_text_mode(
     buf: &mut PixelBuffer,
@@ -277,7 +335,9 @@ fn draw_text_mode(
     cursor_visible: bool,
 ) {
     let line_h = (TEXT_LINE_HEIGHT * sf) as usize;
-    if line_h == 0 { return; }
+    if line_h == 0 {
+        return;
+    }
 
     let font_size = TEXT_FONT_SIZE * sf;
     let line_height = TEXT_LINE_HEIGHT * sf;
@@ -318,8 +378,10 @@ fn draw_text_mode(
 
         if idx == state.cursor_line() {
             buf.fill_rect(
-                vp.x + gutter_w + divider_w, y_px,
-                vp.w.saturating_sub(gutter_w + divider_w), line_h,
+                vp.x + gutter_w + divider_w,
+                y_px,
+                vp.w.saturating_sub(gutter_w + divider_w),
+                line_h,
                 CURRENT_LINE_BG,
             );
         }
@@ -333,39 +395,61 @@ fn draw_text_mode(
                     buf.fill_rect(content_area_x, y_px, content_area_w, line_h, DIFF_ADDED_BG);
                 }
                 DiffLineKind::Removed => {
-                    buf.fill_rect(content_area_x, y_px, content_area_w, line_h, DIFF_REMOVED_BG);
+                    buf.fill_rect(
+                        content_area_x,
+                        y_px,
+                        content_area_w,
+                        line_h,
+                        DIFF_REMOVED_BG,
+                    );
                 }
                 DiffLineKind::Context => {}
             }
         }
 
-        if let Some((sl, sc, el, ec)) = sel {
-            if idx >= sl && idx <= el {
-                let line = &state.lines[idx];
-                let sel_start_col = if idx == sl { sc } else { 0 };
-                let sel_end_col = if idx == el { ec } else { line.len() };
+        if let Some((sl, sc, el, ec)) = sel
+            && idx >= sl
+            && idx <= el
+        {
+            let line = &state.lines[idx];
+            let sel_start_col = if idx == sl { sc } else { 0 };
+            let sel_end_col = if idx == el { ec } else { line.len() };
 
-                let x_start_sel = col_to_pixel_x(line, sel_start_col, char_w);
-                let x_end_sel = col_to_pixel_x(line, sel_end_col, char_w);
+            let x_start_sel = col_to_pixel_x(line, sel_start_col, char_w);
+            let x_end_sel = col_to_pixel_x(line, sel_end_col, char_w);
 
-                let sel_px_x = (code_x + x_start_sel).saturating_sub(scroll_x).max(code_x);
-                if sel_px_x < clip_right {
-                    let sel_right = ((code_x + x_end_sel).saturating_sub(scroll_x)).min(clip_right);
-                    let sel_draw_w = sel_right.saturating_sub(sel_px_x).max(char_w);
-                    buf.fill_rect(sel_px_x, y_px, sel_draw_w, line_h, SELECTION_BG);
-                }
+            let sel_px_x = (code_x + x_start_sel).saturating_sub(scroll_x).max(code_x);
+            if sel_px_x < clip_right {
+                let sel_right = ((code_x + x_end_sel).saturating_sub(scroll_x)).min(clip_right);
+                let sel_draw_w = sel_right.saturating_sub(sel_px_x).max(char_w);
+                buf.fill_rect(sel_px_x, y_px, sel_draw_w, line_h, SELECTION_BG);
             }
         }
 
         let line_num = format!("{}", idx + 1);
         let num_text_w = line_num.len() * char_w.max(1);
         let gutter_x = vp.x + gutter_w.saturating_sub(num_text_w + gutter_pad);
-        let gutter_color = if idx == state.cursor_line() { GUTTER_ACTIVE_TEXT } else { GUTTER_TEXT };
+        let gutter_color = if idx == state.cursor_line() {
+            GUTTER_ACTIVE_TEXT
+        } else {
+            GUTTER_TEXT
+        };
 
         blit_str_atlas(
-            buf, glyph_atlas, font_system, swash_cache,
-            gutter_x, y_px, y_px, y_px + line_h, vp.x, vp.x + gutter_w,
-            &line_num, font_size, line_height, gutter_color,
+            buf,
+            glyph_atlas,
+            font_system,
+            swash_cache,
+            gutter_x,
+            y_px,
+            y_px,
+            y_px + line_h,
+            vp.x,
+            vp.x + gutter_w,
+            &line_num,
+            font_size,
+            line_height,
+            gutter_color,
         );
 
         if let Some(kind) = diff_kind {
@@ -410,9 +494,25 @@ fn draw_text_mode(
                 };
 
                 if let Some(glyph) = glyph_atlas.get_or_rasterize(
-                    ch, font_size, line_height, false, false, font_system, swash_cache,
+                    ch,
+                    font_size,
+                    line_height,
+                    false,
+                    false,
+                    font_system,
+                    swash_cache,
                 ) {
-                    blit_glyph(buf, glyph, screen_x, y_px, color, y_px, y_px + line_h, code_x, clip_right);
+                    blit_glyph(
+                        buf,
+                        glyph,
+                        screen_x,
+                        y_px,
+                        color,
+                        y_px,
+                        y_px + line_h,
+                        code_x,
+                        clip_right,
+                    );
                 }
                 char_idx += 1;
             }
@@ -452,13 +552,21 @@ fn blit_glyph(
 
     for row in 0..glyph.height {
         let py = gy + row;
-        if py < clip_top { continue; }
-        if py >= buf_h { break; }
+        if py < clip_top {
+            continue;
+        }
+        if py >= buf_h {
+            break;
+        }
         let row_off = row * glyph.width;
         for col in 0..glyph.width {
             let px = gx + col;
-            if px < clip_left { continue; }
-            if px >= buf_w || px >= clip_right { break; }
+            if px < clip_left {
+                continue;
+            }
+            if px >= buf_w || px >= clip_right {
+                break;
+            }
             let a = glyph.alphas[row_off + col];
             if a > 0 {
                 buf.blend_pixel(px, py, color, a as f32 / 255.0);
@@ -487,11 +595,29 @@ fn blit_str_atlas(
     let char_w = (font_size * 0.6) as usize;
     for (i, ch) in text.chars().enumerate() {
         let px = x + i * char_w;
-        if px >= clip_right { break; }
+        if px >= clip_right {
+            break;
+        }
         if let Some(glyph) = atlas.get_or_rasterize(
-            ch, font_size, line_height, false, false, font_system, swash_cache,
+            ch,
+            font_size,
+            line_height,
+            false,
+            false,
+            font_system,
+            swash_cache,
         ) {
-            blit_glyph(buf, glyph, px, y, color, clip_top, clip_bottom, clip_left, clip_right);
+            blit_glyph(
+                buf,
+                glyph,
+                px,
+                y,
+                color,
+                clip_top,
+                clip_bottom,
+                clip_left,
+                clip_right,
+            );
         }
     }
 }
@@ -503,7 +629,9 @@ fn build_char_colors(
     line_byte_start: usize,
     tokens: &[crate::ui::syntax::Token],
 ) -> Vec<(u8, u8, u8)> {
-    if tokens.is_empty() { return Vec::new(); }
+    if tokens.is_empty() {
+        return Vec::new();
+    }
 
     let mut colors = vec![LINE_TEXT; line.len()];
     for tok in tokens {
@@ -533,7 +661,9 @@ pub fn max_scroll_x(state: &EditorState, sf: f32) -> f32 {
 }
 
 fn max_line_width_px(state: &EditorState, char_w: usize) -> usize {
-    state.lines.iter()
+    state
+        .lines
+        .iter()
         .map(|l| l.chars().count() * char_w)
         .max()
         .unwrap_or(0)
@@ -541,7 +671,11 @@ fn max_line_width_px(state: &EditorState, char_w: usize) -> usize {
 
 /// Gutter width in physical pixels — depends on line count digit width.
 fn gutter_width(line_count: usize, sf: f32) -> usize {
-    let digits = if line_count == 0 { 1 } else { (line_count as f64).log10().floor() as usize + 1 };
+    let digits = if line_count == 0 {
+        1
+    } else {
+        (line_count as f64).log10().floor() as usize + 1
+    };
     let char_w = (TEXT_FONT_SIZE * sf * 0.6) as usize;
     let pad = (GUTTER_PAD_RIGHT * sf) as usize;
     let pad_left = (14.0 * sf) as usize;
@@ -570,17 +704,27 @@ fn draw_file_info_bar(
     let mode_label = match state.mode {
         EditorMode::Text => format!("{} — {} lines", path_str, state.lines.len()),
         EditorMode::Hex => format!("{} — {} bytes", path_str, state.raw_bytes.len()),
-        EditorMode::Image => format!("{} — {}×{}", path_str, state.image_width, state.image_height),
+        EditorMode::Image => format!(
+            "{} — {}×{}",
+            path_str, state.image_width, state.image_height
+        ),
     };
 
     let mut info_buf = Buffer::new(font_system, metrics);
     draw_text_at_buffered(
-        buf, font_system, swash_cache, &mut info_buf,
-        vp.x + pad_x, vp.y, vp.y + bar_h,
-        &mode_label, metrics, theme::FG_SECONDARY, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        &mut info_buf,
+        vp.x + pad_x,
+        vp.y,
+        vp.y + bar_h,
+        &mode_label,
+        metrics,
+        theme::FG_SECONDARY,
+        Family::SansSerif,
     );
 }
-
 
 fn draw_hex_mode(
     buf: &mut PixelBuffer,
@@ -591,7 +735,9 @@ fn draw_hex_mode(
     sf: f32,
 ) {
     let line_h = (HEX_LINE_HEIGHT * sf) as usize;
-    if line_h == 0 { return; }
+    if line_h == 0 {
+        return;
+    }
 
     let pad_y = (HEX_PAD_Y * sf) as usize;
     let pad_x = (HEX_PAD_X * sf) as usize;
@@ -599,7 +745,7 @@ fn draw_hex_mode(
     let scroll = state.scroll_offset.max(0.0) as usize;
 
     let bytes_per_row = 16usize;
-    let total_rows = (state.raw_bytes.len() + bytes_per_row - 1) / bytes_per_row;
+    let total_rows = state.raw_bytes.len().div_ceil(bytes_per_row);
 
     draw_file_info_bar(buf, font_system, swash_cache, state, vp, sf);
     let info_bar_h = (24.0 * sf) as usize + (1.0 * sf).max(1.0) as usize;
@@ -629,16 +775,22 @@ fn draw_hex_mode(
 
         let addr_str = format!("{:08X}", offset);
         draw_text_at_buffered(
-            buf, font_system, swash_cache, &mut addr_buf,
-            vp.x + pad_x, y_px, clip_bottom,
-            &addr_str, metrics, HEX_ADDR_COLOR, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            &mut addr_buf,
+            vp.x + pad_x,
+            y_px,
+            clip_bottom,
+            &addr_str,
+            metrics,
+            HEX_ADDR_COLOR,
+            Family::Monospace,
         );
 
         let end = (offset + bytes_per_row).min(state.raw_bytes.len());
         let chunk = &state.raw_bytes[offset..end];
-        let hex_str: String = chunk.iter()
-            .map(|b| format!("{:02X} ", b))
-            .collect();
+        let hex_str: String = chunk.iter().map(|b| format!("{:02X} ", b)).collect();
         let padded = if chunk.len() < bytes_per_row {
             format!("{:<width$}", hex_str, width = bytes_per_row * 3)
         } else {
@@ -647,32 +799,53 @@ fn draw_hex_mode(
 
         let hex_x = vp.x + pad_x + addr_w;
         draw_text_at_buffered(
-            buf, font_system, swash_cache, &mut hex_buf,
-            hex_x, y_px, clip_bottom,
-            &padded, metrics, HEX_BYTE_COLOR, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            &mut hex_buf,
+            hex_x,
+            y_px,
+            clip_bottom,
+            &padded,
+            metrics,
+            HEX_BYTE_COLOR,
+            Family::Monospace,
         );
 
-        let ascii_str: String = chunk.iter().map(|&b| {
-            if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' }
-        }).collect();
+        let ascii_str: String = chunk
+            .iter()
+            .map(|&b| {
+                if b.is_ascii_graphic() || b == b' ' {
+                    b as char
+                } else {
+                    '.'
+                }
+            })
+            .collect();
 
         let ascii_x = hex_x + hex_block_w;
-        let ascii_color = if chunk.iter().all(|&b| b == 0) { HEX_NULL_COLOR } else { HEX_ASCII_COLOR };
+        let ascii_color = if chunk.iter().all(|&b| b == 0) {
+            HEX_NULL_COLOR
+        } else {
+            HEX_ASCII_COLOR
+        };
         draw_text_at_buffered(
-            buf, font_system, swash_cache, &mut ascii_buf,
-            ascii_x, y_px, clip_bottom,
-            &ascii_str, metrics, ascii_color, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            &mut ascii_buf,
+            ascii_x,
+            y_px,
+            clip_bottom,
+            &ascii_str,
+            metrics,
+            ascii_color,
+            Family::Monospace,
         );
     }
 }
 
-
-fn draw_image_mode(
-    buf: &mut PixelBuffer,
-    state: &EditorState,
-    vp: &Viewport,
-    sf: f32,
-) {
+fn draw_image_mode(buf: &mut PixelBuffer, state: &EditorState, vp: &Viewport, sf: f32) {
     let info_bar_h = (24.0 * sf) as usize + (1.0 * sf).max(1.0) as usize;
 
     if state.image_width == 0 || state.image_height == 0 || state.image_rgba.is_empty() {
@@ -700,20 +873,30 @@ fn draw_image_mode(
 
     for dy in 0..draw_h {
         let py = offset_y + dy;
-        if py >= buf_h { break; }
+        if py >= buf_h {
+            break;
+        }
 
         let src_y = (dy as f64 / scale) as usize;
-        if src_y >= ih { continue; }
+        if src_y >= ih {
+            continue;
+        }
 
         for dx in 0..draw_w {
             let px = offset_x + dx;
-            if px >= buf_w { continue; }
+            if px >= buf_w {
+                continue;
+            }
 
             let src_x = (dx as f64 / scale) as usize;
-            if src_x >= iw { continue; }
+            if src_x >= iw {
+                continue;
+            }
 
             let si = (src_y * iw + src_x) * 4;
-            if si + 3 >= state.image_rgba.len() { continue; }
+            if si + 3 >= state.image_rgba.len() {
+                continue;
+            }
 
             let r = state.image_rgba[si];
             let g = state.image_rgba[si + 1];
@@ -734,7 +917,6 @@ fn draw_image_mode(
 
     buf.mark_dirty(offset_y, offset_y + draw_h);
 }
-
 
 fn draw_scrollbar(
     buf: &mut PixelBuffer,
@@ -760,7 +942,6 @@ fn draw_scrollbar(
         buf.fill_rect(tx, ty, tw, th, h_color);
     }
 }
-
 
 #[cfg(test)]
 mod tests {

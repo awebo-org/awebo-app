@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 mod agent;
 mod ai;
 mod ai_controller;

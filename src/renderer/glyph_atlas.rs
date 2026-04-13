@@ -6,7 +6,8 @@
 use std::collections::HashMap;
 
 use cosmic_text::{
-    Attrs, Buffer, Color as CColor, Family, FontSystem, Metrics, Shaping, Style, SwashCache, Weight, Wrap,
+    Attrs, Buffer, Color as CColor, Family, FontSystem, Metrics, Shaping, Style, SwashCache,
+    Weight, Wrap,
 };
 
 /// Rasterized glyph: alpha bitmap + positioning metadata.
@@ -228,9 +229,11 @@ mod tests {
         let mut atlas = GlyphAtlas::new(Family::Monospace);
         let mut fs = FontSystem::new();
         let mut sc = SwashCache::new();
-        assert!(atlas
-            .get_or_rasterize(' ', 16.0, 22.0, false, false, &mut fs, &mut sc)
-            .is_none());
+        assert!(
+            atlas
+                .get_or_rasterize(' ', 16.0, 22.0, false, false, &mut fs, &mut sc)
+                .is_none()
+        );
     }
 
     #[test]

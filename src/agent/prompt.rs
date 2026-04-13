@@ -38,7 +38,8 @@ pub fn build_agent_system_prompt(
     }
     prompt.push('\n');
 
-    prompt.push_str("OUTPUT FORMAT:\n\
+    prompt.push_str(
+        "OUTPUT FORMAT:\n\
 Every response MUST contain exactly one of these two XML blocks.\n\
 No other format is accepted. Do not output JSON. Do not use code fences for tool calls.\n\n\
 To call a tool — write a short reason, then:\n\
@@ -74,7 +75,8 @@ Assistant: I will check directory sizes.\n\
 Assistant: The largest directory is target.\n\
 <final_answer>\n\
 The largest directory is target/ at 15 GB.\n\
-</final_answer>\n");
+</final_answer>\n",
+    );
 
     prompt
 }

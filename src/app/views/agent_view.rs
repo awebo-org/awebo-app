@@ -10,16 +10,20 @@ use crate::agent::tools::ToolRegistry;
 impl super::super::App {
     /// Start an agent session from `/agent <task>`.
     pub(crate) fn start_agent(&mut self, task: String) {
-        if self.ai_ctrl.state.loaded_model.is_none() && self.ai_ctrl.state.loaded_model_name.is_none() {
-            if !self.auto_load_best_efficient() {
-                self.auto_download_default_model(&task);
-                self.pending_agent_task = Some(task);
-                return;
-            }
+        if self.ai_ctrl.state.loaded_model.is_none()
+            && self.ai_ctrl.state.loaded_model_name.is_none()
+            && !self.auto_load_best_efficient()
+        {
+            self.auto_download_default_model(&task);
+            self.pending_agent_task = Some(task);
+            return;
         }
 
         if self.ai_ctrl.state.loaded_model.is_none() {
-            let model_label = self.ai_ctrl.state.loaded_model_name
+            let model_label = self
+                .ai_ctrl
+                .state
+                .loaded_model_name
                 .clone()
                 .unwrap_or_else(|| "model".into());
             self.push_agent_loading_block(&task, &model_label);
@@ -84,8 +88,11 @@ impl super::super::App {
         }
 
         let clean = Self::strip_agent_control_tokens(&full_response);
-        log::info!("Agent inference complete (clean {} bytes): {:?}",
-            clean.len(), &clean[..clean.len().min(200)]);
+        log::info!(
+            "Agent inference complete (clean {} bytes): {:?}",
+            clean.len(),
+            &clean[..clean.len().min(200)]
+        );
 
         let next = if let Some(orch) = &mut self.agent {
             orch.on_inference_complete(&clean)
@@ -113,9 +120,13 @@ impl super::super::App {
         }
 
         for token in &[
-            "<|end|>", "<|start|>",
-            "<|im_start|>assistant", "<|im_start|>", "<|im_end|>",
-            "<|eot_id|>", "<|start_header_id|>assistant<|end_header_id|>",
+            "<|end|>",
+            "<|start|>",
+            "<|im_start|>assistant",
+            "<|im_start|>",
+            "<|im_end|>",
+            "<|eot_id|>",
+            "<|start_header_id|>assistant<|end_header_id|>",
         ] {
             while result.contains(token) {
                 result = result.replace(token, "");
@@ -128,15 +139,16 @@ impl super::super::App {
     /// Route an `AgentNext` instruction to the appropriate side effect.
     fn process_agent_next(&mut self, next: AgentNext) {
         match next {
-            AgentNext::RunInference { system_prompt, user_messages } => {
+            AgentNext::RunInference {
+                system_prompt,
+                user_messages,
+            } => {
                 self.start_agent_inference(system_prompt, user_messages);
             }
             AgentNext::RequestApproval(request) => {
                 let preview = match request.args.get("command") {
                     Some(serde_json::Value::String(cmd)) => cmd.clone(),
-                    _ => {
-                        serde_json::to_string_pretty(&request.args).unwrap_or_default()
-                    }
+                    _ => serde_json::to_string_pretty(&request.args).unwrap_or_default(),
                 };
                 let tool_name = request.tool_name.clone();
                 self.push_agent_block_with_step(
@@ -154,7 +166,9 @@ impl super::super::App {
             AgentNext::ExecuteTool(request) => {
                 let cwd = self.current_cwd().unwrap_or_else(|| "/tmp".into());
 
-                let tool_exists = self.agent.as_ref()
+                let tool_exists = self
+                    .agent
+                    .as_ref()
                     .map(|o| o.tool_registry.get(&request.tool_name).is_some())
                     .unwrap_or(false);
 
@@ -167,9 +181,7 @@ impl super::super::App {
                     return;
                 }
 
-                self.push_agent_block(&format!(
-                    "Running `{}`…", request.tool_name,
-                ));
+                self.push_agent_block(&format!("Running `{}`…", request.tool_name,));
 
                 let proxy = self.proxy.clone();
                 let args = request.args.clone();
@@ -192,16 +204,18 @@ impl super::super::App {
                 });
             }
             AgentNext::Done(answer) => {
-                let token_info = self.agent.as_ref()
+                let token_info = self
+                    .agent
+                    .as_ref()
                     .map(|o| o.token_usage_display())
                     .unwrap_or_default();
-                let rounds = self.agent.as_ref()
+                let rounds = self
+                    .agent
+                    .as_ref()
                     .map(|o| o.session.inference_rounds)
                     .unwrap_or(0);
                 self.push_agent_block_with_step(
-                    &format!(
-                        "Agent complete:\n\n{answer}\n\n---\n{rounds} rounds, {token_info}",
-                    ),
+                    &format!("Agent complete:\n\n{answer}\n\n---\n{rounds} rounds, {token_info}",),
                     Some(crate::blocks::AgentStepKind::FinalAnswer),
                 );
                 self.agent = None;
@@ -232,7 +246,9 @@ impl super::super::App {
 
         let icon = if is_error { "[error]" } else { "[ok]" };
         let tool_name = request.tool_name.clone();
-        let token_info = self.agent.as_ref()
+        let token_info = self
+            .agent
+            .as_ref()
             .map(|o| o.token_usage_display())
             .unwrap_or_default();
         self.push_agent_block_with_step(
@@ -285,16 +301,14 @@ impl super::super::App {
                 (role, m.content.clone())
             })
             .collect();
-        let msg_refs: Vec<(&str, &str)> = msg_tuples
-            .iter()
-            .map(|(r, c)| (*r, c.as_str()))
-            .collect();
+        let msg_refs: Vec<(&str, &str)> =
+            msg_tuples.iter().map(|(r, c)| (*r, c.as_str())).collect();
 
         let prompt = self.ai_ctrl.state.build_custom_prompt(
             &system_prompt,
             &msg_refs,
             &handle.model,
-            &fallback_template,
+            fallback_template,
         );
 
         self.push_agent_thinking_block();
@@ -305,7 +319,8 @@ impl super::super::App {
         let cancel = self.ai_ctrl.arm_cancel();
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let inference_handle = crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
+        let inference_handle =
+            crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
 
         self.ai_ctrl.state.inference_rx = Some(rx);
         self.ai_ctrl.state.inference_handle = Some(inference_handle);
@@ -314,41 +329,55 @@ impl super::super::App {
     }
 
     fn agent_cmd_label(&self) -> String {
-        self.agent_command.clone().unwrap_or_else(|| "/agent".to_string())
+        self.agent_command
+            .clone()
+            .unwrap_or_else(|| "/agent".to_string())
     }
 
     pub(crate) fn push_agent_block(&mut self, text: &str) {
         self.push_agent_block_with_step(text, None);
     }
 
-    fn push_agent_block_with_step(&mut self, text: &str, step: Option<crate::blocks::AgentStepKind>) {
+    fn push_agent_block_with_step(
+        &mut self,
+        text: &str,
+        step: Option<crate::blocks::AgentStepKind>,
+    ) {
         let cmd = self.agent_cmd_label();
         let clean = Self::strip_agent_control_tokens(text);
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-            if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                let prompt_info = terminal.prompt_info();
-                block_list.push_command(prompt_info, cmd);
-                block_list.set_output_markdown(&clean);
-                if let Some(s) = step {
-                    block_list.set_last_agent_step(s);
-                }
-                block_list.finish_last();
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, cmd);
+            block_list.set_output_markdown(&clean);
+            if let Some(s) = step {
+                block_list.set_last_agent_step(s);
             }
+            block_list.finish_last();
         }
         self.record_last_block();
     }
 
     fn push_agent_thinking_block(&mut self) {
         let cmd = self.agent_cmd_label();
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-            if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                let prompt_info = terminal.prompt_info();
-                block_list.push_command(prompt_info, cmd);
-                if let Some(block) = block_list.blocks.last_mut() {
-                    block.thinking = true;
-                }
-                block_list.set_last_agent_step(crate::blocks::AgentStepKind::Thinking);
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, cmd);
+            if let Some(block) = block_list.blocks.last_mut() {
+                block.thinking = true;
             }
+            block_list.set_last_agent_step(crate::blocks::AgentStepKind::Thinking);
         }
     }
 
@@ -358,12 +387,16 @@ impl super::super::App {
 
     fn push_agent_loading_block(&mut self, task: &str, model_name: &str) {
         let cmd = format!("/agent {task}");
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-            if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                let prompt_info = terminal.prompt_info();
-                block_list.push_command(prompt_info, cmd);
-                block_list.append_output_text(&format!("Loading {model_name}…"));
-            }
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, cmd);
+            block_list.append_output_text(&format!("Loading {model_name}…"));
         }
     }
 
@@ -373,12 +406,13 @@ impl super::super::App {
             Some(t) => t,
             None => return 0,
         };
-        if let super::super::TabKind::Terminal { block_list, .. } = &tab.kind {
-            if let Some(block) = block_list.blocks.last() {
-                if let Some(crate::blocks::AgentStepKind::ToolApproval { selected_option, .. }) = &block.agent_step {
-                    return *selected_option;
-                }
-            }
+        if let super::super::TabKind::Terminal { block_list, .. } = &tab.kind
+            && let Some(block) = block_list.blocks.last()
+            && let Some(crate::blocks::AgentStepKind::ToolApproval {
+                selected_option, ..
+            }) = &block.agent_step
+        {
+            return *selected_option;
         }
         0
     }
@@ -390,11 +424,13 @@ impl super::super::App {
             None => return,
         };
         if let super::super::TabKind::Terminal { block_list, .. } = &mut tab.kind {
-            if let Some(block) = block_list.blocks.last_mut() {
-                if let Some(crate::blocks::AgentStepKind::ToolApproval { selected_option, .. }) = &mut block.agent_step {
-                    let cur = *selected_option as i32;
-                    *selected_option = (cur + delta).rem_euclid(3) as usize;
-                }
+            if let Some(block) = block_list.blocks.last_mut()
+                && let Some(crate::blocks::AgentStepKind::ToolApproval {
+                    selected_option, ..
+                }) = &mut block.agent_step
+            {
+                let cur = *selected_option as i32;
+                *selected_option = (cur + delta).rem_euclid(3) as usize;
             }
             block_list.bump_generation();
         }
@@ -407,10 +443,12 @@ impl super::super::App {
             None => return,
         };
         if let super::super::TabKind::Terminal { block_list, .. } = &mut tab.kind {
-            if let Some(block) = block_list.blocks.last_mut() {
-                if let Some(crate::blocks::AgentStepKind::ToolApproval { selected_option, .. }) = &mut block.agent_step {
-                    *selected_option = index.min(2);
-                }
+            if let Some(block) = block_list.blocks.last_mut()
+                && let Some(crate::blocks::AgentStepKind::ToolApproval {
+                    selected_option, ..
+                }) = &mut block.agent_step
+            {
+                *selected_option = index.min(2);
             }
             block_list.bump_generation();
         }
@@ -420,10 +458,10 @@ impl super::super::App {
         let tab = self.tab_mgr.get(self.tab_mgr.active_index())?;
         if let super::super::TabKind::Terminal { terminal, .. } = &tab.kind {
             let cwd = terminal.prompt_info().cwd()?;
-            if cwd.starts_with('~') {
-                if let Some(home) = dirs::home_dir() {
-                    return Some(cwd.replacen('~', &home.to_string_lossy(), 1));
-                }
+            if cwd.starts_with('~')
+                && let Some(home) = dirs::home_dir()
+            {
+                return Some(cwd.replacen('~', &home.to_string_lossy(), 1));
             }
             Some(cwd)
         } else {

@@ -140,12 +140,17 @@ impl AgentSession {
         self.total_prompt_tokens += prompt_tokens;
         self.total_generated_tokens += generated_tokens;
         self.inference_rounds += 1;
-        self.last_stats = InferenceStats { prompt_tokens, generated_tokens };
+        self.last_stats = InferenceStats {
+            prompt_tokens,
+            generated_tokens,
+        };
     }
 
     /// Fraction of context window used (0.0–1.0). Returns 0.0 if context_size unknown.
     pub fn context_usage_fraction(&self) -> f64 {
-        if self.context_size == 0 { return 0.0; }
+        if self.context_size == 0 {
+            return 0.0;
+        }
         let last_total = self.last_stats.prompt_tokens + self.last_stats.generated_tokens;
         last_total as f64 / self.context_size as f64
     }
@@ -225,7 +230,10 @@ mod tests {
         s.push_tool_request(dummy_request());
         s.push_tool_result(
             "shell_exec".into(),
-            ToolResult { output: "ok".into(), is_error: false },
+            ToolResult {
+                output: "ok".into(),
+                is_error: false,
+            },
         );
         assert!(matches!(s.status, AgentStatus::Thinking));
     }

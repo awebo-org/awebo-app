@@ -9,9 +9,7 @@ use std::path::Path;
 
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
-
 include!(concat!(env!("OUT_DIR"), "/grammars.rs"));
-
 
 /// Standard highlight capture names used across tree-sitter grammars.
 /// Order matters — index into this array is returned in `HighlightEvent::HighlightStart`.
@@ -82,7 +80,6 @@ fn index_to_kind(idx: usize) -> TokenKind {
     }
 }
 
-
 /// A highlighted span within source code.
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -90,7 +87,6 @@ pub struct Token {
     pub end: usize,
     pub kind: TokenKind,
 }
-
 
 struct LanguageEntry {
     config: HighlightConfiguration,
@@ -106,7 +102,6 @@ struct PendingGrammar {
     injections_query: &'static str,
     locals_query: &'static str,
 }
-
 
 pub struct SyntaxRegistry {
     languages: Vec<LanguageEntry>,
@@ -301,7 +296,6 @@ impl SyntaxRegistry {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,7 +365,8 @@ mod tests {
             assert!(
                 w[0].end <= w[1].start,
                 "tokens overlap: {:?} and {:?}",
-                w[0], w[1]
+                w[0],
+                w[1]
             );
         }
     }
@@ -395,4 +390,3 @@ mod tests {
         }
     }
 }
-

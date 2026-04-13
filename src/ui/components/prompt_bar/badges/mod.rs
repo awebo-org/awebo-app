@@ -57,14 +57,18 @@ pub fn draw_badge_with_icon(
 ) -> usize {
     let icon_sz = (ctx.seg_h as f32 * 0.6).round() as u32;
     let icon_gap = (3.0 * ctx.sf) as usize;
-    let text_w = measure_text_width_bold(ctx.font_system, label, ctx.seg_metrics, Family::Monospace).ceil() as usize;
+    let text_w = measure_text_width_bold(ctx.font_system, label, ctx.seg_metrics, Family::Monospace)
+        .ceil() as usize;
     let seg_w = ctx.pad_x + icon_sz as usize + icon_gap + text_w + ctx.pad_x;
     let x = right_x.saturating_sub(seg_w);
 
-    super::stroke_rounded_rect(ctx.buf, x, ctx.seg_y, seg_w, ctx.seg_h, ctx.radius, ctx.sf, border);
+    super::stroke_rounded_rect(
+        ctx.buf, x, ctx.seg_y, seg_w, ctx.seg_h, ctx.radius, ctx.sf, border,
+    );
 
     let icon_y = ctx.seg_y + (ctx.seg_h.saturating_sub(icon_sz as usize)) / 2;
-    ctx.icon_renderer.draw(ctx.buf, icon, x + ctx.pad_x, icon_y, icon_sz, fg);
+    ctx.icon_renderer
+        .draw(ctx.buf, icon, x + ctx.pad_x, icon_y, icon_sz, fg);
 
     let text_x = x + ctx.pad_x + icon_sz as usize + icon_gap;
     let text_y = ctx.seg_y + ((ctx.seg_h as f32 - ctx.seg_metrics.line_height) / 2.0) as usize;
@@ -92,11 +96,14 @@ pub fn draw_badge_text(
     fg: Rgb,
     border: Rgb,
 ) -> usize {
-    let text_w = measure_text_width_bold(ctx.font_system, label, ctx.seg_metrics, Family::Monospace).ceil() as usize;
+    let text_w = measure_text_width_bold(ctx.font_system, label, ctx.seg_metrics, Family::Monospace)
+        .ceil() as usize;
     let seg_w = ctx.pad_x + text_w + ctx.pad_x;
     let x = right_x.saturating_sub(seg_w);
 
-    super::stroke_rounded_rect(ctx.buf, x, ctx.seg_y, seg_w, ctx.seg_h, ctx.radius, ctx.sf, border);
+    super::stroke_rounded_rect(
+        ctx.buf, x, ctx.seg_y, seg_w, ctx.seg_h, ctx.radius, ctx.sf, border,
+    );
 
     let text_x = x + ctx.pad_x;
     let text_y = ctx.seg_y + ((ctx.seg_h as f32 - ctx.seg_metrics.line_height) / 2.0) as usize;

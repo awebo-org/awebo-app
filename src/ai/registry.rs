@@ -185,6 +185,10 @@ mod tests {
 
     #[test]
     fn registry_includes_gemma() {
-        assert!(MODELS.iter().any(|m| m.family == "Google" && m.name.contains("Gemma")));
+        assert!(
+            MODELS
+                .iter()
+                .any(|m| m.family == "Google" && m.name.contains("Gemma"))
+        );
     }
 }

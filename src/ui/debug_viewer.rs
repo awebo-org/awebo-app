@@ -2,11 +2,11 @@ use cosmic_text::Family;
 
 use crate::renderer::pixel_buffer::Rgb;
 use crate::renderer::theme;
+use crate::ui::Widget;
 use crate::ui::widgets::button::{IconButton, IconKind};
 use crate::ui::widgets::dropdown::{Dropdown, DropdownItem};
 use crate::ui::widgets::text_input::TextInput;
 use crate::ui::widgets::tooltip::Tooltip;
-use crate::ui::Widget;
 use crate::ui::{DrawCtx, Rect};
 
 const VIEWER_BG: Rgb = (18, 18, 22);

@@ -1,10 +1,10 @@
-mod state;
-pub(crate) mod views;
+pub(crate) mod actions;
 mod inference;
 pub mod router;
-pub(crate) mod actions;
 mod settings;
+mod state;
 mod tabs;
+pub(crate) mod views;
 
 pub(crate) use state::OverlayState;
 
@@ -18,17 +18,19 @@ use winit::keyboard::ModifiersState;
 use winit::window::{Window, WindowAttributes, WindowId};
 
 #[cfg(target_os = "macos")]
-use winit::platform::macos::{ActiveEventLoopExtMacOS, EventLoopBuilderExtMacOS, WindowAttributesExtMacOS};
+use winit::platform::macos::{
+    ActiveEventLoopExtMacOS, EventLoopBuilderExtMacOS, WindowAttributesExtMacOS,
+};
 
 use crate::ai;
 use crate::blocks;
+use crate::menu::AppMenu;
 use crate::renderer::{ModelPickerItem, ModelPickerState, ModelStatus, PaletteState, Renderer};
 use crate::terminal::TerminalEvent;
 use crate::ui::components::overlay::{
-    InputType, SettingsState, ShellInfo, ShellPickerState, SandboxImageInfo,
+    InputType, SandboxImageInfo, SandboxSettingsState, SettingsState, ShellInfo, ShellPickerState,
 };
 use crate::ui::components::tab_bar::DragState;
-use crate::menu::AppMenu;
 
 pub(crate) use tabs::{Tab, TabKind, TabManager};
 
@@ -105,15 +107,20 @@ impl App {
             _ => InputType::Smart,
         };
 
-        let mut settings_state = SettingsState::default();
-        settings_state.input_type = input_type;
-        settings_state.font_family = config.appearance.font_family.clone();
-        settings_state.font_size_px = config.appearance.font_size;
-        settings_state.line_height_px = config.appearance.line_height;
-        settings_state.models_path = config.ai.models_path.clone();
-        settings_state.web_search_enabled = config.ai.web_search;
-        settings_state.sandbox.cpus = config.sandbox.default_cpus;
-        settings_state.sandbox.memory_mib = config.sandbox.default_memory_mib;
+        let settings_state = SettingsState {
+            input_type,
+            font_family: config.appearance.font_family.clone(),
+            font_size_px: config.appearance.font_size,
+            line_height_px: config.appearance.line_height,
+            models_path: config.ai.models_path.clone(),
+            web_search_enabled: config.ai.web_search,
+            sandbox: SandboxSettingsState {
+                cpus: config.sandbox.default_cpus,
+                memory_mib: config.sandbox.default_memory_mib,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
         let hint_banner_dismissed = config.general.hint_banner_dismissed;
 
@@ -188,7 +195,8 @@ impl App {
                 crate::usage::UsageTracker::new(pro)
             },
             license_mgr: crate::license::LicenseManager::load(),
-            usage_limit_banner: crate::ui::components::usage_limit_banner::UsageLimitBannerState::default(),
+            usage_limit_banner:
+                crate::ui::components::usage_limit_banner::UsageLimitBannerState::default(),
         }
     }
 
@@ -230,15 +238,16 @@ impl App {
                 renderer.scale_factor,
                 fs,
             );
-            self.overlay.shell_picker_btn_hovered = crate::ui::components::tab_bar::is_shell_picker_hovered(
-                self.cursor_pos.0,
-                self.cursor_pos.1,
-                self.tab_mgr.len(),
-                renderer.tab_bar_height as f64,
-                renderer.width as f64,
-                renderer.scale_factor,
-                fs,
-            );
+            self.overlay.shell_picker_btn_hovered =
+                crate::ui::components::tab_bar::is_shell_picker_hovered(
+                    self.cursor_pos.0,
+                    self.cursor_pos.1,
+                    self.tab_mgr.len(),
+                    renderer.tab_bar_height as f64,
+                    renderer.width as f64,
+                    renderer.scale_factor,
+                    fs,
+                );
             self.overlay.sidebar_hovered = crate::ui::components::tab_bar::is_sidebar_hovered(
                 self.cursor_pos.0,
                 self.cursor_pos.1,
@@ -274,7 +283,9 @@ impl App {
                     let border_w = (1.0 * renderer.scale_factor).max(1.0);
                     let content_y = (renderer.tab_bar_height as f64 + header_h + border_w) as usize;
                     let row_count = self.file_tree.row_count();
-                    let panel_w = self.panel_layout.left_physical_width(renderer.scale_factor as f32);
+                    let panel_w = self
+                        .panel_layout
+                        .left_physical_width(renderer.scale_factor as f32);
                     let ft_changed = crate::ui::file_tree::update_hover(
                         self.cursor_pos.0,
                         self.cursor_pos.1,
@@ -287,15 +298,21 @@ impl App {
                     );
                     panel_changed |= ft_changed;
 
-                    let item_h = (crate::ui::file_tree::ITEM_HEIGHT_PX * renderer.scale_factor as f32) as usize;
-                    let pad_y = (crate::ui::file_tree::PAD_Y_PX * renderer.scale_factor as f32) as usize;
+                    let item_h = (crate::ui::file_tree::ITEM_HEIGHT_PX
+                        * renderer.scale_factor as f32) as usize;
+                    let pad_y =
+                        (crate::ui::file_tree::PAD_Y_PX * renderer.scale_factor as f32) as usize;
                     let visible_h = (renderer.height as usize).saturating_sub(content_y);
                     let total_h = row_count * item_h + pad_y * 2;
                     let prev_sb = self.file_tree.scrollbar_hovered;
                     self.file_tree.scrollbar_hovered = !self.file_tree.scrollbar_dragging
                         && crate::ui::components::side_panel::panel_scrollbar_hit_test(
-                            self.cursor_pos.0 as usize, self.cursor_pos.1 as usize,
-                            panel_w, content_y, visible_h, total_h,
+                            self.cursor_pos.0 as usize,
+                            self.cursor_pos.1 as usize,
+                            panel_w,
+                            content_y,
+                            visible_h,
+                            total_h,
                             self.file_tree.scroll_offset as usize,
                             renderer.scale_factor as f32,
                         );
@@ -342,13 +359,23 @@ impl App {
                 let panel_x = (renderer.width as usize).saturating_sub(panel_w);
                 let content_y = renderer.tab_bar_height as usize + header_h + border_w;
                 let visible_h = (renderer.height as usize).saturating_sub(content_y);
-                let total_h = crate::ui::components::git_panel::content_height(&self.git_panel, self.panel_layout.git_tab, sf) as usize;
+                let total_h = crate::ui::components::git_panel::content_height(
+                    &self.git_panel,
+                    self.panel_layout.git_tab,
+                    sf,
+                ) as usize;
                 let prev_sb = self.git_panel.scrollbar_hovered;
                 self.git_panel.scrollbar_hovered = !self.git_panel.scrollbar_dragging
                     && crate::ui::components::git_panel::git_scrollbar_hit_test(
-                        self.cursor_pos.0 as usize, self.cursor_pos.1 as usize,
-                        panel_x, panel_w, content_y, visible_h, total_h,
-                        self.git_panel.scroll_offset as usize, sf,
+                        self.cursor_pos.0 as usize,
+                        self.cursor_pos.1 as usize,
+                        panel_x,
+                        panel_w,
+                        content_y,
+                        visible_h,
+                        total_h,
+                        self.git_panel.scroll_offset as usize,
+                        sf,
                     );
                 if self.git_panel.scrollbar_hovered != prev_sb {
                     panel_changed = true;
@@ -392,16 +419,25 @@ impl App {
             } else if self.overlay.avatar_hovered {
                 Some(("Awebo".into(), self.cursor_pos.0, self.cursor_pos.1))
             } else if self.overlay.git_panel_hovered {
-                Some(("Source Control".into(), self.cursor_pos.0, self.cursor_pos.1))
+                Some((
+                    "Source Control".into(),
+                    self.cursor_pos.0,
+                    self.cursor_pos.1,
+                ))
             } else if self.overlay.hovered_close.is_some() {
                 Some(("Close Tab".into(), self.cursor_pos.0, self.cursor_pos.1))
             } else if let Some((rx, ry, rw, rh)) = self.overlay.ctx_bar_rect {
                 let cx = self.cursor_pos.0 as usize;
                 let cy = self.cursor_pos.1 as usize;
                 if cx >= rx && cx < rx + rw && cy >= ry && cy < ry + rh {
-                    let used = self.ai_ctrl.state.last_prompt_tokens + self.ai_ctrl.state.last_generated_tokens;
+                    let used = self.ai_ctrl.state.last_prompt_tokens
+                        + self.ai_ctrl.state.last_generated_tokens;
                     let total = self.ai_ctrl.state.context_size;
-                    Some((format!("{} / {} tokens", used, total), self.cursor_pos.0, self.cursor_pos.1))
+                    Some((
+                        format!("{} / {} tokens", used, total),
+                        self.cursor_pos.0,
+                        self.cursor_pos.1,
+                    ))
                 } else {
                     None
                 }
@@ -433,12 +469,21 @@ impl App {
         let tab_w_logical = if tab_count == 0 {
             220.0
         } else {
-            let avail = (w / renderer.scale_factor) - plus_w - btn_gap - picker_w - left_pad - btn_gap - gear_total;
+            let avail = (w / renderer.scale_factor)
+                - plus_w
+                - btn_gap
+                - picker_w
+                - left_pad
+                - btn_gap
+                - gear_total;
             (avail / tab_count as f64).clamp(120.0, 220.0)
         };
         let tab_w_phys = (tab_w_logical * renderer.scale_factor) as usize;
         let left_pad_phys = (left_pad * sf as f64) as usize;
-        let anchor_x = left_pad_phys + tab_count * tab_w_phys + (plus_w * sf as f64) as usize + (btn_gap * sf as f64) as usize;
+        let anchor_x = left_pad_phys
+            + tab_count * tab_w_phys
+            + (plus_w * sf as f64) as usize
+            + (btn_gap * sf as f64) as usize;
         let anchor_y = renderer.tab_bar_height as usize;
         (anchor_x, anchor_y)
     }
@@ -476,21 +521,24 @@ impl App {
 
     /// Query: build sandbox info from the active tab (if it's a sandbox).
     fn build_sandbox_info(&self) -> Option<crate::ui::components::side_panel::SandboxInfo> {
-        self.tab_mgr.get(self.tab_mgr.active_index())
+        self.tab_mgr
+            .get(self.tab_mgr.active_index())
             .and_then(|t| match &t.kind {
-                TabKind::Sandbox { bridge, .. } => Some(
-                    crate::ui::components::side_panel::SandboxInfo {
+                TabKind::Sandbox { bridge, .. } => {
+                    Some(crate::ui::components::side_panel::SandboxInfo {
                         display_name: bridge.display_name.clone(),
                         cpus: bridge.cpus,
                         memory_mib: bridge.memory_mib,
                         is_alive: bridge.is_alive(),
                         is_initializing: bridge.is_initializing(),
                         pull_state: bridge.pull_progress(),
-                        volumes: bridge.volumes.iter()
+                        volumes: bridge
+                            .volumes
+                            .iter()
                             .map(|v| (v.guest_path.clone(), v.host_path.clone()))
                             .collect(),
-                    }
-                ),
+                    })
+                }
                 _ => None,
             })
     }
@@ -537,10 +585,14 @@ impl ApplicationHandler<TerminalEvent> for App {
         #[cfg(target_os = "macos")]
         {
             use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-            if let Ok(RawWindowHandle::AppKit(handle)) = window.window_handle().map(|h| h.as_raw()) {
+            if let Ok(RawWindowHandle::AppKit(handle)) = window.window_handle().map(|h| h.as_raw())
+            {
                 unsafe {
                     let ns_view: objc2::rc::Retained<objc2_app_kit::NSView> =
-                        objc2::rc::Retained::retain(handle.ns_view.as_ptr() as *mut objc2_app_kit::NSView).unwrap();
+                        objc2::rc::Retained::retain(
+                            handle.ns_view.as_ptr() as *mut objc2_app_kit::NSView
+                        )
+                        .unwrap();
                     if let Some(ns_window) = ns_view.window() {
                         ns_window.setMovable(false);
                     }
@@ -552,12 +604,7 @@ impl ApplicationHandler<TerminalEvent> for App {
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
 
-        let renderer = Renderer::new(
-            window.clone(),
-            size.width,
-            size.height,
-            scale_factor,
-        );
+        let renderer = Renderer::new(window.clone(), size.width, size.height, scale_factor);
 
         log::info!("Render backend: {}", renderer.backend);
 
@@ -603,14 +650,20 @@ impl ApplicationHandler<TerminalEvent> for App {
                     let sf = renderer.scale_factor as f32;
                     renderer.panel_inset_left = if self.overlay.sidebar_open {
                         self.panel_layout.left_physical_width(sf) as u32
-                    } else { 0 };
+                    } else {
+                        0
+                    };
                     renderer.panel_inset_right = if self.overlay.git_panel_open {
                         self.panel_layout.right_physical_width(sf) as u32
-                    } else { 0 };
+                    } else {
+                        0
+                    };
 
                     for tab in self.tab_mgr.iter() {
                         match &tab.kind {
-                            TabKind::Terminal { terminal, is_alt, .. } => {
+                            TabKind::Terminal {
+                                terminal, is_alt, ..
+                            } => {
                                 let ws = Self::compute_window_size(renderer, *is_alt);
                                 terminal.resize(ws);
                             }
@@ -632,10 +685,10 @@ impl ApplicationHandler<TerminalEvent> for App {
                 self.update_fps();
 
                 #[cfg(target_os = "macos")]
-                if !self.is_fullscreen {
-                    if let Some(w) = &self.window {
-                        reposition_traffic_lights(w);
-                    }
+                if !self.is_fullscreen
+                    && let Some(w) = &self.window
+                {
+                    reposition_traffic_lights(w);
                 }
 
                 let cursor_visible = self.cursor_blink_on;
@@ -726,7 +779,9 @@ impl ApplicationHandler<TerminalEvent> for App {
                     || self.ai_ctrl.state.hint_rx.is_some()
                     || self.ai_ctrl.state.thinking_since.is_some();
 
-                let active_route = self.tab_mgr.get(self.tab_mgr.active_index())
+                let active_route = self
+                    .tab_mgr
+                    .get(self.tab_mgr.active_index())
                     .map(|t| t.route())
                     .unwrap_or(router::Route::Terminal);
                 let settings_view = if active_route == router::Route::Settings {
@@ -746,10 +801,13 @@ impl ApplicationHandler<TerminalEvent> for App {
                     None
                 };
 
-                if active_route == router::Route::Editor {
-                    if let Some(state) = self.tab_mgr.active_tab_mut().and_then(|t| t.editor_state_mut()) {
-                        state.refresh_highlights(&self.syntax);
-                    }
+                if active_route == router::Route::Editor
+                    && let Some(state) = self
+                        .tab_mgr
+                        .active_tab_mut()
+                        .and_then(|t| t.editor_state_mut())
+                {
+                    state.refresh_highlights(&self.syntax);
                 }
 
                 let editor_state = if active_route == router::Route::Editor {
@@ -763,43 +821,46 @@ impl ApplicationHandler<TerminalEvent> for App {
                 let term_handle = active_tab.and_then(|t| t.term_handle());
                 let is_app_controlled = active_tab.map(|t| t.is_app_controlled()).unwrap_or(false);
 
-                if self.overlay.sidebar_open {
-                    if let Some(term) = active_terminal {
-                        if let Some(shell_cwd) = term.cwd() {
-                            let cwd_path = std::path::PathBuf::from(&shell_cwd);
-                            self.file_tree.load(&cwd_path);
-                        }
-                    }
+                if self.overlay.sidebar_open
+                    && let Some(term) = active_terminal
+                    && let Some(shell_cwd) = term.cwd()
+                {
+                    let cwd_path = std::path::PathBuf::from(&shell_cwd);
+                    self.file_tree.load(&cwd_path);
                 }
 
                 let empty_bl = blocks::BlockList::new();
-                let block_list_ref = active_tab
-                    .and_then(|t| t.block_list())
-                    .unwrap_or(&empty_bl);
+                let block_list_ref = active_tab.and_then(|t| t.block_list()).unwrap_or(&empty_bl);
 
-                let sessions_refs: Vec<&crate::session::Session> = self.session_mgr.sessions().collect();
+                let sessions_refs: Vec<&crate::session::Session> =
+                    self.session_mgr.sessions().collect();
 
                 let active_sid = active_tab.and_then(|t| t.session_id);
-                self.side_panel.active_session_visual_idx = active_sid.and_then(|sid| {
-                    sessions_refs.iter().position(|s| s.id == sid)
-                });
+                self.side_panel.active_session_visual_idx =
+                    active_sid.and_then(|sid| sessions_refs.iter().position(|s| s.id == sid));
 
                 let sandbox_info = self.build_sandbox_info();
 
                 if let Some(renderer) = &mut self.renderer {
                     let frame_start = Instant::now();
 
-                    let confirm_close_data: Option<(String, Option<usize>)> = self.overlay.confirm_close_tab.and_then(|idx| {
-                        self.tab_mgr.get(idx)
-                            .and_then(|t| t.editor_state())
-                            .map(|es| {
-                                let raw_name = es.path.file_name()
-                                    .map(|n| n.to_string_lossy().to_string())
-                                    .unwrap_or_else(|| "untitled".to_string());
-                                (raw_name, self.overlay.confirm_close_hovered)
-                            })
-                    });
-                    let confirm_close = confirm_close_data.as_ref().map(|(name, h)| (name.as_str(), *h));
+                    let confirm_close_data: Option<(String, Option<usize>)> =
+                        self.overlay.confirm_close_tab.and_then(|idx| {
+                            self.tab_mgr
+                                .get(idx)
+                                .and_then(|t| t.editor_state())
+                                .map(|es| {
+                                    let raw_name = es
+                                        .path
+                                        .file_name()
+                                        .map(|n| n.to_string_lossy().to_string())
+                                        .unwrap_or_else(|| "untitled".to_string());
+                                    (raw_name, self.overlay.confirm_close_hovered)
+                                })
+                        });
+                    let confirm_close = confirm_close_data
+                        .as_ref()
+                        .map(|(name, h)| (name.as_str(), *h));
 
                     let hit_rects = renderer.render(
                         term_handle.as_ref(),
@@ -824,7 +885,10 @@ impl ApplicationHandler<TerminalEvent> for App {
                         prompt_info.as_ref(),
                         &self.smart_input,
                         block_list_ref,
-                        self.overlay.tooltip.as_ref().map(|(s, x, y)| (s.as_str(), *x, *y)),
+                        self.overlay
+                            .tooltip
+                            .as_ref()
+                            .map(|(s, x, y)| (s.as_str(), *x, *y)),
                         self.widget_debug.open,
                         cursor_visible,
                         self.ai_ctrl.state.loaded_model_name.as_deref(),
@@ -833,7 +897,9 @@ impl ApplicationHandler<TerminalEvent> for App {
                         self.block_selection.as_ref(),
                         self.hovered_link.as_ref(),
                         self.scrollbar_hovered || self.scrollbar_dragging,
-                        if self.editor_scrollbar_dragging != crate::ui::components::editor_renderer::ScrollbarHit::None {
+                        if self.editor_scrollbar_dragging
+                            != crate::ui::components::editor_renderer::ScrollbarHit::None
+                        {
                             self.editor_scrollbar_dragging
                         } else {
                             self.editor_scrollbar
@@ -858,7 +924,13 @@ impl ApplicationHandler<TerminalEvent> for App {
                             None
                         },
                         if self.overlay.pro_panel_open {
-                            Some((&self.license_mgr, &self.overlay.pro_license_input, self.overlay.pro_license_cursor, self.overlay.pro_license_focused, self.overlay.pro_panel_hovered))
+                            Some((
+                                &self.license_mgr,
+                                &self.overlay.pro_license_input,
+                                self.overlay.pro_license_cursor,
+                                self.overlay.pro_license_focused,
+                                self.overlay.pro_panel_hovered,
+                            ))
                         } else {
                             None
                         },
@@ -879,10 +951,12 @@ impl ApplicationHandler<TerminalEvent> for App {
                     }
                 }
 
-                let any_thinking = self.active_block_list()
-                    .map_or(false, |bl| bl.blocks.last().map_or(false, |b| b.thinking));
+                let any_thinking = self
+                    .active_block_list()
+                    .is_some_and(|bl| bl.blocks.last().is_some_and(|b| b.thinking));
                 let about_visible = active_route == router::Route::Settings
-                    && self.settings_state.active == crate::ui::components::overlay::SettingsCategory::About;
+                    && self.settings_state.active
+                        == crate::ui::components::overlay::SettingsCategory::About;
                 if any_thinking || ai_thinking || about_visible {
                     self.request_redraw();
                 }
@@ -925,7 +999,10 @@ impl ApplicationHandler<TerminalEvent> for App {
                     }
                     if self.git_panel.pending_generate_commit_msg {
                         self.git_panel.pending_generate_commit_msg = false;
-                        self.dispatch(crate::app::actions::AppAction::GitGenerateCommitMessage, event_loop);
+                        self.dispatch(
+                            crate::app::actions::AppAction::GitGenerateCommitMessage,
+                            event_loop,
+                        );
                     }
                 }
 
@@ -933,19 +1010,22 @@ impl ApplicationHandler<TerminalEvent> for App {
 
                 let ai_streaming = self.ai_ctrl.state.inference_rx.is_some();
                 let mut should_hint = false;
-                if self.settings_state.input_type == InputType::Smart && !ai_streaming {
-                    if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                        if let TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                            if !terminal.is_app_controlled() {
-                                block_list.capture_output(terminal);
-                                if terminal.cursor_on_prompt() {
-                                    let was_running = block_list.last_is_running();
-                                    block_list.finish_block_if_confirmed_prompt();
-                                    if was_running && !block_list.last_is_running() {
-                                        should_hint = true;
-                                    }
-                                }
-                            }
+                if self.settings_state.input_type == InputType::Smart
+                    && !ai_streaming
+                    && let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                    && let TabKind::Terminal {
+                        terminal,
+                        block_list,
+                        ..
+                    } = &mut tab.kind
+                    && !terminal.is_app_controlled()
+                {
+                    block_list.capture_output(terminal);
+                    if terminal.cursor_on_prompt() {
+                        let was_running = block_list.last_is_running();
+                        block_list.finish_block_if_confirmed_prompt();
+                        if was_running && !block_list.last_is_running() {
+                            should_hint = true;
                         }
                     }
                 }
@@ -957,12 +1037,11 @@ impl ApplicationHandler<TerminalEvent> for App {
                     self.poll_ai_tokens();
                 }
 
-                if self.ai_ctrl.state.hint_rx.is_some() {
-                    if let Some(cmd) = self.ai_ctrl.state.poll_hint() {
-                        if self.smart_input.text.is_empty() {
-                            self.smart_input.ai_suggestion = Some(cmd);
-                        }
-                    }
+                if self.ai_ctrl.state.hint_rx.is_some()
+                    && let Some(cmd) = self.ai_ctrl.state.poll_hint()
+                    && self.smart_input.text.is_empty()
+                {
+                    self.smart_input.ai_suggestion = Some(cmd);
                 }
 
                 self.pending_redraw = true;
@@ -982,7 +1061,9 @@ impl ApplicationHandler<TerminalEvent> for App {
                     if menu_event.id == app_menu.new_tab_id {
                         Some(AppAction::CreateTab { shell_path: None })
                     } else if menu_event.id == app_menu.close_tab_id {
-                        Some(AppAction::CloseTab { index: self.tab_mgr.active_index() })
+                        Some(AppAction::CloseTab {
+                            index: self.tab_mgr.active_index(),
+                        })
                     } else if menu_event.id == app_menu.toggle_debug_id {
                         Some(AppAction::ToggleDebugPanel)
                     } else if menu_event.id == app_menu.toggle_settings_id {
@@ -1024,17 +1105,21 @@ impl ApplicationHandler<TerminalEvent> for App {
             TerminalEvent::CommandExitCode(code) => {
                 log::info!("Shell reported exit code: {code}");
                 let mut should_hint = false;
-                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                    if let TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                        block_list.capture_output(terminal);
-                        let was_running = block_list.last_is_running();
-                        if let Some(block) = block_list.blocks.last_mut() {
-                            block.exit_code = Some(code);
-                            block.is_error = code != 0;
-                        }
-                        block_list.finish_block_if_confirmed();
-                        should_hint = was_running && !block_list.last_is_running();
+                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                    && let TabKind::Terminal {
+                        terminal,
+                        block_list,
+                        ..
+                    } = &mut tab.kind
+                {
+                    block_list.capture_output(terminal);
+                    let was_running = block_list.last_is_running();
+                    if let Some(block) = block_list.blocks.last_mut() {
+                        block.exit_code = Some(code);
+                        block.is_error = code != 0;
                     }
+                    block_list.finish_block_if_confirmed();
+                    should_hint = was_running && !block_list.last_is_running();
                 }
                 self.record_last_block();
                 if should_hint {
@@ -1054,10 +1139,10 @@ impl ApplicationHandler<TerminalEvent> for App {
             TerminalEvent::SandboxExit { name, code } => {
                 log::info!("[sandbox] '{}' exited with code {}", name, code);
                 let idx = self.tab_mgr.active_index();
-                if let Some(tab) = self.tab_mgr.get(idx) {
-                    if matches!(&tab.kind, TabKind::Sandbox { .. }) {
-                        self.close_tab(idx, event_loop);
-                    }
+                if let Some(tab) = self.tab_mgr.get(idx)
+                    && matches!(&tab.kind, TabKind::Sandbox { .. })
+                {
+                    self.close_tab(idx, event_loop);
                 }
                 self.pending_redraw = true;
             }
@@ -1070,7 +1155,8 @@ impl ApplicationHandler<TerminalEvent> for App {
                 self.pending_redraw = true;
             }
             TerminalEvent::Toast(msg) => {
-                self.toast_mgr.push(msg, crate::ui::components::toast::ToastLevel::Info);
+                self.toast_mgr
+                    .push(msg, crate::ui::components::toast::ToastLevel::Info);
                 self.pending_redraw = true;
             }
             TerminalEvent::ToastLevel(msg, level) => {
@@ -1097,7 +1183,8 @@ impl ApplicationHandler<TerminalEvent> for App {
 
         if self.overlay.git_panel_open && now >= self.git_poll_at {
             self.git_poll_at = now + std::time::Duration::from_secs(2);
-            let cwd = self.active_terminal()
+            let cwd = self
+                .active_terminal()
                 .and_then(|t| t.cwd())
                 .unwrap_or_else(|| ".".into());
             self.git_panel.refresh(&cwd);
@@ -1166,7 +1253,8 @@ fn reposition_traffic_lights(window: &Window) {
     let ns_window = match window.window_handle().map(|h| h.as_raw()) {
         Ok(RawWindowHandle::AppKit(handle)) => unsafe {
             let ns_view: objc2::rc::Retained<objc2_app_kit::NSView> =
-                objc2::rc::Retained::retain(handle.ns_view.as_ptr() as *mut objc2_app_kit::NSView).unwrap();
+                objc2::rc::Retained::retain(handle.ns_view.as_ptr() as *mut objc2_app_kit::NSView)
+                    .unwrap();
             ns_view.window()
         },
         _ => None,

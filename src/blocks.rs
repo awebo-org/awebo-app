@@ -34,7 +34,17 @@ pub struct StyledSpan {
 impl StyledSpan {
     /// Shorthand for a plain (unstyled) span.
     pub fn plain(text: String, fg: Rgb) -> Self {
-        Self { text, fg, bold: false, italic: false, underline: false, strikethrough: false, code: false, heading_level: 0, horizontal_rule: false }
+        Self {
+            text,
+            fg,
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            code: false,
+            heading_level: 0,
+            horizontal_rule: false,
+        }
     }
 }
 
@@ -69,10 +79,7 @@ pub enum AgentStepKind {
         selected_option: usize,
     },
     /// Result of an executed tool.
-    ToolResult {
-        tool_name: String,
-        is_error: bool,
-    },
+    ToolResult { tool_name: String, is_error: bool },
     /// Agent produced a final answer.
     FinalAnswer,
 }
@@ -197,8 +204,12 @@ impl BlockSelection {
         let end = self.end();
         let mut result = String::new();
 
-        for bi in start.block_idx..=end.block_idx.min(blocks.len().saturating_sub(1)) {
-            let block = &blocks[bi];
+        for (bi, block) in blocks
+            .iter()
+            .enumerate()
+            .skip(start.block_idx)
+            .take(end.block_idx.min(blocks.len().saturating_sub(1)) - start.block_idx + 1)
+        {
             let flat = flatten_output(&block.output, max_chars);
 
             let line_start = if bi == start.block_idx {
@@ -346,14 +357,14 @@ impl BlockList {
 
     /// Mark the last block's duration as finished.
     pub fn finish_last(&mut self) {
-        if let Some(prev) = self.blocks.last_mut() {
-            if prev.duration.is_none() {
-                prev.duration = Some(prev.started.elapsed());
-                prev.pending_line = None;
-                strip_trailing_prompt_lines(&mut prev.output);
-                if let Some(code) = prev.exit_code {
-                    prev.is_error = code != 0;
-                }
+        if let Some(prev) = self.blocks.last_mut()
+            && prev.duration.is_none()
+        {
+            prev.duration = Some(prev.started.elapsed());
+            prev.pending_line = None;
+            strip_trailing_prompt_lines(&mut prev.output);
+            if let Some(code) = prev.exit_code {
+                prev.is_error = code != 0;
             }
         }
     }
@@ -488,15 +499,15 @@ impl BlockList {
     /// Also resets the grid checkpoint to the current cursor position
     /// so we don't capture stale TUI output into the next block.
     pub fn finish_app_block(&mut self, terminal: &crate::terminal::Terminal) {
-        if let Some(block) = self.blocks.last_mut() {
-            if block.duration.is_none() {
-                if block.output.is_empty() {
-                    block
-                        .output
-                        .push(plain_line("Process exited.".to_string(), (100, 102, 112)));
-                }
-                block.duration = Some(block.started.elapsed());
+        if let Some(block) = self.blocks.last_mut()
+            && block.duration.is_none()
+        {
+            if block.output.is_empty() {
+                block
+                    .output
+                    .push(plain_line("Process exited.".to_string(), (100, 102, 112)));
             }
+            block.duration = Some(block.started.elapsed());
         }
         let (_, new_checkpoint) = terminal.read_styled_lines_from(self.grid_checkpoint);
         self.grid_checkpoint = new_checkpoint;
@@ -548,7 +559,11 @@ impl BlockList {
                 block.checkpoint_at_start,
                 had_pty_activity,
                 prompt_visible,
-                if has_exit_code || had_pty_activity || prompt_visible { "FINISHING" } else { "BLOCKED" },
+                if has_exit_code || had_pty_activity || prompt_visible {
+                    "FINISHING"
+                } else {
+                    "BLOCKED"
+                },
             );
 
             if !has_exit_code && !had_pty_activity && !prompt_visible {
@@ -571,12 +586,12 @@ impl BlockList {
 
     /// Whether the last command is still running (waiting for output / input).
     pub fn last_is_running(&self) -> bool {
-        self.blocks.last().map_or(false, |b| b.is_running())
+        self.blocks.last().is_some_and(|b| b.is_running())
     }
 
     /// Whether the last block finished with a non-zero exit code.
     pub fn last_is_error(&self) -> bool {
-        self.blocks.last().map_or(false, |b| b.is_error)
+        self.blocks.last().is_some_and(|b| b.is_error)
     }
 }
 
@@ -742,11 +757,7 @@ pub fn resolve_path(token: &str, cwd: &str) -> Option<String> {
     };
 
     let path = Path::new(&expanded);
-    if path.exists() {
-        Some(expanded)
-    } else {
-        None
-    }
+    if path.exists() { Some(expanded) } else { None }
 }
 
 impl BlockList {
@@ -909,7 +920,10 @@ mod tests {
         let mut bl = BlockList::new();
         bl.push_command(test_prompt(), "test".to_string());
         bl.finish_block_if_confirmed();
-        assert!(bl.last_is_running(), "block without evidence must stay running");
+        assert!(
+            bl.last_is_running(),
+            "block without evidence must stay running"
+        );
     }
 
     #[test]

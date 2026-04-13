@@ -119,10 +119,16 @@ pub fn draw_models_view(
     let title_metrics = Metrics::new(18.0 * sf, 24.0 * sf);
     let title_y = y_offset + ((header_h as f32 - 24.0 * sf) / 2.0) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        lpad, title_y, h,
+        buf,
+        font_system,
+        swash_cache,
+        lpad,
+        title_y,
+        h,
         "Local Models Repository",
-        title_metrics, TITLE_TEXT, Family::SansSerif,
+        title_metrics,
+        TITLE_TEXT,
+        Family::SansSerif,
     );
 
     let small_metrics = Metrics::new(11.0 * sf, 16.0 * sf);
@@ -135,12 +141,21 @@ pub fn draw_models_view(
         let unload_x = w.saturating_sub(pad + unload_w);
         let unload_y = y_offset + (header_h - unload_h) / 2;
         let unload_r = (4.0 * sf) as usize;
-        fill_rounded_rect(buf, unload_x, unload_y, unload_w, unload_h, unload_r, BTN_BG);
+        fill_rounded_rect(
+            buf, unload_x, unload_y, unload_w, unload_h, unload_r, BTN_BG,
+        );
         let unload_text_y = unload_y + ((unload_h as f32 - 17.0 * sf) / 2.0) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            unload_x + (10.0 * sf) as usize, unload_text_y, h,
-            unload_label, label_metrics, BTN_TEXT, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            unload_x + (10.0 * sf) as usize,
+            unload_text_y,
+            h,
+            unload_label,
+            label_metrics,
+            BTN_TEXT,
+            Family::SansSerif,
         );
 
         let badge_text = name.to_string();
@@ -149,12 +164,27 @@ pub fn draw_models_view(
         let badge_x = unload_x.saturating_sub(badge_w + (8.0 * sf) as usize);
         let badge_y = y_offset + (header_h - badge_h) / 2;
         let badge_r = badge_h / 2;
-        fill_rounded_rect(buf, badge_x, badge_y, badge_w, badge_h, badge_r, LOADED_BADGE_BG);
+        fill_rounded_rect(
+            buf,
+            badge_x,
+            badge_y,
+            badge_w,
+            badge_h,
+            badge_r,
+            LOADED_BADGE_BG,
+        );
         let text_y = badge_y + ((badge_h as f32 - 17.0 * sf) / 2.0) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            badge_x + (10.0 * sf) as usize, text_y, h,
-            &badge_text, label_metrics, LOADED_BADGE_TEXT, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            badge_x + (10.0 * sf) as usize,
+            text_y,
+            h,
+            &badge_text,
+            label_metrics,
+            LOADED_BADGE_TEXT,
+            Family::SansSerif,
         );
     }
 
@@ -164,10 +194,9 @@ pub fn draw_models_view(
     let toggle_label_w = (toggle_label.len() as f32 * 7.0 * sf) as usize;
     let auto_load_block_w = toggle_label_w + (8.0 * sf) as usize + toggle_w;
 
-    let auto_load_x = if loaded_model_name.is_some() {
+    let auto_load_x = if let Some(name) = &loaded_model_name {
         let unload_label = "Unload Model";
         let unload_w = (unload_label.len() as f32 * 7.0 * sf) as usize + (20.0 * sf) as usize;
-        let name = loaded_model_name.unwrap();
         let badge_text = name.to_string();
         let badge_w = (badge_text.len() as f32 * 7.0 * sf) as usize + (20.0 * sf) as usize;
         let used_right = pad + unload_w + (8.0 * sf) as usize + badge_w + (16.0 * sf) as usize;
@@ -178,16 +207,25 @@ pub fn draw_models_view(
 
     let toggle_label_y = y_offset + ((header_h as f32 - 17.0 * sf) / 2.0) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        auto_load_x, toggle_label_y, h,
-        toggle_label, label_metrics, META_TEXT, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        auto_load_x,
+        toggle_label_y,
+        h,
+        toggle_label,
+        label_metrics,
+        META_TEXT,
+        Family::SansSerif,
     );
 
     let toggle_x = auto_load_x + toggle_label_w + (8.0 * sf) as usize;
     let toggle_y = y_offset + (header_h - toggle_h) / 2;
     let toggle_r = toggle_h / 2;
     let toggle_bg = if auto_load { TOGGLE_ON } else { TOGGLE_OFF };
-    fill_rounded_rect(buf, toggle_x, toggle_y, toggle_w, toggle_h, toggle_r, toggle_bg);
+    fill_rounded_rect(
+        buf, toggle_x, toggle_y, toggle_w, toggle_h, toggle_r, toggle_bg,
+    );
 
     let knob_d = toggle_h.saturating_sub((4.0 * sf) as usize);
     let knob_r = knob_d / 2;
@@ -200,13 +238,33 @@ pub fn draw_models_view(
     fill_rounded_rect(buf, knob_x, knob_y, knob_d, knob_d, knob_r, TOGGLE_KNOB);
 
     let div_h = (1.0 * sf).max(1.0) as usize;
-    buf.fill_rect(x_offset, y_offset + header_h - div_h, content_w, div_h, DIVIDER);
+    buf.fill_rect(
+        x_offset,
+        y_offset + header_h - div_h,
+        content_w,
+        div_h,
+        DIVIDER,
+    );
 
     let search_y = y_offset + header_h + (8.0 * sf) as usize;
     let search_h = (SEARCH_H * sf) as usize;
     let search_w = content_w.saturating_sub(pad * 2);
-    let search_rect = Rect::new(lpad as f32, search_y as f32, search_w as f32, search_h as f32);
-    draw_search_bar(buf, font_system, swash_cache, &state.search_query, cursor_visible, state.search_focused, search_rect, sf);
+    let search_rect = Rect::new(
+        lpad as f32,
+        search_y as f32,
+        search_w as f32,
+        search_h as f32,
+    );
+    draw_search_bar(
+        buf,
+        font_system,
+        swash_cache,
+        &state.search_query,
+        cursor_visible,
+        state.search_focused,
+        search_rect,
+        sf,
+    );
 
     let scroll_area_top = search_y + search_h + (8.0 * sf) as usize;
     let card_h = (CARD_H * sf) as usize;
@@ -223,9 +281,16 @@ pub fn draw_models_view(
     let count_text = format!("{} models found", filtered.len());
     let count_y = scroll_area_top + (4.0 * sf) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        lpad, count_y, h,
-        &count_text, small_metrics, DIM_TEXT, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        lpad,
+        count_y,
+        h,
+        &count_text,
+        small_metrics,
+        DIM_TEXT,
+        Family::SansSerif,
     );
 
     let cards_y_start = count_y + (20.0 * sf) as usize;
@@ -233,8 +298,8 @@ pub fn draw_models_view(
 
     for (vi, &idx) in filtered.iter().enumerate() {
         let model = &ai::registry::MODELS[idx];
-        let card_y_raw = cards_y_start as f32 + vi as f32 * (CARD_H + CARD_GAP) * sf
-            - state.scroll_offset;
+        let card_y_raw =
+            cards_y_start as f32 + vi as f32 * (CARD_H + CARD_GAP) * sf - state.scroll_offset;
         let card_y = card_y_raw as isize;
 
         if card_y + card_h as isize <= clip_top as isize {
@@ -256,140 +321,256 @@ pub fn draw_models_view(
         let is_hovered = state.hovered_action == Some(vi) || state.hovered_delete == Some(vi);
 
         let card_bg = if is_hovered { CARD_HOVER } else { CARD_BG };
-        fill_rounded_rect(buf, lpad, cy, w.saturating_sub(lpad + pad), card_draw_h, card_r, card_bg);
+        fill_rounded_rect(
+            buf,
+            lpad,
+            cy,
+            w.saturating_sub(lpad + pad),
+            card_draw_h,
+            card_r,
+            card_bg,
+        );
 
         if is_loaded && card_draw_h > card_r * 2 {
             let accent_w = (3.0 * sf) as usize;
-            buf.fill_rect(lpad, cy + card_r, accent_w, card_draw_h.saturating_sub(card_r * 2), LOADED_BADGE_BG);
+            buf.fill_rect(
+                lpad,
+                cy + card_r,
+                accent_w,
+                card_draw_h.saturating_sub(card_r * 2),
+                LOADED_BADGE_BG,
+            );
         }
 
         let real_cy = card_y.max(0) as usize;
         let name_y = real_cy + (12.0 * sf) as usize;
 
         if name_y >= clip_top && name_y < h {
-        draw_text_at(
-            buf, font_system, swash_cache,
-            lpad + card_pad, name_y, h,
-            model.name, name_metrics, NAME_TEXT, Family::SansSerif,
-        );
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                lpad + card_pad,
+                name_y,
+                h,
+                model.name,
+                name_metrics,
+                NAME_TEXT,
+                Family::SansSerif,
+            );
 
-        let name_w = (model.name.len() as f32 * 8.5 * sf) as usize;
-        let family_x = lpad + card_pad + name_w + (8.0 * sf) as usize;
-        let family_badge_w = (model.family.len() as f32 * 6.5 * sf) as usize + (10.0 * sf) as usize;
-        let family_badge_h = (16.0 * sf) as usize;
-        let family_badge_y = name_y + ((20.0 * sf - 16.0 * sf) / 2.0) as usize;
-        fill_rounded_rect(buf, family_x, family_badge_y, family_badge_w, family_badge_h,
-                          (3.0 * sf) as usize, PROGRESS_TRACK);
-        draw_text_at(
-            buf, font_system, swash_cache,
-            family_x + (5.0 * sf) as usize, family_badge_y + (1.0 * sf) as usize, h,
-            model.family, meta_metrics, META_TEXT, Family::SansSerif,
-        );
+            let name_w = (model.name.len() as f32 * 8.5 * sf) as usize;
+            let family_x = lpad + card_pad + name_w + (8.0 * sf) as usize;
+            let family_badge_w =
+                (model.family.len() as f32 * 6.5 * sf) as usize + (10.0 * sf) as usize;
+            let family_badge_h = (16.0 * sf) as usize;
+            let family_badge_y = name_y + ((20.0 * sf - 16.0 * sf) / 2.0) as usize;
+            fill_rounded_rect(
+                buf,
+                family_x,
+                family_badge_y,
+                family_badge_w,
+                family_badge_h,
+                (3.0 * sf) as usize,
+                PROGRESS_TRACK,
+            );
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                family_x + (5.0 * sf) as usize,
+                family_badge_y + (1.0 * sf) as usize,
+                h,
+                model.family,
+                meta_metrics,
+                META_TEXT,
+                Family::SansSerif,
+            );
 
-        let meta_y = cy + (38.0 * sf) as usize;
-        let size_str = format_size(model.size_bytes);
-        let meta_line = format!(
-            "{}  ·  {}  ·  {}  ·  ctx {}k",
-            model.params, model.quant_label, size_str, model.context_size / 1024
-        );
-        draw_text_at(
-            buf, font_system, swash_cache,
-            lpad + card_pad, meta_y, h,
-            &meta_line, meta_metrics, META_TEXT, Family::SansSerif,
-        );
+            let meta_y = cy + (38.0 * sf) as usize;
+            let size_str = format_size(model.size_bytes);
+            let meta_line = format!(
+                "{}  ·  {}  ·  {}  ·  ctx {}k",
+                model.params,
+                model.quant_label,
+                size_str,
+                model.context_size / 1024
+            );
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                lpad + card_pad,
+                meta_y,
+                h,
+                &meta_line,
+                meta_metrics,
+                META_TEXT,
+                Family::SansSerif,
+            );
 
-        let repo_y = meta_y + (16.0 * sf) as usize;
-        draw_text_at(
-            buf, font_system, swash_cache,
-            lpad + card_pad, repo_y, h,
-            model.hf_repo, meta_metrics, DIM_TEXT, Family::SansSerif,
-        );
+            let repo_y = meta_y + (16.0 * sf) as usize;
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                lpad + card_pad,
+                repo_y,
+                h,
+                model.hf_repo,
+                meta_metrics,
+                DIM_TEXT,
+                Family::SansSerif,
+            );
 
-        let right_x = w.saturating_sub(pad + card_pad);
+            let right_x = w.saturating_sub(pad + card_pad);
 
-        if is_downloading {
-            if let Some(progress) = state.active_downloads.get(model.name) {
-                if let Some(err) = &progress.error {
-                    let err_text = format!("Error: {}", err);
-                    draw_text_at(
-                        buf, font_system, swash_cache,
-                        right_x - (err_text.len() as f32 * 6.0 * sf) as usize,
-                        name_y + (2.0 * sf) as usize, h,
-                        &err_text, meta_metrics, theme::ERROR, Family::SansSerif,
-                    );
-                } else {
-                    let pct = progress.percent();
-                    let pct_text = format!("{}%", pct);
-                    let pct_w = (pct_text.len() as f32 * 7.0 * sf) as usize;
-                    draw_text_at(
-                        buf, font_system, swash_cache,
-                        right_x - pct_w, name_y + (2.0 * sf) as usize, h,
-                        &pct_text, label_metrics, BADGE_DOWNLOADING, Family::SansSerif,
-                    );
+            if is_downloading {
+                if let Some(progress) = state.active_downloads.get(model.name) {
+                    if let Some(err) = &progress.error {
+                        let err_text = format!("Error: {}", err);
+                        draw_text_at(
+                            buf,
+                            font_system,
+                            swash_cache,
+                            right_x - (err_text.len() as f32 * 6.0 * sf) as usize,
+                            name_y + (2.0 * sf) as usize,
+                            h,
+                            &err_text,
+                            meta_metrics,
+                            theme::ERROR,
+                            Family::SansSerif,
+                        );
+                    } else {
+                        let pct = progress.percent();
+                        let pct_text = format!("{}%", pct);
+                        let pct_w = (pct_text.len() as f32 * 7.0 * sf) as usize;
+                        draw_text_at(
+                            buf,
+                            font_system,
+                            swash_cache,
+                            right_x - pct_w,
+                            name_y + (2.0 * sf) as usize,
+                            h,
+                            &pct_text,
+                            label_metrics,
+                            BADGE_DOWNLOADING,
+                            Family::SansSerif,
+                        );
 
-                    let bar_w = (120.0 * sf) as usize;
-                    let bar_h_px = (6.0 * sf) as usize;
-                    let bar_x = right_x - bar_w;
-                    let bar_y = meta_y + (4.0 * sf) as usize;
-                    let bar_r = bar_h_px / 2;
-                    fill_rounded_rect(buf, bar_x, bar_y, bar_w, bar_h_px, bar_r, PROGRESS_TRACK);
-                    let fill_w = ((bar_w as f64) * progress.fraction()) as usize;
-                    if fill_w > 0 {
-                        fill_rounded_rect(buf, bar_x, bar_y, fill_w.min(bar_w), bar_h_px, bar_r, PROGRESS_FILL);
+                        let bar_w = (120.0 * sf) as usize;
+                        let bar_h_px = (6.0 * sf) as usize;
+                        let bar_x = right_x - bar_w;
+                        let bar_y = meta_y + (4.0 * sf) as usize;
+                        let bar_r = bar_h_px / 2;
+                        fill_rounded_rect(
+                            buf,
+                            bar_x,
+                            bar_y,
+                            bar_w,
+                            bar_h_px,
+                            bar_r,
+                            PROGRESS_TRACK,
+                        );
+                        let fill_w = ((bar_w as f64) * progress.fraction()) as usize;
+                        if fill_w > 0 {
+                            fill_rounded_rect(
+                                buf,
+                                bar_x,
+                                bar_y,
+                                fill_w.min(bar_w),
+                                bar_h_px,
+                                bar_r,
+                                PROGRESS_FILL,
+                            );
+                        }
+
+                        let dl_text = format!(
+                            "{} / {}",
+                            format_size(progress.bytes_downloaded),
+                            format_size(progress.bytes_total)
+                        );
+                        draw_text_at(
+                            buf,
+                            font_system,
+                            swash_cache,
+                            bar_x,
+                            bar_y + bar_h_px + (2.0 * sf) as usize,
+                            h,
+                            &dl_text,
+                            meta_metrics,
+                            DIM_TEXT,
+                            Family::SansSerif,
+                        );
                     }
+                }
+            } else if is_downloaded {
+                let icon_sz = (18.0 * sf) as u32;
+                let icon_pad = (8.0 * sf) as usize;
+                let icon_btn_sz = icon_sz as usize + icon_pad * 2;
+                let btns_y = name_y;
 
-                    let dl_text = format!(
-                        "{} / {}",
-                        format_size(progress.bytes_downloaded),
-                        format_size(progress.bytes_total)
-                    );
-                    draw_text_at(
-                        buf, font_system, swash_cache,
-                        bar_x, bar_y + bar_h_px + (2.0 * sf) as usize, h,
-                        &dl_text, meta_metrics, DIM_TEXT, Family::SansSerif,
+                let del_x = right_x - icon_btn_sz;
+                let del_hover = state.hovered_delete == Some(vi);
+                let del_color = if del_hover { DELETE_TEXT } else { META_TEXT };
+                icon_renderer.draw(
+                    buf,
+                    Icon::Trash,
+                    del_x + icon_pad,
+                    btns_y + icon_pad / 2,
+                    icon_sz,
+                    del_color,
+                );
+
+                if !is_loaded {
+                    let load_x = del_x - icon_btn_sz - (4.0 * sf) as usize;
+                    let load_hover = state.hovered_action == Some(vi);
+                    let load_color = if load_hover {
+                        BTN_ACTIVE_TEXT
+                    } else {
+                        META_TEXT
+                    };
+                    icon_renderer.draw(
+                        buf,
+                        Icon::Play,
+                        load_x + icon_pad,
+                        btns_y + icon_pad / 2,
+                        icon_sz,
+                        load_color,
                     );
                 }
+            } else {
+                let icon_sz = (18.0 * sf) as u32;
+                let icon_pad = (8.0 * sf) as usize;
+                let icon_btn_sz = icon_sz as usize + icon_pad * 2;
+                let dl_x = right_x - icon_btn_sz;
+                let dl_hover = state.hovered_action == Some(vi);
+                let dl_color = if dl_hover { BTN_ACTIVE_TEXT } else { META_TEXT };
+                icon_renderer.draw(
+                    buf,
+                    Icon::Download,
+                    dl_x + icon_pad,
+                    name_y + icon_pad / 2,
+                    icon_sz,
+                    dl_color,
+                );
             }
-        } else if is_downloaded {
-            let icon_sz = (18.0 * sf) as u32;
-            let icon_pad = (8.0 * sf) as usize;
-            let icon_btn_sz = icon_sz as usize + icon_pad * 2;
-            let btns_y = name_y;
-
-            let del_x = right_x - icon_btn_sz;
-            let del_hover = state.hovered_delete == Some(vi);
-            let del_color = if del_hover { DELETE_TEXT } else { META_TEXT };
-            icon_renderer.draw(buf, Icon::Trash,
-                del_x + icon_pad, btns_y + icon_pad / 2, icon_sz, del_color);
-
-            if !is_loaded {
-                let load_x = del_x - icon_btn_sz - (4.0 * sf) as usize;
-                let load_hover = state.hovered_action == Some(vi);
-                let load_color = if load_hover { BTN_ACTIVE_TEXT } else { META_TEXT };
-                icon_renderer.draw(buf, Icon::Play,
-                    load_x + icon_pad, btns_y + icon_pad / 2, icon_sz, load_color);
-            }
-        } else {
-            let icon_sz = (18.0 * sf) as u32;
-            let icon_pad = (8.0 * sf) as usize;
-            let icon_btn_sz = icon_sz as usize + icon_pad * 2;
-            let dl_x = right_x - icon_btn_sz;
-            let dl_hover = state.hovered_action == Some(vi);
-            let dl_color = if dl_hover { BTN_ACTIVE_TEXT } else { META_TEXT };
-            icon_renderer.draw(buf, Icon::Download,
-                dl_x + icon_pad, name_y + icon_pad / 2, icon_sz, dl_color);
-        }
-
         } // end clip guard
     }
 
     buf.fill_rect(x_offset, y_offset, content_w, header_h, HEADER_BG);
 
     draw_text_at(
-        buf, font_system, swash_cache,
-        lpad, title_y, h,
+        buf,
+        font_system,
+        swash_cache,
+        lpad,
+        title_y,
+        h,
         "Local Models Repository",
-        title_metrics, TITLE_TEXT, Family::SansSerif,
+        title_metrics,
+        TITLE_TEXT,
+        Family::SansSerif,
     );
 
     if let Some(name) = loaded_model_name {
@@ -399,12 +580,21 @@ pub fn draw_models_view(
         let unload_x = w.saturating_sub(pad + unload_w);
         let unload_y = y_offset + (header_h - unload_h) / 2;
         let unload_r = (4.0 * sf) as usize;
-        fill_rounded_rect(buf, unload_x, unload_y, unload_w, unload_h, unload_r, BTN_BG);
+        fill_rounded_rect(
+            buf, unload_x, unload_y, unload_w, unload_h, unload_r, BTN_BG,
+        );
         let unload_text_y = unload_y + ((unload_h as f32 - 17.0 * sf) / 2.0) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            unload_x + (10.0 * sf) as usize, unload_text_y, h,
-            unload_label, label_metrics, BTN_TEXT, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            unload_x + (10.0 * sf) as usize,
+            unload_text_y,
+            h,
+            unload_label,
+            label_metrics,
+            BTN_TEXT,
+            Family::SansSerif,
         );
 
         let badge_text = name.to_string();
@@ -413,33 +603,85 @@ pub fn draw_models_view(
         let badge_x = unload_x.saturating_sub(badge_w + (8.0 * sf) as usize);
         let badge_y = y_offset + (header_h - badge_h) / 2;
         let badge_r = badge_h / 2;
-        fill_rounded_rect(buf, badge_x, badge_y, badge_w, badge_h, badge_r, LOADED_BADGE_BG);
+        fill_rounded_rect(
+            buf,
+            badge_x,
+            badge_y,
+            badge_w,
+            badge_h,
+            badge_r,
+            LOADED_BADGE_BG,
+        );
         let badge_text_y = badge_y + ((badge_h as f32 - 17.0 * sf) / 2.0) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            badge_x + (10.0 * sf) as usize, badge_text_y, h,
-            &badge_text, label_metrics, LOADED_BADGE_TEXT, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            badge_x + (10.0 * sf) as usize,
+            badge_text_y,
+            h,
+            &badge_text,
+            label_metrics,
+            LOADED_BADGE_TEXT,
+            Family::SansSerif,
         );
     }
 
     draw_text_at(
-        buf, font_system, swash_cache,
-        auto_load_x, toggle_label_y, h,
-        toggle_label, label_metrics, META_TEXT, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        auto_load_x,
+        toggle_label_y,
+        h,
+        toggle_label,
+        label_metrics,
+        META_TEXT,
+        Family::SansSerif,
     );
-    fill_rounded_rect(buf, toggle_x, toggle_y, toggle_w, toggle_h, toggle_r, toggle_bg);
+    fill_rounded_rect(
+        buf, toggle_x, toggle_y, toggle_w, toggle_h, toggle_r, toggle_bg,
+    );
     fill_rounded_rect(buf, knob_x, knob_y, knob_d, knob_d, knob_r, TOGGLE_KNOB);
 
-    buf.fill_rect(x_offset, y_offset + header_h - div_h, content_w, div_h, DIVIDER);
+    buf.fill_rect(
+        x_offset,
+        y_offset + header_h - div_h,
+        content_w,
+        div_h,
+        DIVIDER,
+    );
 
     let search_area_h = search_y + search_h + (8.0 * sf) as usize - (y_offset + header_h);
-    buf.fill_rect(x_offset, y_offset + header_h, content_w, search_area_h, theme::BG);
-    draw_search_bar(buf, font_system, swash_cache, &state.search_query, cursor_visible, state.search_focused, search_rect, sf);
+    buf.fill_rect(
+        x_offset,
+        y_offset + header_h,
+        content_w,
+        search_area_h,
+        theme::BG,
+    );
+    draw_search_bar(
+        buf,
+        font_system,
+        swash_cache,
+        &state.search_query,
+        cursor_visible,
+        state.search_focused,
+        search_rect,
+        sf,
+    );
 
     draw_text_at(
-        buf, font_system, swash_cache,
-        lpad, count_y, h,
-        &count_text, small_metrics, DIM_TEXT, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        lpad,
+        count_y,
+        h,
+        &count_text,
+        small_metrics,
+        DIM_TEXT,
+        Family::SansSerif,
     );
 
     if filtered.is_empty() {
@@ -450,10 +692,16 @@ pub fn draw_models_view(
             "No models match your search."
         };
         draw_text_at(
-            buf, font_system, swash_cache,
-            lpad, empty_y, h,
+            buf,
+            font_system,
+            swash_cache,
+            lpad,
+            empty_y,
+            h,
             empty_text,
-            Metrics::new(14.0 * sf, 20.0 * sf), META_TEXT, Family::SansSerif,
+            Metrics::new(14.0 * sf, 20.0 * sf),
+            META_TEXT,
+            Family::SansSerif,
         );
     }
 
@@ -465,8 +713,7 @@ pub fn draw_models_view(
         let track_x = w.saturating_sub(sb_w + sb_margin);
         let track_h = available_list_h;
 
-        let thumb_h = ((available_list_h as f64 / total_list_h as f64)
-            * track_h as f64)
+        let thumb_h = ((available_list_h as f64 / total_list_h as f64) * track_h as f64)
             .max(20.0 * sf as f64) as usize;
 
         let max_scroll = (total_list_h as usize).saturating_sub(available_list_h);
@@ -475,10 +722,14 @@ pub fn draw_models_view(
         } else {
             0.0
         };
-        let thumb_y = cards_y_start
-            + (scroll_frac * (track_h.saturating_sub(thumb_h)) as f64) as usize;
+        let thumb_y =
+            cards_y_start + (scroll_frac * (track_h.saturating_sub(thumb_h)) as f64) as usize;
 
-        let sc = if scrollbar_hovered { SCROLLBAR_HOVER } else { SCROLLBAR_COLOR };
+        let sc = if scrollbar_hovered {
+            SCROLLBAR_HOVER
+        } else {
+            SCROLLBAR_COLOR
+        };
         buf.fill_rect(track_x, thumb_y, sb_w, thumb_h, sc);
     }
 }
@@ -518,8 +769,10 @@ pub fn models_view_hit_test(
         let unload_x = buf_w as f64 - pad - unload_w;
         let unload_y = y_offset as f64 + (header_h - unload_h) / 2.0;
 
-        if phys_x >= unload_x && phys_x < unload_x + unload_w
-            && phys_y >= unload_y && phys_y < unload_y + unload_h
+        if phys_x >= unload_x
+            && phys_x < unload_x + unload_w
+            && phys_y >= unload_y
+            && phys_y < unload_y + unload_h
         {
             return Some(ModelsViewHit::Unload(0));
         }
@@ -530,10 +783,9 @@ pub fn models_view_hit_test(
     let toggle_label_w = ("Auto-load".len() as f64) * 7.0 * sf as f64;
     let auto_load_block_w = toggle_label_w + 8.0 * sf as f64 + toggle_w;
 
-    let auto_load_x = if loaded_model_name.is_some() {
+    let auto_load_x = if let Some(name) = &loaded_model_name {
         let unload_label = "Unload Model";
         let unload_w_ht = (unload_label.len() as f64) * 7.0 * sf as f64 + 20.0 * sf as f64;
-        let name = loaded_model_name.unwrap();
         let badge_text = name.to_string();
         let badge_w = badge_text.len() as f64 * 7.0 * sf as f64 + 20.0 * sf as f64;
         let used_right = pad + unload_w_ht + 8.0 * sf as f64 + badge_w + 16.0 * sf as f64;
@@ -545,16 +797,20 @@ pub fn models_view_hit_test(
     let toggle_x = auto_load_x + toggle_label_w + 8.0 * sf as f64;
     let toggle_y = y_offset as f64 + (header_h - toggle_h) / 2.0;
 
-    if phys_x >= toggle_x && phys_x < toggle_x + toggle_w
-        && phys_y >= toggle_y && phys_y < toggle_y + toggle_h
+    if phys_x >= toggle_x
+        && phys_x < toggle_x + toggle_w
+        && phys_y >= toggle_y
+        && phys_y < toggle_y + toggle_h
     {
         return Some(ModelsViewHit::AutoLoadToggle);
     }
 
     let search_y = y_offset as f64 + header_h + 8.0 * sf as f64;
     let search_h = SEARCH_H as f64 * sf as f64;
-    if phys_y >= search_y && phys_y < search_y + search_h
-        && phys_x >= pad && phys_x < buf_w as f64 - pad
+    if phys_y >= search_y
+        && phys_y < search_y + search_h
+        && phys_x >= pad
+        && phys_x < buf_w as f64 - pad
     {
         return Some(ModelsViewHit::SearchBar);
     }
@@ -576,8 +832,7 @@ pub fn models_view_hit_test(
 
     for (vi, &idx) in filtered.iter().enumerate() {
         let model = &ai::registry::MODELS[idx];
-        let card_y = cards_y_start + vi as f64 * (card_h + card_gap)
-            - state.scroll_offset as f64;
+        let card_y = cards_y_start + vi as f64 * (card_h + card_gap) - state.scroll_offset as f64;
 
         if phys_y < card_y || phys_y >= card_y + card_h {
             continue;
@@ -598,16 +853,20 @@ pub fn models_view_hit_test(
             let icon_btn_sz = icon_sz + icon_pad * 2.0;
 
             let del_x = right_x - icon_btn_sz;
-            if phys_x >= del_x && phys_x < del_x + icon_btn_sz
-                && phys_y >= name_y && phys_y < name_y + icon_btn_sz
+            if phys_x >= del_x
+                && phys_x < del_x + icon_btn_sz
+                && phys_y >= name_y
+                && phys_y < name_y + icon_btn_sz
             {
                 return Some(ModelsViewHit::Delete(idx));
             }
 
             if !is_loaded {
                 let load_x = del_x - icon_btn_sz - 4.0 * sf as f64;
-                if phys_x >= load_x && phys_x < load_x + icon_btn_sz
-                    && phys_y >= name_y && phys_y < name_y + icon_btn_sz
+                if phys_x >= load_x
+                    && phys_x < load_x + icon_btn_sz
+                    && phys_y >= name_y
+                    && phys_y < name_y + icon_btn_sz
                 {
                     return Some(ModelsViewHit::Load(idx));
                 }
@@ -617,8 +876,10 @@ pub fn models_view_hit_test(
             let icon_pad = 8.0 * sf as f64;
             let icon_btn_sz = icon_sz + icon_pad * 2.0;
             let dl_x = right_x - icon_btn_sz;
-            if phys_x >= dl_x && phys_x < dl_x + icon_btn_sz
-                && phys_y >= name_y && phys_y < name_y + icon_btn_sz
+            if phys_x >= dl_x
+                && phys_x < dl_x + icon_btn_sz
+                && phys_y >= name_y
+                && phys_y < name_y + icon_btn_sz
             {
                 return Some(ModelsViewHit::Download(idx));
             }

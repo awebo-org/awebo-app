@@ -420,7 +420,11 @@ impl GpuGridRenderer {
             self.instance_cap = new_cap;
         }
 
-        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&self.instance_staging));
+        queue.write_buffer(
+            &self.instance_buffer,
+            0,
+            bytemuck::cast_slice(&self.instance_staging),
+        );
 
         let uniforms = Uniforms {
             screen_size: [screen_w, screen_h],

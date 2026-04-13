@@ -45,12 +45,7 @@ struct BtnLayout {
     w: usize,
 }
 
-fn compute_row(
-    labels: &[&str],
-    cx: usize,
-    y: usize,
-    sf: f32,
-) -> Vec<BtnLayout> {
+fn compute_row(labels: &[&str], cx: usize, y: usize, sf: f32) -> Vec<BtnLayout> {
     let gap = (BTN_GAP * sf) as usize;
     let widths: Vec<usize> = labels.iter().map(|l| approx_btn_width(l, sf)).collect();
     let total_w: usize = widths.iter().sum::<usize>() + gap * widths.len().saturating_sub(1);
@@ -85,9 +80,31 @@ fn draw_btn(
     let lx = layout.x + (layout.w.saturating_sub(tw)) / 2;
     let ly = layout.y + ((btn_h as f32 - 17.0 * sf) / 2.0) as usize;
     if bold {
-        draw_text_at_bold(buf, font_system, swash_cache, lx, ly, clip_h, label, m, text_color, Family::Monospace);
+        draw_text_at_bold(
+            buf,
+            font_system,
+            swash_cache,
+            lx,
+            ly,
+            clip_h,
+            label,
+            m,
+            text_color,
+            Family::Monospace,
+        );
     } else {
-        draw_text_at(buf, font_system, swash_cache, lx, ly, clip_h, label, m, text_color, Family::Monospace);
+        draw_text_at(
+            buf,
+            font_system,
+            swash_cache,
+            lx,
+            ly,
+            clip_h,
+            label,
+            m,
+            text_color,
+            Family::Monospace,
+        );
     }
 }
 
@@ -112,20 +129,36 @@ pub fn draw_settings_about(
     avatar_renderer.draw(buf, avatar_x, avatar_y, avatar_size);
 
     let title_metrics = Metrics::new(22.0 * sf, 30.0 * sf);
-    let title_tw = measure_text_width(font_system, "Awebo", title_metrics, Family::Monospace) as usize;
+    let title_tw =
+        measure_text_width(font_system, "Awebo", title_metrics, Family::Monospace) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        cx.saturating_sub(title_tw / 2), title_y, clip_h,
-        "Awebo", title_metrics, theme::SETTINGS_HEADER_TEXT, Family::Monospace,
+        buf,
+        font_system,
+        swash_cache,
+        cx.saturating_sub(title_tw / 2),
+        title_y,
+        clip_h,
+        "Awebo",
+        title_metrics,
+        theme::SETTINGS_HEADER_TEXT,
+        Family::Monospace,
     );
 
     let version = if is_pro { "v0.1.0 Pro" } else { "v0.1.0" };
     let version_metrics = Metrics::new(12.0 * sf, 17.0 * sf);
-    let version_tw = measure_text_width(font_system, version, version_metrics, Family::Monospace) as usize;
+    let version_tw =
+        measure_text_width(font_system, version, version_metrics, Family::Monospace) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        cx.saturating_sub(version_tw / 2), version_y, clip_h,
-        version, version_metrics, theme::SETTINGS_BODY_TEXT, Family::Monospace,
+        buf,
+        font_system,
+        swash_cache,
+        cx.saturating_sub(version_tw / 2),
+        version_y,
+        clip_h,
+        version,
+        version_metrics,
+        theme::SETTINGS_BODY_TEXT,
+        Family::Monospace,
     );
 
     let row_y = version_y + (SECTION_GAP * sf) as usize;
@@ -134,26 +167,116 @@ pub fn draw_settings_about(
         let labels = ["Deactivate License", "Reset hints", "Reset settings"];
         let layouts = compute_row(&labels, cx, row_y, sf);
 
-        let deact_bg = if hovered == Some(AboutHit::DeactivateLicense) { DEACTIVATE_HOVER_BG } else { DEACTIVATE_BG };
-        draw_btn(buf, font_system, swash_cache, &layouts[0], labels[0], deact_bg, (220, 80, 80), false, sf, clip_h);
+        let deact_bg = if hovered == Some(AboutHit::DeactivateLicense) {
+            DEACTIVATE_HOVER_BG
+        } else {
+            DEACTIVATE_BG
+        };
+        draw_btn(
+            buf,
+            font_system,
+            swash_cache,
+            &layouts[0],
+            labels[0],
+            deact_bg,
+            (220, 80, 80),
+            false,
+            sf,
+            clip_h,
+        );
 
-        let rh_bg = if hovered == Some(AboutHit::ResetHints) { NEUTRAL_HOVER_BG } else { NEUTRAL_BG };
-        draw_btn(buf, font_system, swash_cache, &layouts[1], labels[1], rh_bg, theme::SETTINGS_BODY_TEXT, false, sf, clip_h);
+        let rh_bg = if hovered == Some(AboutHit::ResetHints) {
+            NEUTRAL_HOVER_BG
+        } else {
+            NEUTRAL_BG
+        };
+        draw_btn(
+            buf,
+            font_system,
+            swash_cache,
+            &layouts[1],
+            labels[1],
+            rh_bg,
+            theme::SETTINGS_BODY_TEXT,
+            false,
+            sf,
+            clip_h,
+        );
 
-        let rs_bg = if hovered == Some(AboutHit::ResetSettings) { NEUTRAL_HOVER_BG } else { NEUTRAL_BG };
-        draw_btn(buf, font_system, swash_cache, &layouts[2], labels[2], rs_bg, theme::SETTINGS_BODY_TEXT, false, sf, clip_h);
+        let rs_bg = if hovered == Some(AboutHit::ResetSettings) {
+            NEUTRAL_HOVER_BG
+        } else {
+            NEUTRAL_BG
+        };
+        draw_btn(
+            buf,
+            font_system,
+            swash_cache,
+            &layouts[2],
+            labels[2],
+            rs_bg,
+            theme::SETTINGS_BODY_TEXT,
+            false,
+            sf,
+            clip_h,
+        );
     } else {
         let labels = ["Upgrade to Pro", "Reset hints", "Reset settings"];
         let layouts = compute_row(&labels, cx, row_y, sf);
 
-        let upgrade_bg = if hovered == Some(AboutHit::UpgradeToPro) { (239, 59, 139) } else { theme::PRIMARY };
-        draw_btn(buf, font_system, swash_cache, &layouts[0], labels[0], upgrade_bg, (255, 255, 255), true, sf, clip_h);
+        let upgrade_bg = if hovered == Some(AboutHit::UpgradeToPro) {
+            (239, 59, 139)
+        } else {
+            theme::PRIMARY
+        };
+        draw_btn(
+            buf,
+            font_system,
+            swash_cache,
+            &layouts[0],
+            labels[0],
+            upgrade_bg,
+            (255, 255, 255),
+            true,
+            sf,
+            clip_h,
+        );
 
-        let rh_bg = if hovered == Some(AboutHit::ResetHints) { NEUTRAL_HOVER_BG } else { NEUTRAL_BG };
-        draw_btn(buf, font_system, swash_cache, &layouts[1], labels[1], rh_bg, theme::SETTINGS_BODY_TEXT, false, sf, clip_h);
+        let rh_bg = if hovered == Some(AboutHit::ResetHints) {
+            NEUTRAL_HOVER_BG
+        } else {
+            NEUTRAL_BG
+        };
+        draw_btn(
+            buf,
+            font_system,
+            swash_cache,
+            &layouts[1],
+            labels[1],
+            rh_bg,
+            theme::SETTINGS_BODY_TEXT,
+            false,
+            sf,
+            clip_h,
+        );
 
-        let rs_bg = if hovered == Some(AboutHit::ResetSettings) { NEUTRAL_HOVER_BG } else { NEUTRAL_BG };
-        draw_btn(buf, font_system, swash_cache, &layouts[2], labels[2], rs_bg, theme::SETTINGS_BODY_TEXT, false, sf, clip_h);
+        let rs_bg = if hovered == Some(AboutHit::ResetSettings) {
+            NEUTRAL_HOVER_BG
+        } else {
+            NEUTRAL_BG
+        };
+        draw_btn(
+            buf,
+            font_system,
+            swash_cache,
+            &layouts[2],
+            labels[2],
+            rs_bg,
+            theme::SETTINGS_BODY_TEXT,
+            false,
+            sf,
+            clip_h,
+        );
     }
 }
 
@@ -173,7 +296,12 @@ pub fn about_hit_test(
     let row_y = version_y + (SECTION_GAP * sf) as usize;
 
     if is_pro {
-        let layouts = compute_row(&["Deactivate License", "Reset hints", "Reset settings"], cx, row_y, sf);
+        let layouts = compute_row(
+            &["Deactivate License", "Reset hints", "Reset settings"],
+            cx,
+            row_y,
+            sf,
+        );
         if hit_btn(mx, my, &layouts[0], btn_h) {
             return Some(AboutHit::DeactivateLicense);
         }
@@ -184,7 +312,12 @@ pub fn about_hit_test(
             return Some(AboutHit::ResetSettings);
         }
     } else {
-        let layouts = compute_row(&["Upgrade to Pro", "Reset hints", "Reset settings"], cx, row_y, sf);
+        let layouts = compute_row(
+            &["Upgrade to Pro", "Reset hints", "Reset settings"],
+            cx,
+            row_y,
+            sf,
+        );
         if hit_btn(mx, my, &layouts[0], btn_h) {
             return Some(AboutHit::UpgradeToPro);
         }

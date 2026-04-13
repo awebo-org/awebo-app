@@ -10,7 +10,11 @@ use crate::ui::components::overlay::InputType;
 use crate::ui::components::tab_bar::TabBarHit;
 
 impl super::super::App {
-    pub(crate) fn handle_keyboard_input(&mut self, event: &WindowEvent, event_loop: &ActiveEventLoop) {
+    pub(crate) fn handle_keyboard_input(
+        &mut self,
+        event: &WindowEvent,
+        event_loop: &ActiveEventLoop,
+    ) {
         if let WindowEvent::KeyboardInput {
             event:
                 KeyEvent {
@@ -28,7 +32,10 @@ impl super::super::App {
 
             if self.overlay.is_confirm_close_open() {
                 if matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape)) {
-                    self.dispatch(crate::app::actions::AppAction::DismissConfirmClose, event_loop);
+                    self.dispatch(
+                        crate::app::actions::AppAction::DismissConfirmClose,
+                        event_loop,
+                    );
                 }
                 self.request_redraw();
                 return;
@@ -48,7 +55,10 @@ impl super::super::App {
                             let input = &mut self.overlay.pro_license_input;
                             let byte_pos = input.char_indices().nth(cur - 1).map(|(i, _)| i);
                             if let Some(pos) = byte_pos {
-                                let next = input[pos..].chars().next().map_or(pos, |c| pos + c.len_utf8());
+                                let next = input[pos..]
+                                    .chars()
+                                    .next()
+                                    .map_or(pos, |c| pos + c.len_utf8());
                                 input.replace_range(pos..next, "");
                                 self.overlay.pro_license_cursor = cur - 1;
                             }
@@ -69,29 +79,43 @@ impl super::super::App {
                         self.overlay.pro_license_cursor = 0;
                     }
                     Key::Named(NamedKey::End) => {
-                        self.overlay.pro_license_cursor = self.overlay.pro_license_input.chars().count();
+                        self.overlay.pro_license_cursor =
+                            self.overlay.pro_license_input.chars().count();
                     }
                     _ => {
-                        if (ctrl || super_key) && matches!(logical_key.as_ref(), Key::Character(c) if c == "v") {
-                            if let Ok(mut cb) = arboard::Clipboard::new() {
-                                if let Ok(pasted) = cb.get_text() {
-                                    let cleaned: String = pasted.chars().filter(|c| !c.is_control()).collect();
-                                    if !cleaned.is_empty() {
-                                        let cur = self.overlay.pro_license_cursor;
-                                        let byte_pos = self.overlay.pro_license_input.char_indices()
-                                            .nth(cur).map(|(i, _)| i)
-                                            .unwrap_or(self.overlay.pro_license_input.len());
-                                        self.overlay.pro_license_input.insert_str(byte_pos, &cleaned);
-                                        self.overlay.pro_license_cursor += cleaned.chars().count();
-                                    }
+                        if (ctrl || super_key)
+                            && matches!(logical_key.as_ref(), Key::Character(c) if c == "v")
+                        {
+                            if let Ok(mut cb) = arboard::Clipboard::new()
+                                && let Ok(pasted) = cb.get_text()
+                            {
+                                let cleaned: String =
+                                    pasted.chars().filter(|c| !c.is_control()).collect();
+                                if !cleaned.is_empty() {
+                                    let cur = self.overlay.pro_license_cursor;
+                                    let byte_pos = self
+                                        .overlay
+                                        .pro_license_input
+                                        .char_indices()
+                                        .nth(cur)
+                                        .map(|(i, _)| i)
+                                        .unwrap_or(self.overlay.pro_license_input.len());
+                                    self.overlay
+                                        .pro_license_input
+                                        .insert_str(byte_pos, &cleaned);
+                                    self.overlay.pro_license_cursor += cleaned.chars().count();
                                 }
                             }
                         } else if let Some(txt) = text {
                             let s = txt.to_string();
                             if !s.is_empty() && !ctrl && !super_key {
                                 let cur = self.overlay.pro_license_cursor;
-                                let byte_pos = self.overlay.pro_license_input.char_indices()
-                                    .nth(cur).map(|(i, _)| i)
+                                let byte_pos = self
+                                    .overlay
+                                    .pro_license_input
+                                    .char_indices()
+                                    .nth(cur)
+                                    .map(|(i, _)| i)
                                     .unwrap_or(self.overlay.pro_license_input.len());
                                 self.overlay.pro_license_input.insert_str(byte_pos, &s);
                                 self.overlay.pro_license_cursor += s.chars().count();
@@ -111,10 +135,13 @@ impl super::super::App {
                 return;
             }
 
-            if self.usage_limit_banner.is_visible() {
-                if matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape)) {
-                    self.dispatch(crate::app::actions::AppAction::DismissUsageLimitBanner, event_loop);
-                }
+            if self.usage_limit_banner.is_visible()
+                && matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape))
+            {
+                self.dispatch(
+                    crate::app::actions::AppAction::DismissUsageLimitBanner,
+                    event_loop,
+                );
             }
 
             if self.context_menu.is_some() {
@@ -198,11 +225,11 @@ impl super::super::App {
                 return;
             }
 
-            if self.overlay.shell_picker_open {
-                if matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape)) {
-                    self.dispatch(crate::app::actions::AppAction::CloseShellPicker, event_loop);
-                    return;
-                }
+            if self.overlay.shell_picker_open
+                && matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape))
+            {
+                self.dispatch(crate::app::actions::AppAction::CloseShellPicker, event_loop);
+                return;
             }
 
             if self.git_panel.commit_input_focused && self.overlay.git_panel_open {
@@ -260,7 +287,8 @@ impl super::super::App {
                         self.settings_state.sandbox.add_image_focused = false;
                     }
                     Key::Named(NamedKey::Enter) => {
-                        let hit = crate::ui::components::overlay::settings::SandboxSettingsHit::AddImage;
+                        let hit =
+                            crate::ui::components::overlay::settings::SandboxSettingsHit::AddImage;
                         self.handle_sandbox_settings_hit(hit);
                     }
                     Key::Named(NamedKey::Backspace) => {
@@ -279,7 +307,9 @@ impl super::super::App {
                 return;
             }
 
-            if matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape)) && self.is_settings_active() {
+            if matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape))
+                && self.is_settings_active()
+            {
                 self.dispatch(crate::app::actions::AppAction::CloseSettings, event_loop);
                 return;
             }
@@ -317,7 +347,10 @@ impl super::super::App {
                         return;
                     }
                     Key::Named(NamedKey::ArrowDown) => {
-                        let count = self.models_view.filtered_indices(&self.settings_state.models_path).len();
+                        let count = self
+                            .models_view
+                            .filtered_indices(&self.settings_state.models_path)
+                            .len();
                         if self.models_view.selected_index + 1 < count {
                             self.models_view.selected_index += 1;
                         }
@@ -347,26 +380,28 @@ impl super::super::App {
                 return;
             }
 
-            if ctrl && self.modifiers.shift_key() {
-                if matches!(logical_key.as_ref(), Key::Character(c) if c == "D" || c == "d") {
-                    self.widget_debug.toggle();
-                    self.request_redraw();
-                    return;
-                }
+            if ctrl
+                && self.modifiers.shift_key()
+                && matches!(logical_key.as_ref(), Key::Character(c) if c == "D" || c == "d")
+            {
+                self.widget_debug.toggle();
+                self.request_redraw();
+                return;
             }
 
-            if super_key {
-                if let Key::Character(c) = logical_key.as_ref() {
-                    if let Some(digit) = c.chars().next().and_then(|ch| ch.to_digit(10)) {
-                        if digit >= 1 && (digit as usize) <= self.tab_mgr.len() {
-                            self.dispatch(
-                                crate::app::actions::AppAction::SwitchTab { index: (digit as usize) - 1 },
-                                event_loop,
-                            );
-                            return;
-                        }
-                    }
-                }
+            if super_key
+                && let Key::Character(c) = logical_key.as_ref()
+                && let Some(digit) = c.chars().next().and_then(|ch| ch.to_digit(10))
+                && digit >= 1
+                && (digit as usize) <= self.tab_mgr.len()
+            {
+                self.dispatch(
+                    crate::app::actions::AppAction::SwitchTab {
+                        index: (digit as usize) - 1,
+                    },
+                    event_loop,
+                );
+                return;
             }
 
             if super_key && self.modifiers.shift_key() {
@@ -383,12 +418,18 @@ impl super::super::App {
                 }
             }
 
-            if super_key && matches!(logical_key.as_ref(), Key::Character(c) if c == "v") && !self.is_editor_active() {
+            if super_key
+                && matches!(logical_key.as_ref(), Key::Character(c) if c == "v")
+                && !self.is_editor_active()
+            {
                 self.dispatch(crate::app::actions::AppAction::Paste, event_loop);
                 return;
             }
 
-            if super_key && matches!(logical_key.as_ref(), Key::Character(c) if c == "c") && !self.is_editor_active() {
+            if super_key
+                && matches!(logical_key.as_ref(), Key::Character(c) if c == "c")
+                && !self.is_editor_active()
+            {
                 if self.ai_ctrl.state.inference_rx.is_some() {
                     self.ai_ctrl.cancel_inference();
                     if self.agent.is_some() {
@@ -406,12 +447,12 @@ impl super::super::App {
             }
 
             if super_key && matches!(logical_key.as_ref(), Key::Character(c) if c == "a") {
-                if self.is_editor_active() {
-                    if let Some(ed) = self.active_editor_state_mut() {
-                        ed.select_all();
-                        self.request_redraw();
-                        return;
-                    }
+                if self.is_editor_active()
+                    && let Some(ed) = self.active_editor_state_mut()
+                {
+                    ed.select_all();
+                    self.request_redraw();
+                    return;
                 }
                 self.dispatch(crate::app::actions::AppAction::SelectAll, event_loop);
                 return;
@@ -429,17 +470,17 @@ impl super::super::App {
                 }
 
                 if super_key && matches!(logical_key.as_ref(), Key::Character(c) if c == "c") {
-                    if let Some(ed) = self.active_editor_state() {
-                        if let Some(sel_text) = ed.selected_text() {
-                            let len = sel_text.len();
-                            if let Ok(mut cb) = arboard::Clipboard::new() {
-                                let _ = cb.set_text(&sel_text);
-                            }
-                            self.toast_mgr.push(
-                                format!("Copied {} chars", len),
-                                crate::ui::components::toast::ToastLevel::Info,
-                            );
+                    if let Some(ed) = self.active_editor_state()
+                        && let Some(sel_text) = ed.selected_text()
+                    {
+                        let len = sel_text.len();
+                        if let Ok(mut cb) = arboard::Clipboard::new() {
+                            let _ = cb.set_text(&sel_text);
                         }
+                        self.toast_mgr.push(
+                            format!("Copied {} chars", len),
+                            crate::ui::components::toast::ToastLevel::Info,
+                        );
                     }
                     return;
                 }
@@ -486,7 +527,9 @@ impl super::super::App {
                     return;
                 }
 
-                if self.modifiers.alt_key() && matches!(logical_key.as_ref(), Key::Character(c) if c == "z") {
+                if self.modifiers.alt_key()
+                    && matches!(logical_key.as_ref(), Key::Character(c) if c == "z")
+                {
                     if let Some(ed) = self.active_editor_state_mut() {
                         ed.toggle_word_wrap();
                     }
@@ -630,7 +673,8 @@ impl super::super::App {
                     .map(|t| !t.is_app_controlled())
                     .unwrap_or(false);
 
-            let command_running = self.active_block_list()
+            let command_running = self
+                .active_block_list()
                 .map(|bl| bl.last_is_running())
                 .unwrap_or(false);
 
@@ -696,7 +740,9 @@ impl super::super::App {
                             let sel = self.agent_approval_selected();
                             let decision = match sel {
                                 1 => crate::agent::session::ApprovalDecision::ApproveToolForSession,
-                                2 => crate::agent::session::ApprovalDecision::Reject { user_message: None },
+                                2 => crate::agent::session::ApprovalDecision::Reject {
+                                    user_message: None,
+                                },
                                 _ => crate::agent::session::ApprovalDecision::ApproveOnce,
                             };
                             self.dispatch(
@@ -717,13 +763,14 @@ impl super::super::App {
                             self.set_agent_approval_selection(2);
                             self.dispatch(
                                 crate::app::actions::AppAction::AgentApproval {
-                                    decision: crate::agent::session::ApprovalDecision::Reject { user_message: None },
+                                    decision: crate::agent::session::ApprovalDecision::Reject {
+                                        user_message: None,
+                                    },
                                 },
                                 event_loop,
                             );
                         }
-                        Key::Named(NamedKey::Tab)
-                        | Key::Named(NamedKey::ArrowRight) => {
+                        Key::Named(NamedKey::Tab) | Key::Named(NamedKey::ArrowRight) => {
                             self.cycle_agent_approval_selection(1);
                         }
                         Key::Named(NamedKey::ArrowLeft) => {
@@ -784,8 +831,9 @@ impl super::super::App {
                                 }
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
-                            }
-                            else if text.starts_with("/agent") && (text.len() == 6 || text.as_bytes().get(6) == Some(&b' ')) {
+                            } else if text.starts_with("/agent")
+                                && (text.len() == 6 || text.as_bytes().get(6) == Some(&b' '))
+                            {
                                 let task = if text.len() > 6 { text[7..].trim() } else { "" };
                                 self.dispatch(
                                     crate::app::actions::AppAction::EnterAgentMode,
@@ -793,28 +841,35 @@ impl super::super::App {
                                 );
                                 if !task.is_empty() {
                                     self.dispatch(
-                                        crate::app::actions::AppAction::StartAgent { task: task.to_string() },
+                                        crate::app::actions::AppAction::StartAgent {
+                                            task: task.to_string(),
+                                        },
                                         event_loop,
                                     );
                                 }
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
-                            }
-                            else if self.smart_input.input_mode == InputMode::Agent && !text.is_empty() && !text.starts_with('/') {
+                            } else if self.smart_input.input_mode == InputMode::Agent
+                                && !text.is_empty()
+                                && !text.starts_with('/')
+                            {
                                 self.dispatch(
                                     crate::app::actions::AppAction::StartAgent { task: text },
                                     event_loop,
                                 );
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
-                            }
-                            else if text.starts_with("/ask ") {
-                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                                    if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                                        block_list.capture_output(terminal);
-                                    }
+                            } else if let Some(rest) = text.strip_prefix("/ask ") {
+                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                                    && let super::super::TabKind::Terminal {
+                                        terminal,
+                                        block_list,
+                                        ..
+                                    } = &mut tab.kind
+                                {
+                                    block_list.capture_output(terminal);
                                 }
-                                let query = text[5..].trim().to_string();
+                                let query = rest.trim().to_string();
                                 if !query.is_empty() {
                                     self.start_ai_query(&query);
                                 }
@@ -824,21 +879,29 @@ impl super::super::App {
                                 self.smart_input.text = "/ask ".to_string();
                                 self.smart_input.cursor = 5;
                             } else if text.starts_with("/summarize") {
-                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                                    if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                                        block_list.capture_output(terminal);
-                                    }
+                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                                    && let super::super::TabKind::Terminal {
+                                        terminal,
+                                        block_list,
+                                        ..
+                                    } = &mut tab.kind
+                                {
+                                    block_list.capture_output(terminal);
                                 }
                                 self.start_summarize();
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
                             } else if text == "/clear" {
-                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                                    if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                                        terminal.input(Cow::Borrowed(b"clear\n"));
-                                        block_list.blocks.clear();
-                                        block_list.sync_checkpoint(terminal);
-                                    }
+                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                                    && let super::super::TabKind::Terminal {
+                                        terminal,
+                                        block_list,
+                                        ..
+                                    } = &mut tab.kind
+                                {
+                                    terminal.input(Cow::Borrowed(b"clear\n"));
+                                    block_list.blocks.clear();
+                                    block_list.sync_checkpoint(terminal);
                                 }
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
@@ -851,47 +914,55 @@ impl super::super::App {
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
                             } else if text == "clear" || text == "cls" {
-                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                                    if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                                        terminal.input(Cow::Borrowed(b"clear\n"));
-                                        block_list.blocks.clear();
-                                        block_list.scroll_offset = 0.0;
-                                        block_list.sync_checkpoint(terminal);
-                                    }
+                                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                                    && let super::super::TabKind::Terminal {
+                                        terminal,
+                                        block_list,
+                                        ..
+                                    } = &mut tab.kind
+                                {
+                                    terminal.input(Cow::Borrowed(b"clear\n"));
+                                    block_list.blocks.clear();
+                                    block_list.scroll_offset = 0.0;
+                                    block_list.sync_checkpoint(terminal);
                                 }
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
-                            } else if let Some(open_path) = try_intercept_editor_command(&text, self.active_terminal().and_then(|t| t.cwd()).as_deref()) {
+                            } else if let Some(open_path) = try_intercept_editor_command(
+                                &text,
+                                self.active_terminal().and_then(|t| t.cwd()).as_deref(),
+                            ) {
                                 self.dispatch(
                                     crate::app::actions::AppAction::OpenFile { path: open_path },
                                     event_loop,
                                 );
                                 self.smart_input.text.clear();
                                 self.smart_input.cursor = 0;
-                            } else if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                                match &mut tab.kind {
-                                    super::super::TabKind::Terminal { terminal, block_list, .. } => {
-                                        if !text.is_empty() {
-                                            block_list.capture_output(terminal);
-                                            let prompt_info = terminal.prompt_info();
-                                            block_list.push_command(prompt_info, text.clone());
-                                            let cmd = format!("{}\n", text);
-                                            log::info!("smart input: sending command to PTY: {:?}", text);
-                                            terminal.input(Cow::Owned(cmd.into_bytes()));
-                                            self.smart_input.text.clear();
-                                            self.smart_input.cursor = 0;
-                                        } else {
-                                            terminal.input(Cow::Borrowed(b"\n"));
-                                        }
-                                    }
-                                    _ => {}
+                            } else if let Some(tab) =
+                                self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                                && let super::super::TabKind::Terminal {
+                                    terminal,
+                                    block_list,
+                                    ..
+                                } = &mut tab.kind
+                            {
+                                if !text.is_empty() {
+                                    block_list.capture_output(terminal);
+                                    let prompt_info = terminal.prompt_info();
+                                    block_list.push_command(prompt_info, text.clone());
+                                    let cmd = format!("{}\n", text);
+                                    log::info!("smart input: sending command to PTY: {:?}", text);
+                                    terminal.input(Cow::Owned(cmd.into_bytes()));
+                                    self.smart_input.text.clear();
+                                    self.smart_input.cursor = 0;
+                                } else {
+                                    terminal.input(Cow::Borrowed(b"\n"));
                                 }
                             }
                         }
                         Key::Named(NamedKey::Backspace) => {
                             if self.smart_input.cursor > 0 {
-                                let new_cursor = self.smart_input.text
-                                    [..self.smart_input.cursor]
+                                let new_cursor = self.smart_input.text[..self.smart_input.cursor]
                                     .char_indices()
                                     .next_back()
                                     .map(|(i, _)| i)
@@ -903,16 +974,13 @@ impl super::super::App {
                             }
                         }
                         Key::Named(NamedKey::Delete) => {
-                            if self.smart_input.cursor < self.smart_input.text.len()
-                            {
+                            if self.smart_input.cursor < self.smart_input.text.len() {
                                 let next = self.smart_input.text[self.smart_input.cursor..]
                                     .char_indices()
                                     .nth(1)
                                     .map(|(i, _)| self.smart_input.cursor + i)
                                     .unwrap_or(self.smart_input.text.len());
-                                self.smart_input
-                                    .text
-                                    .drain(self.smart_input.cursor..next);
+                                self.smart_input.text.drain(self.smart_input.cursor..next);
                             }
                         }
                         Key::Named(NamedKey::ArrowLeft) => {
@@ -944,8 +1012,7 @@ impl super::super::App {
                             self.smart_input.cursor = 0;
                         }
                         Key::Named(NamedKey::End) => {
-                            self.smart_input.cursor =
-                                self.smart_input.text.len();
+                            self.smart_input.cursor = self.smart_input.text.len();
                         }
                         Key::Named(NamedKey::Escape) => {
                             if self.ai_ctrl.state.inference_rx.is_some() {
@@ -975,14 +1042,19 @@ impl super::super::App {
                             }
                         }
                         Key::Named(NamedKey::ArrowUp) | Key::Named(NamedKey::ArrowDown) => {
-                            let history: Vec<String> = self.active_block_list()
-                                .map(|bl| bl.command_history().iter().map(|s| s.to_string()).collect())
+                            let history: Vec<String> = self
+                                .active_block_list()
+                                .map(|bl| {
+                                    bl.command_history().iter().map(|s| s.to_string()).collect()
+                                })
                                 .unwrap_or_default();
                             if history.is_empty() {
-                            } else if matches!(logical_key.as_ref(), Key::Named(NamedKey::ArrowUp)) {
+                            } else if matches!(logical_key.as_ref(), Key::Named(NamedKey::ArrowUp))
+                            {
                                 match self.smart_input.history_index {
                                     None => {
-                                        self.smart_input.history_stash = self.smart_input.text.clone();
+                                        self.smart_input.history_stash =
+                                            self.smart_input.text.clone();
                                         self.smart_input.history_index = Some(0);
                                         self.smart_input.text = history[history.len() - 1].clone();
                                         self.smart_input.cursor = self.smart_input.text.len();
@@ -990,7 +1062,8 @@ impl super::super::App {
                                     Some(idx) => {
                                         let new_idx = (idx + 1).min(history.len() - 1);
                                         self.smart_input.history_index = Some(new_idx);
-                                        self.smart_input.text = history[history.len() - 1 - new_idx].clone();
+                                        self.smart_input.text =
+                                            history[history.len() - 1 - new_idx].clone();
                                         self.smart_input.cursor = self.smart_input.text.len();
                                     }
                                 }
@@ -998,26 +1071,25 @@ impl super::super::App {
                                 match self.smart_input.history_index {
                                     Some(0) => {
                                         self.smart_input.history_index = None;
-                                        self.smart_input.text = self.smart_input.history_stash.clone();
+                                        self.smart_input.text =
+                                            self.smart_input.history_stash.clone();
                                         self.smart_input.cursor = self.smart_input.text.len();
                                     }
                                     Some(idx) => {
                                         let new_idx = idx - 1;
                                         self.smart_input.history_index = Some(new_idx);
-                                        self.smart_input.text = history[history.len() - 1 - new_idx].clone();
+                                        self.smart_input.text =
+                                            history[history.len() - 1 - new_idx].clone();
                                         self.smart_input.cursor = self.smart_input.text.len();
                                     }
-                                    None => {
-                                    }
+                                    None => {}
                                 }
                             }
                         }
                         _ => {
                             if ctrl {
                                 if matches!(logical_key.as_ref(), Key::Character(c) if c == "c") {
-                                    if let Some(terminal) =
-                                        self.active_terminal()
-                                    {
+                                    if let Some(terminal) = self.active_terminal() {
                                         terminal.input(Cow::Borrowed(b"\x03"));
                                     }
                                     if let Some(started) = self.smart_input.command_started.take() {
@@ -1026,42 +1098,39 @@ impl super::super::App {
                                     }
                                     self.smart_input.text.clear();
                                     self.smart_input.cursor = 0;
-                                }
-                                else if matches!(logical_key.as_ref(), Key::Character(c) if c == "a") {
+                                } else if matches!(logical_key.as_ref(), Key::Character(c) if c == "a")
+                                {
                                     self.smart_input.cursor = 0;
-                                }
-                                else if matches!(logical_key.as_ref(), Key::Character(c) if c == "e") {
-                                    self.smart_input.cursor =
-                                        self.smart_input.text.len();
-                                }
-                                else if matches!(logical_key.as_ref(), Key::Character(c) if c == "u") {
+                                } else if matches!(logical_key.as_ref(), Key::Character(c) if c == "e")
+                                {
+                                    self.smart_input.cursor = self.smart_input.text.len();
+                                } else if matches!(logical_key.as_ref(), Key::Character(c) if c == "u")
+                                {
                                     self.smart_input.text.clear();
                                     self.smart_input.cursor = 0;
-                                }
-                                else if matches!(logical_key.as_ref(), Key::Character(c) if c == "k") {
-                                    self.smart_input
-                                        .text
-                                        .truncate(self.smart_input.cursor);
-                                }
-                                else if matches!(logical_key.as_ref(), Key::Character(c) if c == "w") {
+                                } else if matches!(logical_key.as_ref(), Key::Character(c) if c == "k")
+                                {
+                                    self.smart_input.text.truncate(self.smart_input.cursor);
+                                } else if matches!(logical_key.as_ref(), Key::Character(c) if c == "w")
+                                {
                                     let before = &self.smart_input.text[..self.smart_input.cursor];
                                     let trimmed = before.trim_end();
                                     let new_end = trimmed
                                         .rfind(|c: char| c.is_whitespace())
                                         .map(|i| i + 1)
                                         .unwrap_or(0);
-                                    self.smart_input.text.drain(new_end..self.smart_input.cursor);
+                                    self.smart_input
+                                        .text
+                                        .drain(new_end..self.smart_input.cursor);
                                     self.smart_input.cursor = new_end;
                                 }
-                            } else if !super_key {
-                                if let Some(txt) = text {
-                                    let s = txt.to_string();
-                                    if !s.is_empty() {
-                                        self.smart_input
-                                            .text
-                                            .insert_str(self.smart_input.cursor, &s);
-                                        self.smart_input.cursor += s.len();
-                                    }
+                            } else if !super_key && let Some(txt) = text {
+                                let s = txt.to_string();
+                                if !s.is_empty() {
+                                    self.smart_input
+                                        .text
+                                        .insert_str(self.smart_input.cursor, &s);
+                                    self.smart_input.cursor += s.len();
                                 }
                             }
                         }
@@ -1076,10 +1145,9 @@ impl super::super::App {
                     Key::Named(NamedKey::ArrowUp) | Key::Named(NamedKey::ArrowDown)
                 ) {
                     self.smart_input.ai_suggestion = None;
-                    if self.smart_input.history_index.is_some() && !matches!(
-                        logical_key.as_ref(),
-                        Key::Named(NamedKey::Enter)
-                    ) {
+                    if self.smart_input.history_index.is_some()
+                        && !matches!(logical_key.as_ref(), Key::Named(NamedKey::Enter))
+                    {
                         self.smart_input.history_index = None;
                     }
                 }
@@ -1138,7 +1206,12 @@ impl super::super::App {
     }
 
     /// Open a context menu for a file tree item.
-    fn open_file_tree_context_menu(&mut self, path: std::path::PathBuf, anchor_x: usize, anchor_y: usize) {
+    fn open_file_tree_context_menu(
+        &mut self,
+        path: std::path::PathBuf,
+        anchor_x: usize,
+        anchor_y: usize,
+    ) {
         use crate::ui::components::context_menu::{ContextMenuItem, ContextMenuState};
 
         let is_dir = path.is_dir();
@@ -1153,7 +1226,10 @@ impl super::super::App {
         }
         items.push(ContextMenuItem::action("rename", "Rename"));
         items.push(ContextMenuItem::Separator);
-        items.push(ContextMenuItem::action("reveal_in_finder", "Reveal in Finder"));
+        items.push(ContextMenuItem::action(
+            "reveal_in_finder",
+            "Reveal in Finder",
+        ));
         items.push(ContextMenuItem::Separator);
         items.push(ContextMenuItem::destructive("delete", "Delete"));
 
@@ -1164,13 +1240,14 @@ impl super::super::App {
     fn open_git_file_context_menu(&mut self, rel_path: String, anchor_x: usize, anchor_y: usize) {
         use crate::ui::components::context_menu::{ContextMenuItem, ContextMenuState};
 
-        let mut items = Vec::new();
-        items.push(ContextMenuItem::destructive("git_discard", "Discard Changes"));
-        items.push(ContextMenuItem::Separator);
-        items.push(ContextMenuItem::action("git_open", "Open File"));
-        items.push(ContextMenuItem::action("git_gitignore", "Add to .gitignore"));
-        items.push(ContextMenuItem::Separator);
-        items.push(ContextMenuItem::action("git_reveal", "Reveal in Finder"));
+        let items = vec![
+            ContextMenuItem::destructive("git_discard", "Discard Changes"),
+            ContextMenuItem::Separator,
+            ContextMenuItem::action("git_open", "Open File"),
+            ContextMenuItem::action("git_gitignore", "Add to .gitignore"),
+            ContextMenuItem::Separator,
+            ContextMenuItem::action("git_reveal", "Reveal in Finder"),
+        ];
 
         self.context_menu = Some(ContextMenuState::new(items, anchor_x, anchor_y));
         self.context_menu_target_path = Some(std::path::PathBuf::from(rel_path));
@@ -1188,12 +1265,21 @@ impl super::super::App {
         if has_others {
             items.push(ContextMenuItem::action("tab_close_others", "Close Others"));
         } else {
-            items.push(ContextMenuItem::disabled("tab_close_others", "Close Others"));
+            items.push(ContextMenuItem::disabled(
+                "tab_close_others",
+                "Close Others",
+            ));
         }
         if has_right {
-            items.push(ContextMenuItem::action("tab_close_right", "Close to the Right"));
+            items.push(ContextMenuItem::action(
+                "tab_close_right",
+                "Close to the Right",
+            ));
         } else {
-            items.push(ContextMenuItem::disabled("tab_close_right", "Close to the Right"));
+            items.push(ContextMenuItem::disabled(
+                "tab_close_right",
+                "Close to the Right",
+            ));
         }
         items.push(ContextMenuItem::action("tab_close_all", "Close All"));
         items.push(ContextMenuItem::Separator);
@@ -1246,10 +1332,10 @@ impl super::super::App {
                         }
                         _ => String::new(),
                     };
-                    if !text.is_empty() {
-                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                            let _ = clipboard.set_text(&text);
-                        }
+                    if !text.is_empty()
+                        && let Ok(mut clipboard) = arboard::Clipboard::new()
+                    {
+                        let _ = clipboard.set_text(&text);
                     }
                 }
             }
@@ -1269,24 +1355,25 @@ impl super::super::App {
         let phys_x = self.cursor_pos.0 as usize;
         let phys_y = self.cursor_pos.1 as usize;
 
-        if phys_y < bar_h { return; }
+        if phys_y < bar_h {
+            return;
+        }
 
         let content_h = (renderer.height as usize).saturating_sub(bar_h);
 
-        if let Some(state) = self.active_editor_state() {
-            if let Some((line, col)) = crate::ui::components::editor_renderer::hit_test_cursor(
+        if let Some(state) = self.active_editor_state()
+            && let Some((line, col)) = crate::ui::components::editor_renderer::hit_test_cursor(
                 state, phys_x, phys_y, x_off, bar_h, sf,
-            ) {
-                let viewport_h = content_h;
-                if let Some(ed) = self.active_editor_state_mut() {
-                    ed.set_cursor_pos(line, col);
-                    ed.ensure_cursor_visible(sf, viewport_h);
-                }
-                self.request_redraw();
+            )
+        {
+            let viewport_h = content_h;
+            if let Some(ed) = self.active_editor_state_mut() {
+                ed.set_cursor_pos(line, col);
+                ed.ensure_cursor_visible(sf, viewport_h);
             }
+            self.request_redraw();
         }
     }
-
 
     pub(crate) fn handle_mouse_event(&mut self, event: &WindowEvent, event_loop: &ActiveEventLoop) {
         match event {
@@ -1296,26 +1383,43 @@ impl super::super::App {
                 ..
             } => {
                 if self.overlay.is_confirm_close_open() {
-                    let sf = self.renderer.as_ref().map(|r| r.scale_factor as f32).unwrap_or(1.0);
-                    let (bw, bh) = self.renderer.as_ref()
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
+                    let (bw, bh) = self
+                        .renderer
+                        .as_ref()
                         .map(|r| (r.width as usize, r.height as usize))
                         .unwrap_or((0, 0));
                     let hit = crate::ui::components::overlay::confirm_close_hit_test(
                         self.cursor_pos.0 as usize,
                         self.cursor_pos.1 as usize,
-                        bw, bh, sf,
+                        bw,
+                        bh,
+                        sf,
                     );
                     if let Some(idx) = self.overlay.confirm_close_tab {
                         match hit {
                             crate::ui::components::overlay::ConfirmCloseHit::Save => {
-                                self.dispatch(crate::app::actions::AppAction::SaveAndCloseTab { index: idx }, event_loop);
+                                self.dispatch(
+                                    crate::app::actions::AppAction::SaveAndCloseTab { index: idx },
+                                    event_loop,
+                                );
                             }
                             crate::ui::components::overlay::ConfirmCloseHit::DontSave => {
-                                self.dispatch(crate::app::actions::AppAction::ForceCloseTab { index: idx }, event_loop);
+                                self.dispatch(
+                                    crate::app::actions::AppAction::ForceCloseTab { index: idx },
+                                    event_loop,
+                                );
                             }
                             crate::ui::components::overlay::ConfirmCloseHit::Cancel
                             | crate::ui::components::overlay::ConfirmCloseHit::Backdrop => {
-                                self.dispatch(crate::app::actions::AppAction::DismissConfirmClose, event_loop);
+                                self.dispatch(
+                                    crate::app::actions::AppAction::DismissConfirmClose,
+                                    event_loop,
+                                );
                             }
                         }
                     }
@@ -1323,49 +1427,91 @@ impl super::super::App {
                 }
 
                 if self.overlay.pro_panel_open {
-                    let sf = self.renderer.as_ref().map(|r| r.scale_factor as f32).unwrap_or(1.0);
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
                     let (bw, bh) = self.buf_size();
                     if let Some(hit) = crate::ui::components::overlay::pro_panel::pro_panel_hit_test(
-                        bw, bh, self.license_mgr.is_pro(),
-                        self.cursor_pos.0, self.cursor_pos.1, sf,
+                        bw,
+                        bh,
+                        self.license_mgr.is_pro(),
+                        self.cursor_pos.0,
+                        self.cursor_pos.1,
+                        sf,
                     ) {
                         use crate::ui::components::overlay::pro_panel::ProPanelHit;
                         match hit {
-                            ProPanelHit::BuyPro => self.dispatch(crate::app::actions::AppAction::BuyPro, event_loop),
-                            ProPanelHit::ActivateKey => self.dispatch(crate::app::actions::AppAction::ActivateLicense, event_loop),
-                            ProPanelHit::Deactivate => self.dispatch(crate::app::actions::AppAction::DeactivateLicense, event_loop),
+                            ProPanelHit::BuyPro => {
+                                self.dispatch(crate::app::actions::AppAction::BuyPro, event_loop)
+                            }
+                            ProPanelHit::ActivateKey => self.dispatch(
+                                crate::app::actions::AppAction::ActivateLicense,
+                                event_loop,
+                            ),
+                            ProPanelHit::Deactivate => self.dispatch(
+                                crate::app::actions::AppAction::DeactivateLicense,
+                                event_loop,
+                            ),
                             ProPanelHit::FocusInput => {
                                 self.overlay.pro_license_focused = true;
                                 self.request_redraw();
                             }
-                            ProPanelHit::Close | ProPanelHit::Backdrop => self.dispatch(crate::app::actions::AppAction::CloseProPanel, event_loop),
+                            ProPanelHit::Close | ProPanelHit::Backdrop => self.dispatch(
+                                crate::app::actions::AppAction::CloseProPanel,
+                                event_loop,
+                            ),
                         }
                     }
                     return;
                 }
 
                 if self.overlay.usage_panel_open {
-                    let sf = self.renderer.as_ref().map(|r| r.scale_factor as f32).unwrap_or(1.0);
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
                     let (bw, bh) = self.buf_size();
-                    if let Some(hit) = crate::ui::components::overlay::usage_panel::usage_panel_hit_test(
-                        bw, bh, &self.usage_tracker,
-                        self.cursor_pos.0, self.cursor_pos.1, sf,
-                    ) {
+                    if let Some(hit) =
+                        crate::ui::components::overlay::usage_panel::usage_panel_hit_test(
+                            bw,
+                            bh,
+                            &self.usage_tracker,
+                            self.cursor_pos.0,
+                            self.cursor_pos.1,
+                            sf,
+                        )
+                    {
                         use crate::ui::components::overlay::usage_panel::UsagePanelHit;
                         match hit {
-                            UsagePanelHit::UpgradePro => self.dispatch(crate::app::actions::AppAction::OpenProPanel, event_loop),
-                            UsagePanelHit::Close | UsagePanelHit::Backdrop => self.dispatch(crate::app::actions::AppAction::CloseUsagePanel, event_loop),
+                            UsagePanelHit::UpgradePro => self
+                                .dispatch(crate::app::actions::AppAction::OpenProPanel, event_loop),
+                            UsagePanelHit::Close | UsagePanelHit::Backdrop => self.dispatch(
+                                crate::app::actions::AppAction::CloseUsagePanel,
+                                event_loop,
+                            ),
                         }
                     }
                     return;
                 }
 
                 if self.toast_mgr.has_active() {
-                    let sf = self.renderer.as_ref().map(|r| r.scale_factor as f32).unwrap_or(1.0);
-                    let bw = self.renderer.as_ref().map(|r| r.width as usize).unwrap_or(0);
-                    if let Some(idx) = self.toast_mgr.hit_test(
-                        self.cursor_pos.0, self.cursor_pos.1, bw, sf,
-                    ) {
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
+                    let bw = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.width as usize)
+                        .unwrap_or(0);
+                    if let Some(idx) =
+                        self.toast_mgr
+                            .hit_test(self.cursor_pos.0, self.cursor_pos.1, bw, sf)
+                    {
                         self.toast_mgr.dismiss_at(idx);
                         self.request_redraw();
                         return;
@@ -1375,11 +1521,18 @@ impl super::super::App {
                 if let Some(menu) = &self.context_menu {
                     let mx = self.cursor_pos.0 as usize;
                     let my = self.cursor_pos.1 as usize;
-                    let (bw, bh, sf) = self.renderer.as_ref()
+                    let (bw, bh, sf) = self
+                        .renderer
+                        .as_ref()
                         .map(|r| (r.width as usize, r.height as usize, r.scale_factor as f32))
                         .unwrap_or((0, 0, 1.0));
-                    if crate::ui::components::context_menu::is_inside_menu(menu, mx, my, bw, bh, sf) {
-                        if let Some(action_id) = crate::ui::components::context_menu::context_menu_hit_test(menu, mx, my, bw, bh, sf) {
+                    if crate::ui::components::context_menu::is_inside_menu(menu, mx, my, bw, bh, sf)
+                    {
+                        if let Some(action_id) =
+                            crate::ui::components::context_menu::context_menu_hit_test(
+                                menu, mx, my, bw, bh, sf,
+                            )
+                        {
                             let id = action_id.to_string();
                             let path = self.context_menu_target_path.clone();
                             let tab_idx = self.context_menu_target_tab;
@@ -1392,7 +1545,10 @@ impl super::super::App {
                                 }
                             } else if let Some(p) = path {
                                 self.dispatch(
-                                    crate::app::actions::AppAction::ContextMenuAction { id, path: p },
+                                    crate::app::actions::AppAction::ContextMenuAction {
+                                        id,
+                                        path: p,
+                                    },
                                     event_loop,
                                 );
                             }
@@ -1417,49 +1573,72 @@ impl super::super::App {
                     }
                 }
 
-                if self.usage_limit_banner.is_visible() {
-                    if let Some(renderer) = &self.renderer {
-                        let sf = renderer.scale_factor as f32;
-                        let bw = renderer.width as usize;
-                        let bh = renderer.height as usize;
-                        if let Some(hit) = crate::ui::components::usage_limit_banner::hit_test(
-                            &self.usage_limit_banner,
-                            self.cursor_pos.0, self.cursor_pos.1,
-                            bw, bh, sf,
-                        ) {
-                            use crate::ui::components::usage_limit_banner::UsageLimitBannerHit;
-                            match hit {
-                                UsageLimitBannerHit::Dismiss | UsageLimitBannerHit::Backdrop => {
-                                    self.dispatch(crate::app::actions::AppAction::DismissUsageLimitBanner, event_loop);
-                                }
-                                UsageLimitBannerHit::Upgrade => {
-                                    self.dispatch(crate::app::actions::AppAction::DismissUsageLimitBanner, event_loop);
-                                    self.dispatch(crate::app::actions::AppAction::OpenProPanel, event_loop);
-                                }
+                if self.usage_limit_banner.is_visible()
+                    && let Some(renderer) = &self.renderer
+                {
+                    let sf = renderer.scale_factor as f32;
+                    let bw = renderer.width as usize;
+                    let bh = renderer.height as usize;
+                    if let Some(hit) = crate::ui::components::usage_limit_banner::hit_test(
+                        &self.usage_limit_banner,
+                        self.cursor_pos.0,
+                        self.cursor_pos.1,
+                        bw,
+                        bh,
+                        sf,
+                    ) {
+                        use crate::ui::components::usage_limit_banner::UsageLimitBannerHit;
+                        match hit {
+                            UsageLimitBannerHit::Dismiss | UsageLimitBannerHit::Backdrop => {
+                                self.dispatch(
+                                    crate::app::actions::AppAction::DismissUsageLimitBanner,
+                                    event_loop,
+                                );
                             }
-                            return;
+                            UsageLimitBannerHit::Upgrade => {
+                                self.dispatch(
+                                    crate::app::actions::AppAction::DismissUsageLimitBanner,
+                                    event_loop,
+                                );
+                                self.dispatch(
+                                    crate::app::actions::AppAction::OpenProPanel,
+                                    event_loop,
+                                );
+                            }
                         }
+                        return;
                     }
                 }
 
-                if self.hint_banner.is_visible() {
-                    if let Some(renderer) = &self.renderer {
-                        let sf = renderer.scale_factor as f32;
-                        let prompt_h = crate::ui::components::prompt_bar::prompt_bar_height(sf);
-                        let banner_h = crate::ui::components::hint_banner::banner_height(&self.hint_banner, sf);
-                        if banner_h > 0 {
-                            let banner_y = (renderer.height as usize).saturating_sub(prompt_h + banner_h);
-                            let git_w = if self.overlay.git_panel_open {
-                                self.panel_layout.right_physical_width(sf) as usize
-                            } else { 0 };
-                            let banner_w = (renderer.width as usize).saturating_sub(git_w);
-                            if crate::ui::components::hint_banner::hit_test_dismiss(
-                                self.cursor_pos.0, self.cursor_pos.1,
-                                &self.hint_banner, banner_y, banner_w, sf,
-                            ) {
-                                self.dispatch(crate::app::actions::AppAction::DismissHintBanner, event_loop);
-                                return;
-                            }
+                if self.hint_banner.is_visible()
+                    && let Some(renderer) = &self.renderer
+                {
+                    let sf = renderer.scale_factor as f32;
+                    let prompt_h = crate::ui::components::prompt_bar::prompt_bar_height(sf);
+                    let banner_h =
+                        crate::ui::components::hint_banner::banner_height(&self.hint_banner, sf);
+                    if banner_h > 0 {
+                        let banner_y =
+                            (renderer.height as usize).saturating_sub(prompt_h + banner_h);
+                        let git_w = if self.overlay.git_panel_open {
+                            self.panel_layout.right_physical_width(sf)
+                        } else {
+                            0
+                        };
+                        let banner_w = (renderer.width as usize).saturating_sub(git_w);
+                        if crate::ui::components::hint_banner::hit_test_dismiss(
+                            self.cursor_pos.0,
+                            self.cursor_pos.1,
+                            &self.hint_banner,
+                            banner_y,
+                            banner_w,
+                            sf,
+                        ) {
+                            self.dispatch(
+                                crate::app::actions::AppAction::DismissHintBanner,
+                                event_loop,
+                            );
+                            return;
                         }
                     }
                 }
@@ -1481,28 +1660,29 @@ impl super::super::App {
                         sf,
                     ) {
                         use crate::ui::components::overlay::ShellPickerChoice;
-                        self.dispatch(
-                            crate::app::actions::AppAction::CloseShellPicker,
-                            event_loop,
-                        );
+                        self.dispatch(crate::app::actions::AppAction::CloseShellPicker, event_loop);
                         match choice {
                             ShellPickerChoice::LocalShell(idx) => {
                                 let path = self.available_shells[idx].1.clone();
                                 self.dispatch(
-                                    crate::app::actions::AppAction::CreateTab { shell_path: Some(path) },
+                                    crate::app::actions::AppAction::CreateTab {
+                                        shell_path: Some(path),
+                                    },
                                     event_loop,
                                 );
                             }
                             ShellPickerChoice::Sandbox(idx) => {
                                 self.dispatch(
-                                    crate::app::actions::AppAction::CreateSandboxTab { image_idx: idx },
+                                    crate::app::actions::AppAction::CreateSandboxTab {
+                                        image_idx: idx,
+                                    },
                                     event_loop,
                                 );
                             }
                         }
                         return;
                     }
-                    let on_button = self.renderer.as_ref().map_or(false, |r| {
+                    let on_button = self.renderer.as_ref().is_some_and(|r| {
                         matches!(
                             crate::ui::components::tab_bar::hit_test(
                                 self.cursor_pos.0,
@@ -1517,59 +1697,51 @@ impl super::super::App {
                         )
                     });
                     if !on_button {
-                        self.dispatch(
-                            crate::app::actions::AppAction::CloseShellPicker,
-                            event_loop,
-                        );
+                        self.dispatch(crate::app::actions::AppAction::CloseShellPicker, event_loop);
                     }
                 }
 
                 if self.scrollbar_hovered {
                     self.scrollbar_dragging = true;
                     self.scrollbar_drag_start_y = self.cursor_pos.1;
-                    self.scrollbar_drag_start_scroll = self.active_block_list()
+                    self.scrollbar_drag_start_scroll = self
+                        .active_block_list()
                         .map(|bl| bl.scroll_offset)
                         .unwrap_or(0.0);
                     return;
                 }
 
-                if self.overlay.user_menu_open {
-                    if let Some(renderer) = &self.renderer {
-                        let item = crate::ui::components::tab_bar::user_menu_hit_test(
-                            self.cursor_pos.0,
-                            self.cursor_pos.1,
-                            renderer.tab_bar_height as f64,
-                            renderer.width as f64,
-                            renderer.scale_factor,
-                            self.license_mgr.is_pro(),
-                        );
-                        self.overlay.close_user_menu();
-                        match item {
-                            Some(0) => {
-                                self.dispatch(
-                                    crate::app::actions::AppAction::OpenSettings,
-                                    event_loop,
-                                );
-                            }
-                            Some(1) => {
-                                self.dispatch(
-                                    crate::app::actions::AppAction::OpenModels,
-                                    event_loop,
-                                );
-                            }
-                            Some(2) => {
-                                if !self.license_mgr.is_pro() {
-                                    self.dispatch(
-                                        crate::app::actions::AppAction::OpenProPanel,
-                                        event_loop,
-                                    );
-                                }
-                            }
-                            _ => {}
+                if self.overlay.user_menu_open
+                    && let Some(renderer) = &self.renderer
+                {
+                    let item = crate::ui::components::tab_bar::user_menu_hit_test(
+                        self.cursor_pos.0,
+                        self.cursor_pos.1,
+                        renderer.tab_bar_height as f64,
+                        renderer.width as f64,
+                        renderer.scale_factor,
+                        self.license_mgr.is_pro(),
+                    );
+                    self.overlay.close_user_menu();
+                    match item {
+                        Some(0) => {
+                            self.dispatch(crate::app::actions::AppAction::OpenSettings, event_loop);
                         }
-                        self.request_redraw();
-                        return;
+                        Some(1) => {
+                            self.dispatch(crate::app::actions::AppAction::OpenModels, event_loop);
+                        }
+                        Some(2) => {
+                            if !self.license_mgr.is_pro() {
+                                self.dispatch(
+                                    crate::app::actions::AppAction::OpenProPanel,
+                                    event_loop,
+                                );
+                            }
+                        }
+                        _ => {}
                     }
+                    self.request_redraw();
+                    return;
                 }
 
                 if let Some(renderer) = &self.renderer {
@@ -1609,7 +1781,8 @@ impl super::super::App {
                         }
                         TabBarHit::EmptyBar => {
                             let now = Instant::now();
-                            let is_double = self.overlay
+                            let is_double = self
+                                .overlay
                                 .last_empty_bar_click
                                 .map(|t| now.duration_since(t).as_millis() < 400)
                                 .unwrap_or(false);
@@ -1618,11 +1791,20 @@ impl super::super::App {
                                 self.overlay.last_empty_bar_click = None;
                                 #[cfg(target_os = "macos")]
                                 if let Some(window) = &self.window {
-                                    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-                                    if let Ok(RawWindowHandle::AppKit(handle)) = window.window_handle().map(|h| h.as_raw()) {
+                                    use winit::raw_window_handle::{
+                                        HasWindowHandle, RawWindowHandle,
+                                    };
+                                    if let Ok(RawWindowHandle::AppKit(handle)) =
+                                        window.window_handle().map(|h| h.as_raw())
+                                    {
                                         unsafe {
-                                            let ns_view: objc2::rc::Retained<objc2_app_kit::NSView> =
-                                                objc2::rc::Retained::retain(handle.ns_view.as_ptr() as *mut objc2_app_kit::NSView).unwrap();
+                                            let ns_view: objc2::rc::Retained<
+                                                objc2_app_kit::NSView,
+                                            > = objc2::rc::Retained::retain(
+                                                handle.ns_view.as_ptr()
+                                                    as *mut objc2_app_kit::NSView,
+                                            )
+                                            .unwrap();
                                             if let Some(ns_window) = ns_view.window() {
                                                 ns_window.zoom(None);
                                             }
@@ -1642,7 +1824,8 @@ impl super::super::App {
                                 return;
                             }
 
-                            if self.overlay.git_panel_open && self.panel_layout.right_resize.hovered {
+                            if self.overlay.git_panel_open && self.panel_layout.right_resize.hovered
+                            {
                                 self.panel_layout.begin_right_resize();
                                 return;
                             }
@@ -1650,26 +1833,31 @@ impl super::super::App {
                             if self.overlay.sidebar_open && self.file_tree.scrollbar_hovered {
                                 self.file_tree.scrollbar_dragging = true;
                                 self.file_tree.scrollbar_drag_start_y = self.cursor_pos.1;
-                                self.file_tree.scrollbar_drag_start_scroll = self.file_tree.scroll_offset;
+                                self.file_tree.scrollbar_drag_start_scroll =
+                                    self.file_tree.scroll_offset;
                                 return;
                             }
 
-                            if self.overlay.sidebar_open {
-                                if let Some(action) = self.side_panel_action() {
-                                    self.dispatch(action, event_loop);
-                                }
+                            if self.overlay.sidebar_open
+                                && let Some(action) = self.side_panel_action()
+                            {
+                                self.dispatch(action, event_loop);
                             }
 
                             if self.overlay.git_panel_open && self.git_panel.scrollbar_hovered {
                                 self.git_panel.scrollbar_dragging = true;
                                 self.git_panel.scrollbar_drag_start_y = self.cursor_pos.1;
-                                self.git_panel.scrollbar_drag_start_scroll = self.git_panel.scroll_offset;
+                                self.git_panel.scrollbar_drag_start_scroll =
+                                    self.git_panel.scroll_offset;
                                 return;
                             }
 
                             if self.overlay.git_panel_open {
                                 if let Some(action) = self.git_panel_action() {
-                                    if !matches!(action, crate::app::actions::AppAction::GitFocusCommitInput { .. }) {
+                                    if !matches!(
+                                        action,
+                                        crate::app::actions::AppAction::GitFocusCommitInput { .. }
+                                    ) {
                                         self.git_panel.commit_input_focused = false;
                                     }
                                     self.dispatch(action, event_loop);
@@ -1685,9 +1873,14 @@ impl super::super::App {
                             } else if self.is_models_active() {
                                 self.handle_models_click();
                             } else if self.is_editor_active() {
-                                if self.editor_scrollbar != crate::ui::components::editor_renderer::ScrollbarHit::None {
+                                if self.editor_scrollbar
+                                    != crate::ui::components::editor_renderer::ScrollbarHit::None
+                                {
                                     self.editor_scrollbar_dragging = self.editor_scrollbar;
-                                    self.update_editor_scrollbar_drag(self.cursor_pos.0, self.cursor_pos.1);
+                                    self.update_editor_scrollbar_drag(
+                                        self.cursor_pos.0,
+                                        self.cursor_pos.1,
+                                    );
                                     self.request_redraw();
                                 } else {
                                     self.handle_editor_click();
@@ -1698,28 +1891,40 @@ impl super::super::App {
                             {
                                 let grid_visible = self.is_grid_visible();
                                 if grid_visible {
-                                    if let Some((point, side)) = self.mouse_to_grid_point(
-                                        self.cursor_pos.0,
-                                        self.cursor_pos.1,
-                                    ) {
-                                        if self.modifiers.super_key() {
-                                            if let Some(terminal) = self.active_terminal() {
-                                                let line_text = terminal.screen_row_text(point.line.0);
-                                                if let Some(url) = crate::terminal::url_at_col(&line_text, point.column.0) {
-                                                    log::info!("Cmd+Click opening URL: {}", url);
-                                                    #[cfg(target_os = "macos")]
-                                                    { let _ = std::process::Command::new("open").arg(&url).spawn(); }
-                                                    #[cfg(not(target_os = "macos"))]
-                                                    { let _ = std::process::Command::new("xdg-open").arg(&url).spawn(); }
-                                                    return;
+                                    if let Some((point, side)) = self
+                                        .mouse_to_grid_point(self.cursor_pos.0, self.cursor_pos.1)
+                                    {
+                                        if self.modifiers.super_key()
+                                            && let Some(terminal) = self.active_terminal()
+                                        {
+                                            let line_text = terminal.screen_row_text(point.line.0);
+                                            if let Some(url) = crate::terminal::url_at_col(
+                                                &line_text,
+                                                point.column.0,
+                                            ) {
+                                                log::info!("Cmd+Click opening URL: {}", url);
+                                                #[cfg(target_os = "macos")]
+                                                {
+                                                    let _ = std::process::Command::new("open")
+                                                        .arg(&url)
+                                                        .spawn();
                                                 }
+                                                #[cfg(not(target_os = "macos"))]
+                                                {
+                                                    let _ = std::process::Command::new("xdg-open")
+                                                        .arg(&url)
+                                                        .spawn();
+                                                }
+                                                return;
                                             }
                                         }
 
                                         if let Some(terminal) = self.active_terminal() {
                                             terminal.start_selection(point, side);
                                             self.selecting = true;
-                                            if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); }
+                                            if let Some(r) = self.renderer.as_mut() {
+                                                r.invalidate_grid_cache();
+                                            }
                                             self.request_redraw();
                                         }
                                     }
@@ -1728,15 +1933,20 @@ impl super::super::App {
                                     let is_dir = std::path::Path::new(&path).is_dir();
                                     if is_dir {
                                         log::info!("cd into directory: {}", path);
-                                        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                                            if let super::super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                                                block_list.capture_output(terminal);
-                                                let prompt_info = terminal.prompt_info();
-                                                let cmd_text = format!("cd {}", shell_escape(&path));
-                                                block_list.push_command(prompt_info, cmd_text.clone());
-                                                let cmd = format!("{}\n", cmd_text);
-                                                terminal.input(Cow::Owned(cmd.into_bytes()));
-                                            }
+                                        if let Some(tab) =
+                                            self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                                            && let super::super::TabKind::Terminal {
+                                                terminal,
+                                                block_list,
+                                                ..
+                                            } = &mut tab.kind
+                                        {
+                                            block_list.capture_output(terminal);
+                                            let prompt_info = terminal.prompt_info();
+                                            let cmd_text = format!("cd {}", shell_escape(&path));
+                                            block_list.push_command(prompt_info, cmd_text.clone());
+                                            let cmd = format!("{}\n", cmd_text);
+                                            terminal.input(Cow::Owned(cmd.into_bytes()));
                                         }
                                     } else {
                                         log::info!("Opening file: {}", path);
@@ -1754,11 +1964,11 @@ impl super::super::App {
                                         }
                                     }
                                     self.request_redraw();
-                                } else if let Some(pos) = self.mouse_to_block_pos(
-                                    self.cursor_pos.0,
-                                    self.cursor_pos.1,
-                                ) {
-                                    self.block_selection = Some(crate::blocks::BlockSelection::new(pos));
+                                } else if let Some(pos) =
+                                    self.mouse_to_block_pos(self.cursor_pos.0, self.cursor_pos.1)
+                                {
+                                    self.block_selection =
+                                        Some(crate::blocks::BlockSelection::new(pos));
                                     self.selecting = true;
                                     self.request_redraw();
                                 }
@@ -1778,8 +1988,11 @@ impl super::super::App {
                     self.request_redraw();
                 }
 
-                if self.editor_scrollbar_dragging != crate::ui::components::editor_renderer::ScrollbarHit::None {
-                    self.editor_scrollbar_dragging = crate::ui::components::editor_renderer::ScrollbarHit::None;
+                if self.editor_scrollbar_dragging
+                    != crate::ui::components::editor_renderer::ScrollbarHit::None
+                {
+                    self.editor_scrollbar_dragging =
+                        crate::ui::components::editor_renderer::ScrollbarHit::None;
                     self.request_redraw();
                 }
 
@@ -1819,7 +2032,9 @@ impl super::super::App {
                             self.is_fullscreen,
                         ) {
                             self.tab_mgr.reorder(from, to);
-                            if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); };
+                            if let Some(r) = self.renderer.as_mut() {
+                                r.invalidate_grid_cache();
+                            };
                         }
                     } else {
                         self.drag.reset();
@@ -1860,63 +2075,61 @@ impl super::super::App {
 
                 if self.overlay.sidebar_open
                     && self.panel_layout.active_tab == crate::ui::panel_layout::SidePanelTab::Files
+                    && let Some(renderer) = &self.renderer
                 {
-                    if let Some(renderer) = &self.renderer {
-                        let sf = renderer.scale_factor as f32;
-                        let panel_w = self.panel_layout.left_physical_width(sf);
-                        if (self.cursor_pos.0 as usize) < panel_w {
-                            let header_h = 40.0 * sf;
-                            let border_w = (1.0 * sf).max(1.0);
-                            let content_y = renderer.tab_bar_height as f32 + header_h + border_w;
-                            if self.cursor_pos.1 as f32 > content_y {
-                                if let Some(path) = crate::ui::file_tree::hit_test(
-                                    self.cursor_pos.1,
-                                    content_y as usize,
-                                    self.file_tree.scroll_offset,
-                                    &self.file_tree,
-                                    renderer.scale_factor,
-                                ) {
-                                    self.open_file_tree_context_menu(
-                                        path,
-                                        self.cursor_pos.0 as usize,
-                                        self.cursor_pos.1 as usize,
-                                    );
-                                    self.request_redraw();
-                                    return;
-                                }
-                            }
+                    let sf = renderer.scale_factor as f32;
+                    let panel_w = self.panel_layout.left_physical_width(sf);
+                    if (self.cursor_pos.0 as usize) < panel_w {
+                        let header_h = 40.0 * sf;
+                        let border_w = (1.0 * sf).max(1.0);
+                        let content_y = renderer.tab_bar_height as f32 + header_h + border_w;
+                        if self.cursor_pos.1 as f32 > content_y
+                            && let Some(path) = crate::ui::file_tree::hit_test(
+                                self.cursor_pos.1,
+                                content_y as usize,
+                                self.file_tree.scroll_offset,
+                                &self.file_tree,
+                                renderer.scale_factor,
+                            )
+                        {
+                            self.open_file_tree_context_menu(
+                                path,
+                                self.cursor_pos.0 as usize,
+                                self.cursor_pos.1 as usize,
+                            );
+                            self.request_redraw();
+                            return;
                         }
                     }
                 }
 
-                if self.overlay.git_panel_open {
-                    if let Some(renderer) = &self.renderer {
-                        let hit = crate::ui::components::git_panel::hit_test(
-                            self.cursor_pos.0,
-                            self.cursor_pos.1,
-                            &self.git_panel,
-                            &self.panel_layout,
-                            renderer.tab_bar_height as f64,
-                            renderer.width as usize,
-                            renderer.scale_factor,
+                if self.overlay.git_panel_open
+                    && let Some(renderer) = &self.renderer
+                {
+                    let hit = crate::ui::components::git_panel::hit_test(
+                        self.cursor_pos.0,
+                        self.cursor_pos.1,
+                        &self.git_panel,
+                        &self.panel_layout,
+                        renderer.tab_bar_height as f64,
+                        renderer.width as usize,
+                        renderer.scale_factor,
+                    );
+                    let file_idx = match hit {
+                        crate::ui::components::git_panel::GitPanelHit::SelectFile(i)
+                        | crate::ui::components::git_panel::GitPanelHit::StageFile(i)
+                        | crate::ui::components::git_panel::GitPanelHit::UnstageFile(i) => Some(i),
+                        _ => None,
+                    };
+                    if let Some(idx) = file_idx
+                        && let Some(entry) = self.git_panel.data.entries.get(idx)
+                    {
+                        self.open_git_file_context_menu(
+                            entry.path.clone(),
+                            self.cursor_pos.0 as usize,
+                            self.cursor_pos.1 as usize,
                         );
-                        let file_idx = match hit {
-                            crate::ui::components::git_panel::GitPanelHit::SelectFile(i)
-                            | crate::ui::components::git_panel::GitPanelHit::StageFile(i)
-                            | crate::ui::components::git_panel::GitPanelHit::UnstageFile(i) => Some(i),
-                            _ => None,
-                        };
-                        if let Some(idx) = file_idx {
-                            if let Some(entry) = self.git_panel.data.entries.get(idx) {
-                                self.open_git_file_context_menu(
-                                    entry.path.clone(),
-                                    self.cursor_pos.0 as usize,
-                                    self.cursor_pos.1 as usize,
-                                );
-                                self.request_redraw();
-                                return;
-                            }
-                        }
+                        self.request_redraw();
                     }
                 }
             }
@@ -1925,15 +2138,25 @@ impl super::super::App {
                 self.cursor_pos = (position.x, position.y);
 
                 if self.overlay.is_confirm_close_open() {
-                    let sf = self.renderer.as_ref().map(|r| r.scale_factor as f32).unwrap_or(1.0);
-                    let (bw, bh) = self.renderer.as_ref()
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
+                    let (bw, bh) = self
+                        .renderer
+                        .as_ref()
                         .map(|r| (r.width as usize, r.height as usize))
                         .unwrap_or((0, 0));
                     let prev = self.overlay.confirm_close_hovered;
-                    self.overlay.confirm_close_hovered = crate::ui::components::overlay::confirm_close_hover_test(
-                        position.x as usize, position.y as usize,
-                        bw, bh, sf,
-                    );
+                    self.overlay.confirm_close_hovered =
+                        crate::ui::components::overlay::confirm_close_hover_test(
+                            position.x as usize,
+                            position.y as usize,
+                            bw,
+                            bh,
+                            sf,
+                        );
                     if self.overlay.confirm_close_hovered != prev {
                         self.request_redraw();
                     }
@@ -1944,10 +2167,15 @@ impl super::super::App {
                     let sf = self.scale_factor();
                     let (bw, bh) = self.buf_size();
                     let prev = self.overlay.pro_panel_hovered;
-                    self.overlay.pro_panel_hovered = crate::ui::components::overlay::pro_panel::pro_panel_hover_test(
-                        bw, bh, self.license_mgr.is_pro(),
-                        position.x, position.y, sf,
-                    );
+                    self.overlay.pro_panel_hovered =
+                        crate::ui::components::overlay::pro_panel::pro_panel_hover_test(
+                            bw,
+                            bh,
+                            self.license_mgr.is_pro(),
+                            position.x,
+                            position.y,
+                            sf,
+                        );
                     if self.overlay.pro_panel_hovered != prev {
                         self.request_redraw();
                     }
@@ -1958,29 +2186,43 @@ impl super::super::App {
                     let sf = self.scale_factor();
                     let (bw, bh) = self.buf_size();
                     let prev = self.overlay.pro_panel_hovered;
-                    self.overlay.pro_panel_hovered = crate::ui::components::overlay::usage_panel::usage_panel_hover_test(
-                        bw, bh, &self.usage_tracker,
-                        position.x, position.y, sf,
-                    );
+                    self.overlay.pro_panel_hovered =
+                        crate::ui::components::overlay::usage_panel::usage_panel_hover_test(
+                            bw,
+                            bh,
+                            &self.usage_tracker,
+                            position.x,
+                            position.y,
+                            sf,
+                        );
                     if self.overlay.pro_panel_hovered != prev {
                         self.request_redraw();
                     }
                     return;
                 }
 
-                if self.context_menu.is_some() {
-                    let (bw, bh, sf) = self.renderer.as_ref()
+                let hover_update = if let Some(menu) = &self.context_menu {
+                    let (bw, bh, sf) = self
+                        .renderer
+                        .as_ref()
                         .map(|r| (r.width as usize, r.height as usize, r.scale_factor as f32))
                         .unwrap_or((0, 0, 1.0));
-                    let menu = self.context_menu.as_ref().unwrap();
                     let prev = menu.hovered;
                     let new_hover = crate::ui::components::context_menu::context_menu_hover_test(
                         menu,
                         position.x as usize,
                         position.y as usize,
-                        bw, bh, sf,
+                        bw,
+                        bh,
+                        sf,
                     );
-                    let menu = self.context_menu.as_mut().unwrap();
+                    Some((prev, new_hover))
+                } else {
+                    None
+                };
+                if let Some((prev, new_hover)) = hover_update
+                    && let Some(menu) = &mut self.context_menu
+                {
                     menu.hovered = new_hover;
                     if menu.hovered != prev {
                         self.request_redraw();
@@ -1995,12 +2237,15 @@ impl super::super::App {
                             }
                             self.request_redraw();
                         }
-                    } else if let Some((point, side)) = self.mouse_to_grid_point(position.x, position.y) {
-                        if let Some(terminal) = self.active_terminal() {
-                            terminal.update_selection(point, side);
-                            if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); }
-                            self.request_redraw();
+                    } else if let Some((point, side)) =
+                        self.mouse_to_grid_point(position.x, position.y)
+                        && let Some(terminal) = self.active_terminal()
+                    {
+                        terminal.update_selection(point, side);
+                        if let Some(r) = self.renderer.as_mut() {
+                            r.invalidate_grid_cache();
                         }
+                        self.request_redraw();
                     }
                 }
 
@@ -2032,8 +2277,9 @@ impl super::super::App {
                 if self.overlay.sidebar_open {
                     if let Some(renderer) = &self.renderer {
                         let prev = self.panel_layout.left_resize.hovered;
-                        self.panel_layout.left_resize.hovered =
-                            self.panel_layout.is_in_resize_zone(position.x, renderer.scale_factor);
+                        self.panel_layout.left_resize.hovered = self
+                            .panel_layout
+                            .is_in_resize_zone(position.x, renderer.scale_factor);
                         if self.panel_layout.left_resize.hovered != prev {
                             self.request_redraw();
                         }
@@ -2047,7 +2293,10 @@ impl super::super::App {
                         let prev = self.panel_layout.right_resize.hovered;
                         self.panel_layout.right_resize.hovered =
                             self.panel_layout.is_in_right_resize_zone(
-                                position.x, renderer.scale_factor, renderer.width as usize);
+                                position.x,
+                                renderer.scale_factor,
+                                renderer.width as usize,
+                            );
                         if self.panel_layout.right_resize.hovered != prev {
                             self.request_redraw();
                         }
@@ -2076,40 +2325,52 @@ impl super::super::App {
                     self.request_redraw();
                 }
 
-                if self.file_tree.scrollbar_dragging {
-                    if let Some(renderer) = &self.renderer {
-                        let sf = renderer.scale_factor as f32;
-                        let header_h = (40.0 * sf) as usize;
-                        let border_w = (1.0 * sf).max(1.0) as usize;
-                        let content_y = renderer.tab_bar_height as usize + header_h + border_w;
-                        let visible_h = (renderer.height as usize).saturating_sub(content_y);
-                        let item_h = (crate::ui::file_tree::ITEM_HEIGHT_PX * sf) as usize;
-                        let pad_y = (crate::ui::file_tree::PAD_Y_PX * sf) as usize;
-                        let total_h = self.file_tree.row_count() * item_h + pad_y * 2;
-                        let drag_dy = position.y - self.file_tree.scrollbar_drag_start_y;
-                        self.file_tree.scroll_offset = crate::ui::components::side_panel::panel_scrollbar_drag_to_scroll(
-                            drag_dy, self.file_tree.scrollbar_drag_start_scroll,
-                            visible_h, total_h, sf,
+                if self.file_tree.scrollbar_dragging
+                    && let Some(renderer) = &self.renderer
+                {
+                    let sf = renderer.scale_factor as f32;
+                    let header_h = (40.0 * sf) as usize;
+                    let border_w = (1.0 * sf).max(1.0) as usize;
+                    let content_y = renderer.tab_bar_height as usize + header_h + border_w;
+                    let visible_h = (renderer.height as usize).saturating_sub(content_y);
+                    let item_h = (crate::ui::file_tree::ITEM_HEIGHT_PX * sf) as usize;
+                    let pad_y = (crate::ui::file_tree::PAD_Y_PX * sf) as usize;
+                    let total_h = self.file_tree.row_count() * item_h + pad_y * 2;
+                    let drag_dy = position.y - self.file_tree.scrollbar_drag_start_y;
+                    self.file_tree.scroll_offset =
+                        crate::ui::components::side_panel::panel_scrollbar_drag_to_scroll(
+                            drag_dy,
+                            self.file_tree.scrollbar_drag_start_scroll,
+                            visible_h,
+                            total_h,
+                            sf,
                         );
-                        self.request_redraw();
-                    }
+                    self.request_redraw();
                 }
 
-                if self.git_panel.scrollbar_dragging {
-                    if let Some(renderer) = &self.renderer {
-                        let sf = renderer.scale_factor as f32;
-                        let header_h = (40.0 * sf) as usize;
-                        let border_w = (1.0 * sf).max(1.0) as usize;
-                        let content_y = renderer.tab_bar_height as usize + header_h + border_w;
-                        let visible_h = (renderer.height as usize).saturating_sub(content_y);
-                        let total_h = crate::ui::components::git_panel::content_height(&self.git_panel, self.panel_layout.git_tab, sf) as usize;
-                        let drag_dy = position.y - self.git_panel.scrollbar_drag_start_y;
-                        self.git_panel.scroll_offset = crate::ui::components::side_panel::panel_scrollbar_drag_to_scroll(
-                            drag_dy, self.git_panel.scrollbar_drag_start_scroll,
-                            visible_h, total_h, sf,
+                if self.git_panel.scrollbar_dragging
+                    && let Some(renderer) = &self.renderer
+                {
+                    let sf = renderer.scale_factor as f32;
+                    let header_h = (40.0 * sf) as usize;
+                    let border_w = (1.0 * sf).max(1.0) as usize;
+                    let content_y = renderer.tab_bar_height as usize + header_h + border_w;
+                    let visible_h = (renderer.height as usize).saturating_sub(content_y);
+                    let total_h = crate::ui::components::git_panel::content_height(
+                        &self.git_panel,
+                        self.panel_layout.git_tab,
+                        sf,
+                    ) as usize;
+                    let drag_dy = position.y - self.git_panel.scrollbar_drag_start_y;
+                    self.git_panel.scroll_offset =
+                        crate::ui::components::side_panel::panel_scrollbar_drag_to_scroll(
+                            drag_dy,
+                            self.git_panel.scrollbar_drag_start_scroll,
+                            visible_h,
+                            total_h,
+                            sf,
                         );
-                        self.request_redraw();
-                    }
+                    self.request_redraw();
                 }
 
                 self.update_settings_hover();
@@ -2122,17 +2383,28 @@ impl super::super::App {
                     if let Some(renderer) = &self.renderer {
                         let sf = renderer.scale_factor as f32;
                         let prompt_h = crate::ui::components::prompt_bar::prompt_bar_height(sf);
-                        let banner_h = crate::ui::components::hint_banner::banner_height(&self.hint_banner, sf);
+                        let banner_h = crate::ui::components::hint_banner::banner_height(
+                            &self.hint_banner,
+                            sf,
+                        );
                         if banner_h > 0 {
-                            let banner_y = (renderer.height as usize).saturating_sub(prompt_h + banner_h);
+                            let banner_y =
+                                (renderer.height as usize).saturating_sub(prompt_h + banner_h);
                             let git_w = if self.overlay.git_panel_open {
-                                self.panel_layout.right_physical_width(sf) as usize
-                            } else { 0 };
+                                self.panel_layout.right_physical_width(sf)
+                            } else {
+                                0
+                            };
                             let banner_w = (renderer.width as usize).saturating_sub(git_w);
-                            self.hint_banner.dismiss_hovered = crate::ui::components::hint_banner::hit_test_dismiss(
-                                position.x, position.y,
-                                &self.hint_banner, banner_y, banner_w, sf,
-                            );
+                            self.hint_banner.dismiss_hovered =
+                                crate::ui::components::hint_banner::hit_test_dismiss(
+                                    position.x,
+                                    position.y,
+                                    &self.hint_banner,
+                                    banner_y,
+                                    banner_w,
+                                    sf,
+                                );
                         } else {
                             self.hint_banner.dismiss_hovered = false;
                         }
@@ -2148,11 +2420,15 @@ impl super::super::App {
                         let sf = renderer.scale_factor as f32;
                         let bw = renderer.width as usize;
                         let bh = renderer.height as usize;
-                        self.usage_limit_banner.hovered = crate::ui::components::usage_limit_banner::hover_test(
-                            &self.usage_limit_banner,
-                            position.x, position.y,
-                            bw, bh, sf,
-                        );
+                        self.usage_limit_banner.hovered =
+                            crate::ui::components::usage_limit_banner::hover_test(
+                                &self.usage_limit_banner,
+                                position.x,
+                                position.y,
+                                bw,
+                                bh,
+                                sf,
+                            );
                     }
                     if self.usage_limit_banner.hovered != prev {
                         self.request_redraw();
@@ -2182,49 +2458,59 @@ impl super::super::App {
                 {
                     let prev_link = self.hovered_link.take();
                     let is_smart = self.settings_state.input_type == InputType::Smart;
-                    let is_app = self.active_terminal()
+                    let is_app = self
+                        .active_terminal()
                         .map(|t| t.is_app_controlled())
                         .unwrap_or(true);
-                    if is_smart && !is_app && !self.selecting {
-                        if let Some(pos) = self.mouse_to_block_pos(position.x, position.y) {
-                            if let Some(bl) = self.active_block_list() {
-                                if let Some(block) = bl.blocks.get(pos.block_idx) {
-                                    let max_chars = self.block_max_chars();
-                                    if let Some(line_text) = crate::ui::components::block_renderer::visual_line_text(
-                                        &block.output, max_chars, pos.line_idx,
-                                    ) {
-                                        if let Some((cs, ce, token)) = crate::blocks::path_token_at(&line_text, pos.char_idx) {
-                                            let cwd = block.prompt.segments.first()
-                                                .filter(|seg| seg.kind == crate::prompt::SegmentKind::Cwd)
-                                                .map(|seg| seg.text.as_str())
-                                                .unwrap_or("~");
-                                            let cwd_expanded = if cwd.starts_with('~') {
-                                                dirs::home_dir()
-                                                    .map(|h| {
-                                                        let rest = cwd.strip_prefix('~').unwrap_or(cwd);
-                                                        let rest = rest.strip_prefix('/').unwrap_or(rest);
-                                                        if rest.is_empty() {
-                                                            h.to_string_lossy().to_string()
-                                                        } else {
-                                                            h.join(rest).to_string_lossy().to_string()
-                                                        }
-                                                    })
-                                                    .unwrap_or_else(|| cwd.to_string())
-                                            } else {
-                                                cwd.to_string()
-                                            };
-                                            if let Some(resolved) = crate::blocks::resolve_path(&token, &cwd_expanded) {
-                                                self.hovered_link = Some(crate::blocks::HoveredLink {
-                                                    block_idx: pos.block_idx,
-                                                    visual_line_idx: pos.line_idx,
-                                                    char_start: cs,
-                                                    char_end: ce,
-                                                    path: resolved,
-                                                });
-                                            }
+                    if is_smart
+                        && !is_app
+                        && !self.selecting
+                        && let Some(pos) = self.mouse_to_block_pos(position.x, position.y)
+                        && let Some(bl) = self.active_block_list()
+                        && let Some(block) = bl.blocks.get(pos.block_idx)
+                    {
+                        let max_chars = self.block_max_chars();
+                        if let Some(line_text) =
+                            crate::ui::components::block_renderer::visual_line_text(
+                                &block.output,
+                                max_chars,
+                                pos.line_idx,
+                            )
+                            && let Some((cs, ce, token)) =
+                                crate::blocks::path_token_at(&line_text, pos.char_idx)
+                        {
+                            let cwd = block
+                                .prompt
+                                .segments
+                                .first()
+                                .filter(|seg| seg.kind == crate::prompt::SegmentKind::Cwd)
+                                .map(|seg| seg.text.as_str())
+                                .unwrap_or("~");
+                            let cwd_expanded = if cwd.starts_with('~') {
+                                dirs::home_dir()
+                                    .map(|h| {
+                                        let rest = cwd.strip_prefix('~').unwrap_or(cwd);
+                                        let rest = rest.strip_prefix('/').unwrap_or(rest);
+                                        if rest.is_empty() {
+                                            h.to_string_lossy().to_string()
+                                        } else {
+                                            h.join(rest).to_string_lossy().to_string()
                                         }
-                                    }
-                                }
+                                    })
+                                    .unwrap_or_else(|| cwd.to_string())
+                            } else {
+                                cwd.to_string()
+                            };
+                            if let Some(resolved) =
+                                crate::blocks::resolve_path(&token, &cwd_expanded)
+                            {
+                                self.hovered_link = Some(crate::blocks::HoveredLink {
+                                    block_idx: pos.block_idx,
+                                    visual_line_idx: pos.line_idx,
+                                    char_start: cs,
+                                    char_end: ce,
+                                    path: resolved,
+                                });
                             }
                         }
                     }
@@ -2244,7 +2530,9 @@ impl super::super::App {
                     }
                 }
 
-                if self.editor_scrollbar_dragging != crate::ui::components::editor_renderer::ScrollbarHit::None {
+                if self.editor_scrollbar_dragging
+                    != crate::ui::components::editor_renderer::ScrollbarHit::None
+                {
                     self.update_editor_scrollbar_drag(position.x, position.y);
                     self.request_redraw();
                 } else if self.is_editor_active() {
@@ -2253,8 +2541,11 @@ impl super::super::App {
                     if self.editor_scrollbar != prev {
                         self.request_redraw();
                     }
-                } else if self.editor_scrollbar != crate::ui::components::editor_renderer::ScrollbarHit::None {
-                    self.editor_scrollbar = crate::ui::components::editor_renderer::ScrollbarHit::None;
+                } else if self.editor_scrollbar
+                    != crate::ui::components::editor_renderer::ScrollbarHit::None
+                {
+                    self.editor_scrollbar =
+                        crate::ui::components::editor_renderer::ScrollbarHit::None;
                     self.request_redraw();
                 }
 
@@ -2264,14 +2555,15 @@ impl super::super::App {
                         || self.overlay.new_tab_hovered
                         || self.overlay.shell_picker_btn_hovered
                         || self.overlay.sidebar_hovered
-                        || (self.overlay.user_menu_open && self.overlay.user_menu_hovered.is_some());
+                        || (self.overlay.user_menu_open
+                            && self.overlay.user_menu_hovered.is_some());
                     let side_panel_interactive = self.overlay.sidebar_open
                         && (self.side_panel.hovered_item.is_some()
                             || self.side_panel.hovered_toolbar_btn.is_some()
                             || self.file_tree.hovered_idx.is_some()
                             || self.side_panel.sandbox.stop_hovered);
-                    let panel_resize_active = self.overlay.sidebar_open
-                        && self.panel_layout.left_resize.hovered;
+                    let panel_resize_active =
+                        self.overlay.sidebar_open && self.panel_layout.left_resize.hovered;
                     let models_interactive = self.models_view.hovered_action.is_some()
                         || self.models_view.hovered_delete.is_some();
                     let link_interactive = self.hovered_link.is_some();
@@ -2285,13 +2577,17 @@ impl super::super::App {
                     let banner_interactive = self.hint_banner.dismiss_hovered;
                     let git_panel_interactive = self.overlay.git_panel_open
                         && crate::ui::components::git_panel::wants_pointer(&self.git_panel);
-                    let right_resize_active = self.overlay.git_panel_open
-                        && self.panel_layout.right_resize.hovered;
+                    let right_resize_active =
+                        self.overlay.git_panel_open && self.panel_layout.right_resize.hovered;
 
                     if panel_resize_active || right_resize_active {
                         window.set_cursor(winit::window::CursorIcon::ColResize);
-                    } else if tab_bar_interactive || side_panel_interactive || models_interactive
-                        || link_interactive || settings_interactive || banner_interactive
+                    } else if tab_bar_interactive
+                        || side_panel_interactive
+                        || models_interactive
+                        || link_interactive
+                        || settings_interactive
+                        || banner_interactive
                         || git_panel_interactive
                     {
                         window.set_cursor(winit::window::CursorIcon::Pointer);
@@ -2310,9 +2606,13 @@ impl super::super::App {
                     self.models_view.scroll_offset = (self.models_view.scroll_offset - dy).max(0.0);
                     if let Some(renderer) = &self.renderer {
                         let sf = renderer.scale_factor as f32;
-                        let content_h = renderer.height.saturating_sub(renderer.tab_bar_height) as usize;
+                        let content_h =
+                            renderer.height.saturating_sub(renderer.tab_bar_height) as usize;
                         let max = crate::ui::components::overlay::models_view::max_scroll(
-                            &self.models_view, sf, content_h, &self.settings_state.models_path,
+                            &self.models_view,
+                            sf,
+                            content_h,
+                            &self.settings_state.models_path,
                         );
                         self.models_view.scroll_offset = self.models_view.scroll_offset.min(max);
                     }
@@ -2321,7 +2621,8 @@ impl super::super::App {
                 }
 
                 if self.is_settings_active()
-                    && self.settings_state.active == crate::ui::components::overlay::SettingsCategory::Sandbox
+                    && self.settings_state.active
+                        == crate::ui::components::overlay::SettingsCategory::Sandbox
                 {
                     let dy = match delta {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 40.0,
@@ -2331,7 +2632,8 @@ impl super::super::App {
                         (self.settings_state.sandbox.scroll_offset - dy).max(0.0);
                     if let Some(renderer) = &self.renderer {
                         let sf = renderer.scale_factor as f32;
-                        let content_h = renderer.height.saturating_sub(renderer.tab_bar_height) as f32;
+                        let content_h =
+                            renderer.height.saturating_sub(renderer.tab_bar_height) as f32;
                         let total = crate::ui::components::overlay::settings::sandbox_settings::sandbox_settings_content_height(sf);
                         let max = (total - content_h).max(0.0);
                         self.settings_state.sandbox.scroll_offset =
@@ -2341,82 +2643,86 @@ impl super::super::App {
                     return;
                 }
 
-                if self.overlay.sidebar_open {
-                    if let Some(renderer) = &self.renderer {
-                        let panel_w = self.panel_layout.left_physical_width(renderer.scale_factor as f32);
-                        if self.cursor_pos.0 < panel_w as f64
-                            && self.cursor_pos.1 > renderer.tab_bar_height as f64
-                        {
-                            let dy = match delta {
-                                winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 40.0,
-                                winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
-                            };
-                            let sf = renderer.scale_factor as f32;
-                            let header_h = (40.0 * sf) as usize;
-                            let border_w = (1.0 * sf).max(1.0) as usize;
-                            let content_y = renderer.tab_bar_height as usize + header_h + border_w;
-                            let visible_h = (renderer.height as usize).saturating_sub(content_y);
+                if self.overlay.sidebar_open
+                    && let Some(renderer) = &self.renderer
+                {
+                    let panel_w = self
+                        .panel_layout
+                        .left_physical_width(renderer.scale_factor as f32);
+                    if self.cursor_pos.0 < panel_w as f64
+                        && self.cursor_pos.1 > renderer.tab_bar_height as f64
+                    {
+                        let dy = match delta {
+                            winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 40.0,
+                            winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+                        };
+                        let sf = renderer.scale_factor as f32;
+                        let header_h = (40.0 * sf) as usize;
+                        let border_w = (1.0 * sf).max(1.0) as usize;
+                        let content_y = renderer.tab_bar_height as usize + header_h + border_w;
+                        let visible_h = (renderer.height as usize).saturating_sub(content_y);
 
-                            match self.panel_layout.active_tab {
-                                crate::ui::panel_layout::SidePanelTab::Sessions => {
-                                    let item_h = (56.0 * sf) as usize;
-                                    let total_h = self.session_mgr.count() * item_h;
-                                    let max_scroll = total_h.saturating_sub(visible_h);
-                                    self.side_panel.scroll_offset = (self.side_panel.scroll_offset - dy)
-                                        .max(0.0)
-                                        .min(max_scroll as f32);
-                                }
-                                crate::ui::panel_layout::SidePanelTab::Files => {
-                                    let item_h = (crate::ui::file_tree::ITEM_HEIGHT_PX * sf) as usize;
-                                    let pad_y = (crate::ui::file_tree::PAD_Y_PX * sf) as usize;
-                                    let total_h = self.file_tree.row_count() * item_h + pad_y * 2;
-                                    let max_scroll = total_h.saturating_sub(visible_h);
-                                    self.file_tree.scroll_offset = (self.file_tree.scroll_offset - dy)
-                                        .max(0.0)
-                                        .min(max_scroll as f32);
-                                }
-                                crate::ui::panel_layout::SidePanelTab::Sandbox => {
-                                }
+                        match self.panel_layout.active_tab {
+                            crate::ui::panel_layout::SidePanelTab::Sessions => {
+                                let item_h = (56.0 * sf) as usize;
+                                let total_h = self.session_mgr.count() * item_h;
+                                let max_scroll = total_h.saturating_sub(visible_h);
+                                self.side_panel.scroll_offset = (self.side_panel.scroll_offset
+                                    - dy)
+                                    .max(0.0)
+                                    .min(max_scroll as f32);
                             }
-                            self.request_redraw();
-                            return;
+                            crate::ui::panel_layout::SidePanelTab::Files => {
+                                let item_h = (crate::ui::file_tree::ITEM_HEIGHT_PX * sf) as usize;
+                                let pad_y = (crate::ui::file_tree::PAD_Y_PX * sf) as usize;
+                                let total_h = self.file_tree.row_count() * item_h + pad_y * 2;
+                                let max_scroll = total_h.saturating_sub(visible_h);
+                                self.file_tree.scroll_offset = (self.file_tree.scroll_offset - dy)
+                                    .max(0.0)
+                                    .min(max_scroll as f32);
+                            }
+                            crate::ui::panel_layout::SidePanelTab::Sandbox => {}
                         }
+                        self.request_redraw();
+                        return;
                     }
                 }
 
-                if self.overlay.git_panel_open {
-                    if let Some(renderer) = &self.renderer {
-                        let sf = renderer.scale_factor as f32;
-                        let panel_w = self.panel_layout.right_physical_width(sf);
-                        let panel_x = renderer.width as f64 - panel_w as f64;
-                        let bar_h = renderer.tab_bar_height as f64;
-                        if self.cursor_pos.0 >= panel_x && self.cursor_pos.1 > bar_h {
-                            let dy = match delta {
-                                winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 40.0,
-                                winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
-                            };
-                            let header_h = (40.0 * sf) as usize;
-                            let border_w = (1.0 * sf).max(1.0) as usize;
-                            let content_y = renderer.tab_bar_height as usize + header_h + border_w;
-                            let visible_h = (renderer.height as usize).saturating_sub(content_y) as f32;
-                            let max = crate::ui::components::git_panel::max_scroll(
-                                &self.git_panel, self.panel_layout.git_tab, visible_h, sf,
-                            );
-                            self.git_panel.scroll_offset = (self.git_panel.scroll_offset - dy)
-                                .max(0.0)
-                                .min(max as f32);
-                            crate::ui::components::git_panel::update_hover(
-                                &mut self.git_panel,
-                                &self.panel_layout,
-                                self.cursor_pos.0,
-                                self.cursor_pos.1,
-                                renderer.tab_bar_height as f64,
-                                renderer.width as usize,
-                                renderer.scale_factor,
-                            );
-                            self.request_redraw();
-                            return;
-                        }
+                if self.overlay.git_panel_open
+                    && let Some(renderer) = &self.renderer
+                {
+                    let sf = renderer.scale_factor as f32;
+                    let panel_w = self.panel_layout.right_physical_width(sf);
+                    let panel_x = renderer.width as f64 - panel_w as f64;
+                    let bar_h = renderer.tab_bar_height as f64;
+                    if self.cursor_pos.0 >= panel_x && self.cursor_pos.1 > bar_h {
+                        let dy = match delta {
+                            winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 40.0,
+                            winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+                        };
+                        let header_h = (40.0 * sf) as usize;
+                        let border_w = (1.0 * sf).max(1.0) as usize;
+                        let content_y = renderer.tab_bar_height as usize + header_h + border_w;
+                        let visible_h = (renderer.height as usize).saturating_sub(content_y) as f32;
+                        let max = crate::ui::components::git_panel::max_scroll(
+                            &self.git_panel,
+                            self.panel_layout.git_tab,
+                            visible_h,
+                            sf,
+                        );
+                        self.git_panel.scroll_offset =
+                            (self.git_panel.scroll_offset - dy).max(0.0).min(max);
+                        crate::ui::components::git_panel::update_hover(
+                            &mut self.git_panel,
+                            &self.panel_layout,
+                            self.cursor_pos.0,
+                            self.cursor_pos.1,
+                            renderer.tab_bar_height as f64,
+                            renderer.width as usize,
+                            renderer.scale_factor,
+                        );
+                        self.request_redraw();
+                        return;
                     }
                 }
 
@@ -2436,7 +2742,8 @@ impl super::super::App {
                         if let Some(renderer) = &self.renderer {
                             let sf = renderer.scale_factor as f32;
                             if let Some(ed) = self.active_editor_state() {
-                                let max_x = crate::ui::components::editor_renderer::max_scroll_x(ed, sf);
+                                let max_x =
+                                    crate::ui::components::editor_renderer::max_scroll_x(ed, sf);
                                 if let Some(ed) = self.active_editor_state_mut() {
                                     let new_x = (ed.scroll_x() + scroll_amount).clamp(0.0, max_x);
                                     ed.set_scroll_x(new_x);
@@ -2452,9 +2759,13 @@ impl super::super::App {
                         }
                         if let Some(renderer) = &self.renderer {
                             let sf = renderer.scale_factor as f32;
-                            let content_h = (renderer.height as usize).saturating_sub(renderer.tab_bar_height as usize);
+                            let content_h = (renderer.height as usize)
+                                .saturating_sub(renderer.tab_bar_height as usize);
                             if let Some(ed) = self.active_editor_state() {
-                                let total_h = crate::ui::components::editor_renderer::content_height_px(ed, sf);
+                                let total_h =
+                                    crate::ui::components::editor_renderer::content_height_px(
+                                        ed, sf,
+                                    );
                                 let max_scroll = total_h.saturating_sub(content_h);
                                 if let Some(ed) = self.active_editor_state_mut() {
                                     ed.scroll_offset = ed.scroll_offset.min(max_scroll as f32);
@@ -2467,12 +2778,17 @@ impl super::super::App {
                 }
 
                 let input_type = self.settings_state.input_type;
-                let is_smart = input_type == crate::ui::components::overlay::settings::InputType::Smart;
-                let is_app = self.active_terminal()
+                let is_smart =
+                    input_type == crate::ui::components::overlay::settings::InputType::Smart;
+                let is_app = self
+                    .active_terminal()
                     .map(|t| t.is_app_controlled())
                     .unwrap_or(false);
 
-                let has_blocks = self.active_block_list().map(|bl| bl.len() > 0).unwrap_or(false);
+                let has_blocks = self
+                    .active_block_list()
+                    .map(|bl| bl.len() > 0)
+                    .unwrap_or(false);
                 if is_smart && !is_app && has_blocks {
                     let dy = match delta {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 40.0,
@@ -2487,12 +2803,18 @@ impl super::super::App {
                         let bar_h = renderer.tab_bar_height as usize;
                         let prompt_h = crate::ui::components::prompt_bar::prompt_bar_height(sf);
                         let banner_h = self.total_banners_height(sf);
-                        let available_h = (renderer.height as usize).saturating_sub(bar_h + prompt_h + banner_h);
+                        let available_h =
+                            (renderer.height as usize).saturating_sub(bar_h + prompt_h + banner_h);
                         let pad = renderer.grid_padding_for(false, false) as usize;
                         let block_pad_inner = (10.0 * sf) as usize;
-                        let content_w = (renderer.width as usize).saturating_sub((pad + block_pad_inner) * 2);
+                        let content_w =
+                            (renderer.width as usize).saturating_sub((pad + block_pad_inner) * 2);
                         let char_w_px = renderer.block_char_width as usize;
-                        let max_chars = if char_w_px > 0 { content_w / char_w_px } else { 0 };
+                        let max_chars = if char_w_px > 0 {
+                            content_w / char_w_px
+                        } else {
+                            0
+                        };
                         if let Some(bl) = self.active_block_list() {
                             let total_h = crate::ui::components::block_renderer::total_height(
                                 bl, sf, max_chars,
@@ -2507,9 +2829,7 @@ impl super::super::App {
                 } else if let Some(terminal) = self.active_terminal() {
                     let lines = match delta {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y as i32,
-                        winit::event::MouseScrollDelta::PixelDelta(pos) => {
-                            (pos.y / 20.0) as i32
-                        }
+                        winit::event::MouseScrollDelta::PixelDelta(pos) => (pos.y / 20.0) as i32,
                     };
                     if lines > 0 {
                         for _ in 0..lines.abs() {
@@ -2533,7 +2853,10 @@ impl super::super::App {
         &self,
         mx: f64,
         my: f64,
-    ) -> Option<(alacritty_terminal::index::Point, alacritty_terminal::index::Side)> {
+    ) -> Option<(
+        alacritty_terminal::index::Point,
+        alacritty_terminal::index::Side,
+    )> {
         let renderer = self.renderer.as_ref()?;
         let terminal = self.active_terminal()?;
         let is_app = terminal.is_app_controlled();
@@ -2582,9 +2905,15 @@ impl super::super::App {
             None => return false,
         };
         let is_app = terminal.is_app_controlled();
-        if is_app { return true; }
-        if self.settings_state.input_type != InputType::Smart { return true; }
-        self.active_block_list().map(|bl| bl.blocks.is_empty()).unwrap_or(true)
+        if is_app {
+            return true;
+        }
+        if self.settings_state.input_type != InputType::Smart {
+            return true;
+        }
+        self.active_block_list()
+            .map(|bl| bl.blocks.is_empty())
+            .unwrap_or(true)
     }
 
     /// Query: map the current cursor position to a side-panel [`AppAction`].
@@ -2617,38 +2946,38 @@ impl super::super::App {
                 let session_id = self.resolve_session_index(visual_idx)?;
                 Some(AppAction::ClearSession { session_id })
             }
-            SidePanelHit::ToolbarSessions => {
-                Some(AppAction::SwitchPanelTab { tab: crate::ui::panel_layout::SidePanelTab::Sessions })
-            }
-            SidePanelHit::ToolbarFiles => {
-                Some(AppAction::SwitchPanelTab { tab: crate::ui::panel_layout::SidePanelTab::Files })
-            }
-            SidePanelHit::ToolbarSandbox => {
-                Some(AppAction::SwitchPanelTab { tab: crate::ui::panel_layout::SidePanelTab::Sandbox })
-            }
-            SidePanelHit::StopSandbox => {
-                Some(AppAction::StopSandbox)
-            }
+            SidePanelHit::ToolbarSessions => Some(AppAction::SwitchPanelTab {
+                tab: crate::ui::panel_layout::SidePanelTab::Sessions,
+            }),
+            SidePanelHit::ToolbarFiles => Some(AppAction::SwitchPanelTab {
+                tab: crate::ui::panel_layout::SidePanelTab::Files,
+            }),
+            SidePanelHit::ToolbarSandbox => Some(AppAction::SwitchPanelTab {
+                tab: crate::ui::panel_layout::SidePanelTab::Sandbox,
+            }),
+            SidePanelHit::StopSandbox => Some(AppAction::StopSandbox),
             SidePanelHit::None => {
                 if self.panel_layout.active_tab == crate::ui::panel_layout::SidePanelTab::Files {
-                    let panel_w = self.panel_layout.left_physical_width(renderer.scale_factor as f32);
+                    let panel_w = self
+                        .panel_layout
+                        .left_physical_width(renderer.scale_factor as f32);
                     if self.cursor_pos.0 < panel_w as f64 {
                         let header_h = 40.0 * renderer.scale_factor;
                         let border_w = (1.0 * renderer.scale_factor).max(1.0);
                         let content_y = renderer.tab_bar_height as f64 + header_h + border_w;
-                        if self.cursor_pos.1 > content_y {
-                            if let Some(path) = crate::ui::file_tree::hit_test(
+                        if self.cursor_pos.1 > content_y
+                            && let Some(path) = crate::ui::file_tree::hit_test(
                                 self.cursor_pos.1,
                                 (renderer.tab_bar_height as f64 + header_h + border_w) as usize,
                                 self.file_tree.scroll_offset,
                                 &self.file_tree,
                                 renderer.scale_factor,
-                            ) {
-                                if path.is_dir() {
-                                    return Some(AppAction::ToggleFileTreeNode { path });
-                                } else {
-                                    return Some(AppAction::OpenFile { path });
-                                }
+                            )
+                        {
+                            if path.is_dir() {
+                                return Some(AppAction::ToggleFileTreeNode { path });
+                            } else {
+                                return Some(AppAction::OpenFile { path });
                             }
                         }
                     }
@@ -2660,7 +2989,11 @@ impl super::super::App {
 
     /// Query: max chars per visual line in the commit textarea.
     fn commit_input_max_chars(&self) -> usize {
-        let sf = self.renderer.as_ref().map(|r| r.scale_factor).unwrap_or(1.0) as f32;
+        let sf = self
+            .renderer
+            .as_ref()
+            .map(|r| r.scale_factor)
+            .unwrap_or(1.0) as f32;
         let panel_w = self.panel_layout.right_physical_width(sf) as f32;
         let input_pad_x = crate::ui::components::git_panel::COMMIT_INPUT_PAD_X * sf;
         let char_w = 7.0 * sf;
@@ -2684,18 +3017,18 @@ impl super::super::App {
             renderer.scale_factor,
         );
         match hit {
-            GitPanelHit::ToolbarChanges => {
-                Some(AppAction::SwitchGitPanelTab { tab: crate::ui::panel_layout::GitPanelTab::Changes })
-            }
-            GitPanelHit::ToolbarBranches => {
-                Some(AppAction::SwitchGitPanelTab { tab: crate::ui::panel_layout::GitPanelTab::Branches })
-            }
-            GitPanelHit::SelectFile(idx) => {
-                Some(AppAction::GitOpenFileDiff { index: idx })
-            }
+            GitPanelHit::ToolbarChanges => Some(AppAction::SwitchGitPanelTab {
+                tab: crate::ui::panel_layout::GitPanelTab::Changes,
+            }),
+            GitPanelHit::ToolbarBranches => Some(AppAction::SwitchGitPanelTab {
+                tab: crate::ui::panel_layout::GitPanelTab::Branches,
+            }),
+            GitPanelHit::SelectFile(idx) => Some(AppAction::GitOpenFileDiff { index: idx }),
             GitPanelHit::StageFile(idx) => Some(AppAction::GitStageFile { index: idx }),
             GitPanelHit::UnstageFile(idx) => Some(AppAction::GitUnstageFile { index: idx }),
-            GitPanelHit::CommitInput { rel_x, rel_y } => Some(AppAction::GitFocusCommitInput { rel_x, rel_y }),
+            GitPanelHit::CommitInput { rel_x, rel_y } => {
+                Some(AppAction::GitFocusCommitInput { rel_x, rel_y })
+            }
             GitPanelHit::CommitButton => Some(AppAction::GitCommit),
             GitPanelHit::GenerateButton => {
                 if self.git_panel.generating_commit_msg {
@@ -2727,28 +3060,43 @@ impl super::super::App {
         };
         let bl = self.active_block_list()?;
         crate::ui::components::block_renderer::hit_test(
-            bl, mx, my, bar_h, y_end, pad, x_offset, renderer.width as usize, sf,
+            bl,
+            mx,
+            my,
+            bar_h,
+            y_end,
+            pad,
+            x_offset,
+            renderer.width as usize,
+            sf,
             renderer.block_char_width,
         )
     }
 
     /// Compute the maximum character count per line in block view.
     fn block_max_chars(&self) -> usize {
-        self.renderer.as_ref().map(|r| {
-            let sf = r.scale_factor as f32;
-            let pad = r.grid_padding_for(false, false) as usize;
-            let x_offset = if self.overlay.sidebar_open {
-                self.panel_layout.left_physical_width(sf)
-            } else {
-                0
-            };
-            let block_pad_inner = (10.0 * sf) as usize;
-            let left_pad = pad + x_offset + block_pad_inner;
-            let right_pad = pad + block_pad_inner;
-            let content_w = (r.width as usize).saturating_sub(left_pad + right_pad);
-            let char_w_px = r.block_char_width as usize;
-            if char_w_px > 0 { content_w / char_w_px } else { 0 }
-        }).unwrap_or(0)
+        self.renderer
+            .as_ref()
+            .map(|r| {
+                let sf = r.scale_factor as f32;
+                let pad = r.grid_padding_for(false, false) as usize;
+                let x_offset = if self.overlay.sidebar_open {
+                    self.panel_layout.left_physical_width(sf)
+                } else {
+                    0
+                };
+                let block_pad_inner = (10.0 * sf) as usize;
+                let left_pad = pad + x_offset + block_pad_inner;
+                let right_pad = pad + block_pad_inner;
+                let content_w = (r.width as usize).saturating_sub(left_pad + right_pad);
+                let char_w_px = r.block_char_width as usize;
+                if char_w_px > 0 {
+                    content_w / char_w_px
+                } else {
+                    0
+                }
+            })
+            .unwrap_or(0)
     }
 
     /// Check whether the cursor is over the scrollbar thumb area.
@@ -2760,7 +3108,8 @@ impl super::super::App {
         let sf = renderer.scale_factor as f32;
         let input_type = self.settings_state.input_type;
         let is_smart = input_type == crate::ui::components::overlay::settings::InputType::Smart;
-        let is_app = self.active_terminal()
+        let is_app = self
+            .active_terminal()
             .map(|t| t.is_app_controlled())
             .unwrap_or(false);
         if !is_smart || is_app {
@@ -2778,19 +3127,27 @@ impl super::super::App {
         let banner_h = self.total_banners_height(sf);
         let available_h = (renderer.height as usize).saturating_sub(bar_h + prompt_h + banner_h);
         let max_chars = self.block_max_chars();
-        let total_h = crate::ui::components::block_renderer::total_height(bl, sf, max_chars) as usize;
+        let total_h =
+            crate::ui::components::block_renderer::total_height(bl, sf, max_chars) as usize;
         if total_h <= available_h {
             return false;
         }
         let scroll = bl.scroll_offset.max(0.0) as usize;
         let geom = crate::ui::components::block_renderer::scrollbar_geometry(
-            renderer.width as usize, bar_h, available_h, total_h, scroll, sf,
+            renderer.width as usize,
+            bar_h,
+            available_h,
+            total_h,
+            scroll,
+            sf,
         );
         let px = mx as usize;
         let py = my as usize;
         let hit_x_start = geom.track_x.saturating_sub(geom.width);
-        px >= hit_x_start && px < geom.track_x + geom.width + geom.width
-            && py >= geom.thumb_y && py < geom.thumb_y + geom.thumb_h
+        px >= hit_x_start
+            && px < geom.track_x + geom.width + geom.width
+            && py >= geom.thumb_y
+            && py < geom.thumb_y + geom.thumb_h
     }
 
     /// Update scroll offset based on mouse drag position.
@@ -2809,13 +3166,18 @@ impl super::super::App {
             Some(bl) => bl,
             None => return,
         };
-        let total_h = crate::ui::components::block_renderer::total_height(bl, sf, max_chars) as usize;
+        let total_h =
+            crate::ui::components::block_renderer::total_height(bl, sf, max_chars) as usize;
         if total_h <= available_h {
             return;
         }
         let geom = crate::ui::components::block_renderer::scrollbar_geometry(
-            renderer.width as usize, bar_h, available_h, total_h,
-            bl.scroll_offset.max(0.0) as usize, sf,
+            renderer.width as usize,
+            bar_h,
+            available_h,
+            total_h,
+            bl.scroll_offset.max(0.0) as usize,
+            sf,
         );
         let track_usable = geom.track_h.saturating_sub(geom.thumb_h) as f64;
         if track_usable <= 0.0 {
@@ -2832,7 +3194,11 @@ impl super::super::App {
     }
 
     /// Hit-test the editor scrollbar at cursor position.
-    fn editor_scrollbar_hit_test(&self, mx: f64, my: f64) -> crate::ui::components::editor_renderer::ScrollbarHit {
+    fn editor_scrollbar_hit_test(
+        &self,
+        mx: f64,
+        my: f64,
+    ) -> crate::ui::components::editor_renderer::ScrollbarHit {
         let renderer = match &self.renderer {
             Some(r) => r,
             None => return crate::ui::components::editor_renderer::ScrollbarHit::None,
@@ -2846,9 +3212,12 @@ impl super::super::App {
         if let Some(state) = self.active_editor_state() {
             crate::ui::components::editor_renderer::scrollbar_hit_test(
                 state,
-                mx as usize, my as usize,
-                x_off, bar_h,
-                content_w, content_h,
+                mx as usize,
+                my as usize,
+                x_off,
+                bar_h,
+                content_w,
+                content_h,
                 sf,
             )
         } else {
@@ -2871,9 +3240,10 @@ impl super::super::App {
         match self.editor_scrollbar_dragging {
             crate::ui::components::editor_renderer::ScrollbarHit::Vertical => {
                 if let Some(state) = self.active_editor_state() {
-                    let new_scroll = crate::ui::components::editor_renderer::vertical_drag_to_scroll(
-                        state, my, bar_h, content_h, sf,
-                    );
+                    let new_scroll =
+                        crate::ui::components::editor_renderer::vertical_drag_to_scroll(
+                            state, my, bar_h, content_h, sf,
+                        );
                     if let Some(ed) = self.active_editor_state_mut() {
                         ed.scroll_offset = new_scroll;
                     }
@@ -2881,9 +3251,10 @@ impl super::super::App {
             }
             crate::ui::components::editor_renderer::ScrollbarHit::Horizontal => {
                 if let Some(state) = self.active_editor_state() {
-                    let new_scroll = crate::ui::components::editor_renderer::horizontal_drag_to_scroll(
-                        state, mx, x_off, content_w, sf,
-                    );
+                    let new_scroll =
+                        crate::ui::components::editor_renderer::horizontal_drag_to_scroll(
+                            state, mx, x_off, content_w, sf,
+                        );
                     if let Some(ed) = self.active_editor_state_mut() {
                         ed.set_scroll_x(new_scroll);
                     }
@@ -2902,14 +3273,22 @@ impl super::super::App {
                 Some(bl) => bl,
                 None => return,
             };
-            let max_chars = self.renderer.as_ref().map(|r| {
-                let sf = r.scale_factor as f32;
-                let pad = r.grid_padding_for(false, false) as usize;
-                let block_pad_inner = (10.0 * sf) as usize;
-                let content_w = (r.width as usize).saturating_sub((pad + block_pad_inner) * 2);
-                let char_w_px = r.block_char_width as usize;
-                if char_w_px > 0 { content_w / char_w_px } else { 0 }
-            }).unwrap_or(0);
+            let max_chars = self
+                .renderer
+                .as_ref()
+                .map(|r| {
+                    let sf = r.scale_factor as f32;
+                    let pad = r.grid_padding_for(false, false) as usize;
+                    let block_pad_inner = (10.0 * sf) as usize;
+                    let content_w = (r.width as usize).saturating_sub((pad + block_pad_inner) * 2);
+                    let char_w_px = r.block_char_width as usize;
+                    if char_w_px > 0 {
+                        content_w / char_w_px
+                    } else {
+                        0
+                    }
+                })
+                .unwrap_or(0);
             let text = sel.extract_text(&bl.blocks, max_chars);
             log::info!("Copy block selection: {} chars", text.len());
             if !text.is_empty() {
@@ -2924,8 +3303,7 @@ impl super::super::App {
             return;
         }
 
-        let grid_text = self.active_terminal()
-            .and_then(|t| t.selection_to_string());
+        let grid_text = self.active_terminal().and_then(|t| t.selection_to_string());
         if let Some(text) = grid_text {
             log::info!("Copy grid selection: {} chars", text.len());
             let len = text.len();
@@ -2939,42 +3317,43 @@ impl super::super::App {
             if let Some(terminal) = self.active_terminal() {
                 terminal.clear_selection();
             }
-            if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); }
+            if let Some(r) = self.renderer.as_mut() {
+                r.invalidate_grid_cache();
+            }
         }
     }
 
     /// Paste text from the system clipboard.
     pub(crate) fn perform_paste(&mut self) {
-        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-            if let Ok(text) = clipboard.get_text() {
-                if !text.is_empty() {
-                    let use_smart = self.settings_state.input_type == InputType::Smart
-                        && self
-                            .active_terminal()
-                            .map(|t| !t.is_app_controlled())
-                            .unwrap_or(false);
-                    if use_smart {
-                        self.smart_input
-                            .text
-                            .insert_str(self.smart_input.cursor, &text);
-                        self.smart_input.cursor += text.len();
-                        self.smart_input.update_slash_menu();
-                        let cwd = self.active_terminal().and_then(|t| t.cwd());
-                        self.smart_input.update_suggestion(cwd.as_deref());
-                    } else if self.is_sandbox_active() {
-                        let mut data = Vec::new();
-                        data.extend_from_slice(b"\x1b[200~");
-                        data.extend_from_slice(text.as_bytes());
-                        data.extend_from_slice(b"\x1b[201~");
-                        self.send_input_to_active(&data);
-                    } else if let Some(terminal) = self.active_terminal() {
-                        let mut data = Vec::new();
-                        data.extend_from_slice(b"\x1b[200~");
-                        data.extend_from_slice(text.as_bytes());
-                        data.extend_from_slice(b"\x1b[201~");
-                        terminal.input(Cow::Owned(data));
-                    }
-                }
+        if let Ok(mut clipboard) = arboard::Clipboard::new()
+            && let Ok(text) = clipboard.get_text()
+            && !text.is_empty()
+        {
+            let use_smart = self.settings_state.input_type == InputType::Smart
+                && self
+                    .active_terminal()
+                    .map(|t| !t.is_app_controlled())
+                    .unwrap_or(false);
+            if use_smart {
+                self.smart_input
+                    .text
+                    .insert_str(self.smart_input.cursor, &text);
+                self.smart_input.cursor += text.len();
+                self.smart_input.update_slash_menu();
+                let cwd = self.active_terminal().and_then(|t| t.cwd());
+                self.smart_input.update_suggestion(cwd.as_deref());
+            } else if self.is_sandbox_active() {
+                let mut data = Vec::new();
+                data.extend_from_slice(b"\x1b[200~");
+                data.extend_from_slice(text.as_bytes());
+                data.extend_from_slice(b"\x1b[201~");
+                self.send_input_to_active(&data);
+            } else if let Some(terminal) = self.active_terminal() {
+                let mut data = Vec::new();
+                data.extend_from_slice(b"\x1b[200~");
+                data.extend_from_slice(text.as_bytes());
+                data.extend_from_slice(b"\x1b[201~");
+                terminal.input(Cow::Owned(data));
             }
         }
     }
@@ -2993,22 +3372,35 @@ impl super::super::App {
                 None => return,
             };
             if !bl.blocks.is_empty() {
-                let max_chars = self.renderer.as_ref().map(|r| {
-                    let sf = r.scale_factor as f32;
-                    let pad = r.grid_padding_for(false, false) as usize;
-                    let block_pad_inner = (10.0 * sf) as usize;
-                    let content_w = (r.width as usize).saturating_sub((pad + block_pad_inner) * 2);
-                    let char_w_px = r.block_char_width as usize;
-                    if char_w_px > 0 { content_w / char_w_px } else { 0 }
-                }).unwrap_or(0);
+                let max_chars = self
+                    .renderer
+                    .as_ref()
+                    .map(|r| {
+                        let sf = r.scale_factor as f32;
+                        let pad = r.grid_padding_for(false, false) as usize;
+                        let block_pad_inner = (10.0 * sf) as usize;
+                        let content_w =
+                            (r.width as usize).saturating_sub((pad + block_pad_inner) * 2);
+                        let char_w_px = r.block_char_width as usize;
+                        if char_w_px > 0 {
+                            content_w / char_w_px
+                        } else {
+                            0
+                        }
+                    })
+                    .unwrap_or(0);
 
                 let last_block_idx = bl.blocks.len() - 1;
                 let last_block = &bl.blocks[last_block_idx];
-                let last_line_count = crate::ui::components::block_renderer::wrapped_output_line_count(
-                    &last_block.output, max_chars,
-                );
+                let last_line_count =
+                    crate::ui::components::block_renderer::wrapped_output_line_count(
+                        &last_block.output,
+                        max_chars,
+                    );
                 let last_line_idx = last_line_count.saturating_sub(1);
-                let last_char_idx = last_block.output.last()
+                let last_char_idx = last_block
+                    .output
+                    .last()
                     .map(|line| {
                         let text: String = line.iter().map(|s| s.text.as_str()).collect();
                         text.chars().count()
@@ -3025,10 +3417,7 @@ impl super::super::App {
                     line_idx: last_line_idx,
                     char_idx: last_char_idx,
                 };
-                self.block_selection = Some(crate::blocks::BlockSelection {
-                    anchor,
-                    head,
-                });
+                self.block_selection = Some(crate::blocks::BlockSelection { anchor, head });
             }
         }
     }
@@ -3036,8 +3425,7 @@ impl super::super::App {
 
 /// Editor commands that should be intercepted and opened in the built-in editor.
 const EDITOR_COMMANDS: &[&str] = &[
-    "vim", "vi", "nvim", "nano", "pico", "emacs",
-    "code", "subl", "edit", "open",
+    "vim", "vi", "nvim", "nano", "pico", "emacs", "code", "subl", "edit", "open",
 ];
 
 /// Query: check if a command is an editor invocation with a file path.

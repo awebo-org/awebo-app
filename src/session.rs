@@ -122,23 +122,23 @@ impl SessionManager {
         let mut sessions = Vec::new();
         let mut max_id: SessionId = 0;
 
-        if dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                        match std::fs::read_to_string(&path) {
-                            Ok(data) => match serde_json::from_str::<Session>(&data) {
-                                Ok(session) => {
-                                    if session.id > max_id {
-                                        max_id = session.id;
-                                    }
-                                    sessions.push(session);
+        if dir.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&dir)
+        {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                    match std::fs::read_to_string(&path) {
+                        Ok(data) => match serde_json::from_str::<Session>(&data) {
+                            Ok(session) => {
+                                if session.id > max_id {
+                                    max_id = session.id;
                                 }
-                                Err(e) => log::warn!("Failed to parse session {:?}: {}", path, e),
-                            },
-                            Err(e) => log::warn!("Failed to read session {:?}: {}", path, e),
-                        }
+                                sessions.push(session);
+                            }
+                            Err(e) => log::warn!("Failed to parse session {:?}: {}", path, e),
+                        },
+                        Err(e) => log::warn!("Failed to read session {:?}: {}", path, e),
                     }
                 }
             }
@@ -170,9 +170,16 @@ impl SessionManager {
     }
 
     /// Record a finished command block into the given session.
-    pub fn record_block(&mut self, session_id: SessionId, block: &CommandBlock, prompt: &PromptInfo) {
+    pub fn record_block(
+        &mut self,
+        session_id: SessionId,
+        block: &CommandBlock,
+        prompt: &PromptInfo,
+    ) {
         if let Some(session) = self.sessions.iter_mut().find(|s| s.id == session_id) {
-            let cwd = prompt.segments.iter()
+            let cwd = prompt
+                .segments
+                .iter()
                 .find(|s| s.kind == crate::prompt::SegmentKind::Cwd)
                 .map(|s| s.text.clone())
                 .unwrap_or_default();
@@ -261,8 +268,8 @@ fn save_session_to_disk(session: &Session) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
     use crate::prompt::PromptSegment;
+    use std::time::Instant;
 
     fn dummy_prompt() -> PromptInfo {
         PromptInfo {

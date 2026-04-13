@@ -11,11 +11,11 @@
 
 use std::sync::Arc;
 
+use alacritty_terminal::Term;
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::cell::Flags as CellFlags;
 use alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape, NamedColor};
-use alacritty_terminal::Term;
 
 use crate::renderer::gpu_grid::CellGlyph;
 use crate::renderer::pixel_buffer::{PixelBuffer, Rgb};
@@ -102,7 +102,9 @@ pub fn draw(
     let default_bg = bg_override.unwrap_or(theme::BG);
     let default_cell: CellEntry = (' ', default_fg, default_bg, CellFlags::empty(), false);
 
-    cache.grid_buf.resize_with(screen_lines, || vec![default_cell; cols]);
+    cache
+        .grid_buf
+        .resize_with(screen_lines, || vec![default_cell; cols]);
     for row in cache.grid_buf.iter_mut() {
         row.resize(cols, default_cell);
         row.fill(default_cell);
@@ -135,7 +137,11 @@ pub fn draw(
 
         let mut fg = theme::resolve_color(raw_fg, colors);
         let bg = theme::resolve_color(raw_bg, colors);
-        let bg = if bg_override.is_some() && bg == theme::named_bg() { default_bg } else { bg };
+        let bg = if bg_override.is_some() && bg == theme::named_bg() {
+            default_bg
+        } else {
+            bg
+        };
 
         if flags.contains(CellFlags::DIM) {
             fg = dim_color(fg);
@@ -155,9 +161,8 @@ pub fn draw(
     };
     let ccol = cursor.point.column.0;
 
-    let cursor_moved = crow != cache.cursor_row
-        || ccol != cache.cursor_col
-        || cursor.shape != cache.cursor_shape;
+    let cursor_moved =
+        crow != cache.cursor_row || ccol != cache.cursor_col || cursor.shape != cache.cursor_shape;
 
     let mut dirty = vec![false; screen_lines];
     for (row_idx, row) in cache.grid_buf.iter().enumerate() {
@@ -191,7 +196,13 @@ pub fn draw(
         let is_dirty = dirty[row_idx];
 
         if is_dirty {
-            buf.fill_rect(x_pad, base_y, w.saturating_sub(x_pad + pad), cell_h, default_bg);
+            buf.fill_rect(
+                x_pad,
+                base_y,
+                w.saturating_sub(x_pad + pad),
+                cell_h,
+                default_bg,
+            );
 
             for (col_idx, &(_, _, bg, _, is_sel)) in row.iter().enumerate() {
                 if bg == default_bg && !is_sel {
@@ -208,7 +219,17 @@ pub fn draw(
             }
             if is_box_or_block(c) {
                 if is_dirty {
-                    draw_box_or_block(buf, c, x_pad + col_idx * cell_w, base_y, cell_w, cell_h, fg, _bg, sf);
+                    draw_box_or_block(
+                        buf,
+                        c,
+                        x_pad + col_idx * cell_w,
+                        base_y,
+                        cell_w,
+                        cell_h,
+                        fg,
+                        _bg,
+                        sf,
+                    );
                 }
                 continue;
             }
@@ -416,11 +437,19 @@ fn draw_block_element(
     bg: Rgb,
 ) {
     let fill = |buf: &mut PixelBuffer, rx: usize, ry: usize, rw: usize, rh: usize, color: Rgb| {
-        buf.fill_rect(x + rx.min(w), y + ry.min(h), rw.min(w - rx.min(w)), rh.min(h - ry.min(h)), color);
+        buf.fill_rect(
+            x + rx.min(w),
+            y + ry.min(h),
+            rw.min(w - rx.min(w)),
+            rh.min(h - ry.min(h)),
+            color,
+        );
     };
     let shade = |buf: &mut PixelBuffer, alpha: f32| {
         let mix = |f: u8, b: u8| -> u8 {
-            (f as f32 * alpha + b as f32 * (1.0 - alpha)).round().clamp(0.0, 255.0) as u8
+            (f as f32 * alpha + b as f32 * (1.0 - alpha))
+                .round()
+                .clamp(0.0, 255.0) as u8
         };
         let color = (mix(fg.0, bg.0), mix(fg.1, bg.1), mix(fg.2, bg.2));
         buf.fill_rect(x, y, w, h, color);
@@ -430,28 +459,73 @@ fn draw_block_element(
     let wh = |n: usize| (w * n + 4) / 8;
 
     match c {
-        '▀' => fill(buf, 0, 0, w, h / 2, fg),            // upper half
-        '▁' => { let t = hh(1); fill(buf, 0, h - t, w, t, fg); }
-        '▂' => { let t = hh(2); fill(buf, 0, h - t, w, t, fg); }
-        '▃' => { let t = hh(3); fill(buf, 0, h - t, w, t, fg); }
-        '▄' => { let t = hh(4); fill(buf, 0, h - t, w, t, fg); }
-        '▅' => { let t = hh(5); fill(buf, 0, h - t, w, t, fg); }
-        '▆' => { let t = hh(6); fill(buf, 0, h - t, w, t, fg); }
-        '▇' => { let t = hh(7); fill(buf, 0, h - t, w, t, fg); }
-        '█' => fill(buf, 0, 0, w, h, fg),                 // full block
-        '▉' => { let t = wh(7); fill(buf, 0, 0, t, h, fg); }
-        '▊' => { let t = wh(6); fill(buf, 0, 0, t, h, fg); }
-        '▋' => { let t = wh(5); fill(buf, 0, 0, t, h, fg); }
-        '▌' => fill(buf, 0, 0, w / 2, h, fg),             // left half
-        '▍' => { let t = wh(3); fill(buf, 0, 0, t, h, fg); }
-        '▎' => { let t = wh(2); fill(buf, 0, 0, t, h, fg); }
-        '▏' => { let t = wh(1); fill(buf, 0, 0, t, h, fg); }
-        '▐' => fill(buf, w / 2, 0, w - w / 2, h, fg),     // right half
+        '▀' => fill(buf, 0, 0, w, h / 2, fg), // upper half
+        '▁' => {
+            let t = hh(1);
+            fill(buf, 0, h - t, w, t, fg);
+        }
+        '▂' => {
+            let t = hh(2);
+            fill(buf, 0, h - t, w, t, fg);
+        }
+        '▃' => {
+            let t = hh(3);
+            fill(buf, 0, h - t, w, t, fg);
+        }
+        '▄' => {
+            let t = hh(4);
+            fill(buf, 0, h - t, w, t, fg);
+        }
+        '▅' => {
+            let t = hh(5);
+            fill(buf, 0, h - t, w, t, fg);
+        }
+        '▆' => {
+            let t = hh(6);
+            fill(buf, 0, h - t, w, t, fg);
+        }
+        '▇' => {
+            let t = hh(7);
+            fill(buf, 0, h - t, w, t, fg);
+        }
+        '█' => fill(buf, 0, 0, w, h, fg), // full block
+        '▉' => {
+            let t = wh(7);
+            fill(buf, 0, 0, t, h, fg);
+        }
+        '▊' => {
+            let t = wh(6);
+            fill(buf, 0, 0, t, h, fg);
+        }
+        '▋' => {
+            let t = wh(5);
+            fill(buf, 0, 0, t, h, fg);
+        }
+        '▌' => fill(buf, 0, 0, w / 2, h, fg), // left half
+        '▍' => {
+            let t = wh(3);
+            fill(buf, 0, 0, t, h, fg);
+        }
+        '▎' => {
+            let t = wh(2);
+            fill(buf, 0, 0, t, h, fg);
+        }
+        '▏' => {
+            let t = wh(1);
+            fill(buf, 0, 0, t, h, fg);
+        }
+        '▐' => fill(buf, w / 2, 0, w - w / 2, h, fg), // right half
         '░' => shade(buf, 0.25),
         '▒' => shade(buf, 0.50),
         '▓' => shade(buf, 0.75),
-        '▔' => { let t = hh(1); fill(buf, 0, 0, w, t, fg); }
-        '▕' => { let t = wh(1); fill(buf, w - t, 0, t, h, fg); }
+        '▔' => {
+            let t = hh(1);
+            fill(buf, 0, 0, w, t, fg);
+        }
+        '▕' => {
+            let t = wh(1);
+            fill(buf, w - t, 0, t, h, fg);
+        }
         '▖' => fill(buf, 0, h / 2, w / 2, h - h / 2, fg),
         '▗' => fill(buf, w / 2, h / 2, w - w / 2, h - h / 2, fg),
         '▘' => fill(buf, 0, 0, w / 2, h / 2, fg),

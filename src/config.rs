@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 /// Persistent application configuration stored as TOML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct AppConfig {
     pub appearance: AppearanceConfig,
     pub ai: AiConfig,
@@ -33,6 +34,7 @@ pub struct AiConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct GeneralConfig {
     pub default_shell: String,
     pub hint_banner_dismissed: bool,
@@ -47,17 +49,6 @@ pub struct HintsConfig {
     pub seen_sandbox: bool,
     pub seen_git: bool,
     pub seen_ask: bool,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            appearance: AppearanceConfig::default(),
-            ai: AiConfig::default(),
-            general: GeneralConfig::default(),
-            sandbox: SandboxDefaultsConfig::default(),
-        }
-    }
 }
 
 impl Default for AppearanceConfig {
@@ -82,16 +73,6 @@ impl Default for AiConfig {
             web_search: false,
             context_lines: 30,
             auto_load: true,
-        }
-    }
-}
-
-impl Default for GeneralConfig {
-    fn default() -> Self {
-        Self {
-            default_shell: String::new(),
-            hint_banner_dismissed: false,
-            hints: HintsConfig::default(),
         }
     }
 }
@@ -250,7 +231,13 @@ font_size = 20.0
         assert_eq!(deserialized.sandbox.volumes.len(), 1);
         assert_eq!(deserialized.sandbox.volumes[0].label, "Projects");
         assert_eq!(deserialized.sandbox.custom_images.len(), 1);
-        assert_eq!(deserialized.sandbox.custom_images[0].display_name, "My Image");
-        assert_eq!(deserialized.sandbox.custom_images[0].last_pulled, "2026-04-12T12:00:00Z");
+        assert_eq!(
+            deserialized.sandbox.custom_images[0].display_name,
+            "My Image"
+        );
+        assert_eq!(
+            deserialized.sandbox.custom_images[0].last_pulled,
+            "2026-04-12T12:00:00Z"
+        );
     }
 }

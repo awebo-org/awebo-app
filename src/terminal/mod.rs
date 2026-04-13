@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use alacritty_terminal::Term;
 use alacritty_terminal::event::{Event, EventListener, WindowSize};
 use alacritty_terminal::event_loop::{EventLoop, EventLoopSender, Msg};
 use alacritty_terminal::grid::Dimensions;
@@ -10,7 +11,6 @@ use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::cell::{Flags, LineLength};
 use alacritty_terminal::term::{Config, TermMode};
 use alacritty_terminal::tty;
-use alacritty_terminal::Term;
 
 use parking_lot::Mutex;
 
@@ -74,13 +74,12 @@ impl EventListener for JsonEventProxy {
                 let _ = self.proxy.send_event(TerminalEvent::Wakeup);
             }
             Event::Title(title) => {
-                if let Some(rest) = title.strip_prefix(EXIT_CODE_PREFIX) {
-                    if let Some(code_str) = rest.strip_suffix(EXIT_CODE_SUFFIX) {
-                        if let Ok(code) = code_str.parse::<i32>() {
-                            let _ = self.proxy.send_event(TerminalEvent::CommandExitCode(code));
-                            return;
-                        }
-                    }
+                if let Some(rest) = title.strip_prefix(EXIT_CODE_PREFIX)
+                    && let Some(code_str) = rest.strip_suffix(EXIT_CODE_SUFFIX)
+                    && let Ok(code) = code_str.parse::<i32>()
+                {
+                    let _ = self.proxy.send_event(TerminalEvent::CommandExitCode(code));
+                    return;
                 }
                 *self.title.lock() = title.clone();
                 let _ = self.proxy.send_event(TerminalEvent::Title(title));
@@ -266,7 +265,10 @@ impl Terminal {
         let mut text = String::new();
         for col_idx in 0..len.0 {
             let cell = &row_ref[Column(col_idx)];
-            if cell.flags.intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER) {
+            if cell
+                .flags
+                .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
+            {
                 continue;
             }
             text.push(cell.c);
@@ -305,7 +307,10 @@ impl Terminal {
             if from_abs != 0 {
                 log::warn!(
                     "read_styled_lines_from: scrollback overflow — from_abs={} top={} computed_start={} cursor={}, resetting to top",
-                    from_abs, top.0, start.0, end.0,
+                    from_abs,
+                    top.0,
+                    start.0,
+                    end.0,
                 );
             }
             start = top;
@@ -519,7 +524,16 @@ pub fn url_at_col(line: &str, col: usize) -> Option<String> {
         while let Some(start) = line[search_from..].find(scheme) {
             let abs_start = search_from + start;
             let rest = &line[abs_start..];
-            let end = rest.find(|c: char| c.is_whitespace() || c == '\'' || c == '"' || c == '>' || c == '<' || c == ')' || c == ']')
+            let end = rest
+                .find(|c: char| {
+                    c.is_whitespace()
+                        || c == '\''
+                        || c == '"'
+                        || c == '>'
+                        || c == '<'
+                        || c == ')'
+                        || c == ']'
+                })
                 .unwrap_or(rest.len());
             let char_start = line[..abs_start].chars().count();
             let char_end = char_start + rest[..end].chars().count();

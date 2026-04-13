@@ -85,9 +85,10 @@ impl SandboxManager {
             ));
             return;
         }
-        let _ = proxy.send_event(crate::terminal::TerminalEvent::Toast(
-            format!("Pulling image: {}…", oci_ref),
-        ));
+        let _ = proxy.send_event(crate::terminal::TerminalEvent::Toast(format!(
+            "Pulling image: {}…",
+            oci_ref
+        )));
         tokio::spawn(async move {
             let sandbox_name = format!("awebo-pull-{}", std::process::id());
             let result = microsandbox::Sandbox::builder(&sandbox_name)
@@ -99,7 +100,7 @@ impl SandboxManager {
                 .await;
             match result {
                 Ok(handle) => {
-                    let _ = handle.kill();
+                    let _ = handle.kill().await;
                     let _ = proxy.send_event(crate::terminal::TerminalEvent::ToastLevel(
                         format!("Image pulled successfully: {}", oci_ref),
                         crate::ui::components::toast::ToastLevel::Success,

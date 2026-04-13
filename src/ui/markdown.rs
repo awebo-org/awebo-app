@@ -131,9 +131,10 @@ pub fn parse(text: &str) -> Vec<StyledLine> {
             continue;
         }
 
-        if let Some(rest) = trimmed.strip_prefix("> ").or_else(|| {
-            if trimmed == ">" { Some("") } else { None }
-        }) {
+        if let Some(rest) = trimmed
+            .strip_prefix("> ")
+            .or_else(|| if trimmed == ">" { Some("") } else { None })
+        {
             let mut spans = vec![StyledSpan {
                 text: "┃ ".to_string(),
                 fg: FG_BLOCKQUOTE,
@@ -199,7 +200,6 @@ pub fn parse(text: &str) -> Vec<StyledLine> {
     result
 }
 
-
 /// Parse inline Markdown formatting within a single line.
 ///
 /// Handles: **bold**, *italic*, ***bold italic***, `code`,
@@ -240,111 +240,113 @@ fn parse_inline(
     }
 
     while pos < len {
-        if chars[pos] == '`' && !matches!(peek(&chars, pos + 1), Some('`')) {
-            if let Some(end) = find_closing(&chars, pos + 1, '`') {
-                flush!();
-                let code_text: String = chars[pos + 1..end].iter().collect();
-                spans.push(StyledSpan {
-                    text: code_text,
-                    fg: FG_CODE,
-                    bold: false,
-                    italic: false,
-                    underline: false,
-                    strikethrough: false,
-                    code: true,
-                    heading_level: 0,
-                    horizontal_rule: false,
-                });
-                pos = end + 1;
-                continue;
-            }
+        if chars[pos] == '`'
+            && !matches!(peek(&chars, pos + 1), Some('`'))
+            && let Some(end) = find_closing(&chars, pos + 1, '`')
+        {
+            flush!();
+            let code_text: String = chars[pos + 1..end].iter().collect();
+            spans.push(StyledSpan {
+                text: code_text,
+                fg: FG_CODE,
+                bold: false,
+                italic: false,
+                underline: false,
+                strikethrough: false,
+                code: true,
+                heading_level: 0,
+                horizontal_rule: false,
+            });
+            pos = end + 1;
+            continue;
         }
 
-        if chars[pos] == '$' && peek(&chars, pos + 1) != Some('$') {
-            if let Some(end) = find_closing(&chars, pos + 1, '$') {
-                if end > pos + 1 {
-                    flush!();
-                    let raw: String = chars[pos + 1..end].iter().collect();
-                    let math_text = latex_to_unicode(&raw);
-                    spans.push(StyledSpan {
-                        text: math_text,
-                        fg: FG_MATH,
-                        bold: false,
-                        italic: true,
-                        underline: false,
-                        strikethrough: false,
-                        code: true,
-                        heading_level: 0,
-                        horizontal_rule: false,
-                    });
-                    pos = end + 1;
-                    continue;
-                }
-            }
+        if chars[pos] == '$'
+            && peek(&chars, pos + 1) != Some('$')
+            && let Some(end) = find_closing(&chars, pos + 1, '$')
+            && end > pos + 1
+        {
+            flush!();
+            let raw: String = chars[pos + 1..end].iter().collect();
+            let math_text = latex_to_unicode(&raw);
+            spans.push(StyledSpan {
+                text: math_text,
+                fg: FG_MATH,
+                bold: false,
+                italic: true,
+                underline: false,
+                strikethrough: false,
+                code: true,
+                heading_level: 0,
+                horizontal_rule: false,
+            });
+            pos = end + 1;
+            continue;
         }
 
-        if chars[pos] == '$' && peek(&chars, pos + 1) == Some('$') {
-            if let Some(end) = find_double_closing(&chars, pos + 2, '$') {
-                flush!();
-                let raw: String = chars[pos + 2..end].iter().collect();
-                let math_text = latex_to_unicode(&raw);
-                spans.push(StyledSpan {
-                    text: math_text,
-                    fg: FG_MATH,
-                    bold: false,
-                    italic: true,
-                    underline: false,
-                    strikethrough: false,
-                    code: true,
-                    heading_level: 0,
-                    horizontal_rule: false,
-                });
-                pos = end + 2;
-                continue;
-            }
+        if chars[pos] == '$'
+            && peek(&chars, pos + 1) == Some('$')
+            && let Some(end) = find_double_closing(&chars, pos + 2, '$')
+        {
+            flush!();
+            let raw: String = chars[pos + 2..end].iter().collect();
+            let math_text = latex_to_unicode(&raw);
+            spans.push(StyledSpan {
+                text: math_text,
+                fg: FG_MATH,
+                bold: false,
+                italic: true,
+                underline: false,
+                strikethrough: false,
+                code: true,
+                heading_level: 0,
+                horizontal_rule: false,
+            });
+            pos = end + 2;
+            continue;
         }
 
-        if chars[pos] == '~' && peek(&chars, pos + 1) == Some('~') {
-            if let Some(end) = find_double_closing(&chars, pos + 2, '~') {
-                flush!();
-                let inner: String = chars[pos + 2..end].iter().collect();
-                spans.push(StyledSpan {
-                    text: inner,
-                    fg: FG_STRIKETHROUGH,
-                    bold: parent_bold,
-                    italic: parent_italic,
-                    underline: false,
-                    strikethrough: true,
-                    code: false,
-                    heading_level: 0,
-                    horizontal_rule: false,
-                });
-                pos = end + 2;
-                continue;
-            }
+        if chars[pos] == '~'
+            && peek(&chars, pos + 1) == Some('~')
+            && let Some(end) = find_double_closing(&chars, pos + 2, '~')
+        {
+            flush!();
+            let inner: String = chars[pos + 2..end].iter().collect();
+            spans.push(StyledSpan {
+                text: inner,
+                fg: FG_STRIKETHROUGH,
+                bold: parent_bold,
+                italic: parent_italic,
+                underline: false,
+                strikethrough: true,
+                code: false,
+                heading_level: 0,
+                horizontal_rule: false,
+            });
+            pos = end + 2;
+            continue;
         }
 
         if chars[pos] == '*'
             && peek(&chars, pos + 1) == Some('*')
             && peek(&chars, pos + 2) == Some('*')
+            && let Some(end) = find_triple_closing(&chars, pos + 3, '*')
         {
-            if let Some(end) = find_triple_closing(&chars, pos + 3, '*') {
-                flush!();
-                let inner: String = chars[pos + 3..end].iter().collect();
-                spans.push(StyledSpan {
-                    text: inner,
-                    fg: FG_BOLD,
-                    bold: true,
-                    italic: true,
-                    underline: false,
-                    strikethrough: false,
-                    code: false,
-                    heading_level: 0,
-                    horizontal_rule: false,
-                });
-                pos = end + 3;
-                continue;
-            }
+            flush!();
+            let inner: String = chars[pos + 3..end].iter().collect();
+            spans.push(StyledSpan {
+                text: inner,
+                fg: FG_BOLD,
+                bold: true,
+                italic: true,
+                underline: false,
+                strikethrough: false,
+                code: false,
+                heading_level: 0,
+                horizontal_rule: false,
+            });
+            pos = end + 3;
+            continue;
         }
 
         if (chars[pos] == '*' && peek(&chars, pos + 1) == Some('*'))
@@ -376,50 +378,48 @@ fn parse_inline(
                 || pos == 0
                 || chars[pos - 1].is_whitespace()
                 || chars[pos - 1].is_ascii_punctuation();
-            if word_boundary {
-                if let Some(end) = find_closing(&chars, pos + 1, marker) {
-                    let end_ok = marker == '*'
-                        || end + 1 >= len
-                        || chars[end + 1].is_whitespace()
-                        || chars[end + 1].is_ascii_punctuation();
-                    if end_ok && end > pos + 1 {
-                        flush!();
-                        let inner: String = chars[pos + 1..end].iter().collect();
-                        spans.push(StyledSpan {
-                            text: inner,
-                            fg: FG_ITALIC,
-                            bold: parent_bold,
-                            italic: true,
-                            underline: false,
-                            strikethrough: false,
-                            code: false,
-                            heading_level: 0,
-                            horizontal_rule: false,
-                        });
-                        pos = end + 1;
-                        continue;
-                    }
+            if word_boundary && let Some(end) = find_closing(&chars, pos + 1, marker) {
+                let end_ok = marker == '*'
+                    || end + 1 >= len
+                    || chars[end + 1].is_whitespace()
+                    || chars[end + 1].is_ascii_punctuation();
+                if end_ok && end > pos + 1 {
+                    flush!();
+                    let inner: String = chars[pos + 1..end].iter().collect();
+                    spans.push(StyledSpan {
+                        text: inner,
+                        fg: FG_ITALIC,
+                        bold: parent_bold,
+                        italic: true,
+                        underline: false,
+                        strikethrough: false,
+                        code: false,
+                        heading_level: 0,
+                        horizontal_rule: false,
+                    });
+                    pos = end + 1;
+                    continue;
                 }
             }
         }
 
-        if chars[pos] == '[' {
-            if let Some((link_text, _url, end_pos)) = parse_link(&chars, pos) {
-                flush!();
-                spans.push(StyledSpan {
-                    text: link_text,
-                    fg: FG_LINK_TEXT,
-                    bold: parent_bold,
-                    italic: parent_italic,
-                    underline: true,
-                    strikethrough: false,
-                    code: false,
-                    heading_level: 0,
-                    horizontal_rule: false,
-                });
-                pos = end_pos;
-                continue;
-            }
+        if chars[pos] == '['
+            && let Some((link_text, _url, end_pos)) = parse_link(&chars, pos)
+        {
+            flush!();
+            spans.push(StyledSpan {
+                text: link_text,
+                fg: FG_LINK_TEXT,
+                bold: parent_bold,
+                italic: parent_italic,
+                underline: true,
+                strikethrough: false,
+                code: false,
+                heading_level: 0,
+                horizontal_rule: false,
+            });
+            pos = end_pos;
+            continue;
         }
 
         buf.push(chars[pos]);
@@ -429,7 +429,6 @@ fn parse_inline(
     flush!();
     spans
 }
-
 
 fn peek(chars: &[char], idx: usize) -> Option<char> {
     chars.get(idx).copied()
@@ -483,7 +482,6 @@ fn find_triple_closing(chars: &[char], start: usize, marker: char) -> Option<usi
     None
 }
 
-
 /// Convert common LaTeX math commands to Unicode equivalents.
 ///
 /// Handles `\command` symbols, `\sqrt{…}`, `\frac{…}{…}`, and basic
@@ -496,13 +494,17 @@ fn latex_to_unicode(input: &str) -> String {
         if let Some(mid_brace) = find_brace_close(&result, after) {
             let numer = &result[after..mid_brace];
             let rest = &result[mid_brace + 1..];
-            if rest.starts_with('{') {
-                if let Some(denom_end) = find_brace_close(&result, mid_brace + 2) {
-                    let denom = &result[mid_brace + 2..denom_end];
-                    let replacement = format!("{numer}/{denom}");
-                    result = format!("{}{replacement}{}", &result[..pos], &result[denom_end + 1..]);
-                    continue;
-                }
+            if rest.starts_with('{')
+                && let Some(denom_end) = find_brace_close(&result, mid_brace + 2)
+            {
+                let denom = &result[mid_brace + 2..denom_end];
+                let replacement = format!("{numer}/{denom}");
+                result = format!(
+                    "{}{replacement}{}",
+                    &result[..pos],
+                    &result[denom_end + 1..]
+                );
+                continue;
             }
         }
         break;
@@ -661,24 +663,59 @@ fn find_brace_close(s: &str, start: usize) -> Option<usize> {
 }
 
 fn to_superscript(s: &str) -> String {
-    s.chars().map(|c| match c {
-        '0' => '⁰', '1' => '¹', '2' => '²', '3' => '³', '4' => '⁴',
-        '5' => '⁵', '6' => '⁶', '7' => '⁷', '8' => '⁸', '9' => '⁹',
-        '+' => '⁺', '-' => '⁻', '=' => '⁼', '(' => '⁽', ')' => '⁾',
-        'n' => 'ⁿ', 'i' => 'ⁱ',
-        other => other,
-    }).collect()
+    s.chars()
+        .map(|c| match c {
+            '0' => '⁰',
+            '1' => '¹',
+            '2' => '²',
+            '3' => '³',
+            '4' => '⁴',
+            '5' => '⁵',
+            '6' => '⁶',
+            '7' => '⁷',
+            '8' => '⁸',
+            '9' => '⁹',
+            '+' => '⁺',
+            '-' => '⁻',
+            '=' => '⁼',
+            '(' => '⁽',
+            ')' => '⁾',
+            'n' => 'ⁿ',
+            'i' => 'ⁱ',
+            other => other,
+        })
+        .collect()
 }
 
 fn to_subscript(s: &str) -> String {
-    s.chars().map(|c| match c {
-        '0' => '₀', '1' => '₁', '2' => '₂', '3' => '₃', '4' => '₄',
-        '5' => '₅', '6' => '₆', '7' => '₇', '8' => '₈', '9' => '₉',
-        '+' => '₊', '-' => '₋', '=' => '₌', '(' => '₍', ')' => '₎',
-        'a' => 'ₐ', 'e' => 'ₑ', 'o' => 'ₒ', 'x' => 'ₓ',
-        'i' => 'ᵢ', 'j' => 'ⱼ', 'n' => 'ₙ', 'k' => 'ₖ',
-        other => other,
-    }).collect()
+    s.chars()
+        .map(|c| match c {
+            '0' => '₀',
+            '1' => '₁',
+            '2' => '₂',
+            '3' => '₃',
+            '4' => '₄',
+            '5' => '₅',
+            '6' => '₆',
+            '7' => '₇',
+            '8' => '₈',
+            '9' => '₉',
+            '+' => '₊',
+            '-' => '₋',
+            '=' => '₌',
+            '(' => '₍',
+            ')' => '₎',
+            'a' => 'ₐ',
+            'e' => 'ₑ',
+            'o' => 'ₒ',
+            'x' => 'ₓ',
+            'i' => 'ᵢ',
+            'j' => 'ⱼ',
+            'n' => 'ₙ',
+            'k' => 'ₖ',
+            other => other,
+        })
+        .collect()
 }
 
 /// Parse `[text](url)` starting at `[`. Returns (link_text, url, end_pos).
@@ -703,7 +740,9 @@ fn is_horizontal_rule(trimmed: &str) -> bool {
         return false;
     }
     let no_spaces: String = trimmed.chars().filter(|c| !c.is_whitespace()).collect();
-    (no_spaces.chars().all(|c| c == '-') || no_spaces.chars().all(|c| c == '*') || no_spaces.chars().all(|c| c == '_'))
+    (no_spaces.chars().all(|c| c == '-')
+        || no_spaces.chars().all(|c| c == '*')
+        || no_spaces.chars().all(|c| c == '_'))
         && no_spaces.len() >= 3
 }
 
@@ -723,7 +762,8 @@ fn parse_heading(line: &str) -> Option<(usize, &str)> {
 
 fn strip_unordered_bullet(line: &str) -> Option<&str> {
     let trimmed = line.trim_start();
-    if let Some(rest) = trimmed.strip_prefix("- ")
+    if let Some(rest) = trimmed
+        .strip_prefix("- ")
         .or_else(|| trimmed.strip_prefix("* "))
         .or_else(|| trimmed.strip_prefix("+ "))
     {
@@ -740,8 +780,8 @@ fn strip_ordered_bullet(line: &str) -> Option<(&str, &str)> {
         return None;
     }
     let rest = &trimmed[num_end..];
-    if rest.starts_with(". ") {
-        Some((&trimmed[..num_end], &rest[2..]))
+    if let Some(after_dot) = rest.strip_prefix(". ") {
+        Some((&trimmed[..num_end], after_dot))
     } else {
         None
     }
@@ -816,7 +856,10 @@ mod tests {
             let lines = parse(&format!("{prefix}Title"));
             assert_eq!(lines.len(), 1);
             assert!(lines[0][0].bold, "h{level} prefix should be bold");
-            assert_eq!(lines[0][0].heading_level, level as u8, "h{level} heading_level");
+            assert_eq!(
+                lines[0][0].heading_level, level as u8,
+                "h{level} heading_level"
+            );
         }
     }
 
@@ -898,7 +941,11 @@ mod tests {
         let lines = parse("The result is $37177328 \\times 3312$.");
         assert_eq!(lines.len(), 1);
         let math = lines[0].iter().find(|s| s.fg == FG_MATH).unwrap();
-        assert!(math.text.contains("×"), "\\times should become ×, got: {}", math.text);
+        assert!(
+            math.text.contains("×"),
+            "\\times should become ×, got: {}",
+            math.text
+        );
         assert!(math.code);
         assert!(math.italic);
     }
@@ -907,7 +954,10 @@ mod tests {
     fn display_math_inline() {
         let lines = parse("Result: $$E = mc^2$$");
         assert_eq!(lines.len(), 1);
-        let math = lines[0].iter().find(|s| s.text.contains("E = mc²")).unwrap();
+        let math = lines[0]
+            .iter()
+            .find(|s| s.text.contains("E = mc²"))
+            .unwrap();
         assert!(math.code);
         assert!(math.italic);
         assert_eq!(math.fg, FG_MATH);
@@ -933,7 +983,6 @@ mod tests {
         assert_eq!(math_spans[0].text, "a + b");
         assert_eq!(math_spans[1].text, "c × d");
     }
-
 
     #[test]
     fn latex_simple_symbols() {
@@ -972,7 +1021,10 @@ mod tests {
         let lines = parse("Result is 5 \\times 3 = 15");
         assert_eq!(lines.len(), 1);
         let text = &lines[0][0].text;
-        assert!(text.contains('×'), "bare \\times should convert, got: {text}");
+        assert!(
+            text.contains('×'),
+            "bare \\times should convert, got: {text}"
+        );
     }
 
     #[test]
@@ -980,12 +1032,18 @@ mod tests {
         let lines = parse("The \\sqrt{64} equals 8");
         assert_eq!(lines.len(), 1);
         let text = &lines[0][0].text;
-        assert!(text.contains("√(64)"), "bare \\sqrt should convert, got: {text}");
+        assert!(
+            text.contains("√(64)"),
+            "bare \\sqrt should convert, got: {text}"
+        );
     }
 
     #[test]
     fn latex_greek_letters() {
         let r = latex_to_unicode("\\alpha + \\beta = \\gamma");
-        assert!(r.contains('α') && r.contains('β') && r.contains('γ'), "got: {r}");
+        assert!(
+            r.contains('α') && r.contains('β') && r.contains('γ'),
+            "got: {r}"
+        );
     }
 }

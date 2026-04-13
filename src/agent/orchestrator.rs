@@ -94,7 +94,10 @@ impl AgentOrchestrator {
                     self.session.push_tool_request(request.clone());
                     self.session.push_tool_result(
                         request.tool_name,
-                        ToolResult { output: err, is_error: true },
+                        ToolResult {
+                            output: err,
+                            is_error: true,
+                        },
                     );
                     return self.build_inference_request();
                 }
@@ -140,7 +143,8 @@ impl AgentOrchestrator {
 
     /// Record token stats from a completed inference round.
     pub fn record_stats(&mut self, prompt_tokens: usize, generated_tokens: usize) {
-        self.session.record_inference_stats(prompt_tokens, generated_tokens);
+        self.session
+            .record_inference_stats(prompt_tokens, generated_tokens);
     }
 
     /// Set the model's context window size.
@@ -173,8 +177,7 @@ impl AgentOrchestrator {
                 AgentNext::ExecuteTool(request)
             }
             ApprovalDecision::ApproveToolForSession => {
-                self.session
-                    .auto_approve_tool(request.tool_name.clone());
+                self.session.auto_approve_tool(request.tool_name.clone());
                 self.session.status = AgentStatus::Executing;
                 AgentNext::ExecuteTool(request)
             }
@@ -195,11 +198,7 @@ impl AgentOrchestrator {
     }
 
     /// Called after a tool has been executed.
-    pub fn on_tool_result(
-        &mut self,
-        tool_name: String,
-        result: ToolResult,
-    ) -> AgentNext {
+    pub fn on_tool_result(&mut self, tool_name: String, result: ToolResult) -> AgentNext {
         self.session.push_tool_result(tool_name, result);
         self.build_inference_request()
     }
@@ -222,7 +221,7 @@ impl AgentOrchestrator {
                 request
                     .args
                     .get(p.name)
-                    .map_or(true, |v| v.as_str().map_or(false, str::is_empty))
+                    .is_none_or(|v| v.as_str().is_some_and(str::is_empty))
             })
             .map(|p| p.name)
             .collect();
@@ -271,12 +270,20 @@ impl AgentOrchestrator {
         for step in &self.session.steps[1..boundary] {
             match step {
                 AgentStep::Thinking(text) => {
-                    let brief = if text.len() > 100 { &text[..100] } else { text.as_str() };
+                    let brief = if text.len() > 100 {
+                        &text[..100]
+                    } else {
+                        text.as_str()
+                    };
                     summary_parts.push(format!("- Thought: {brief}..."));
                 }
                 AgentStep::ToolRequest(req) => {
                     let args_str = serde_json::to_string(&req.args).unwrap_or_default();
-                    let brief = if args_str.len() > 80 { &args_str[..80] } else { args_str.as_str() };
+                    let brief = if args_str.len() > 80 {
+                        &args_str[..80]
+                    } else {
+                        args_str.as_str()
+                    };
                     summary_parts.push(format!("- Called {}: {brief}", req.tool_name));
                 }
                 AgentStep::ToolResult { tool_name, result } => {
@@ -337,12 +344,12 @@ impl AgentOrchestrator {
                     });
                 }
                 AgentStep::Thinking(text) => {
-                    if let Some(last) = msgs.last_mut() {
-                        if last.role == AgentConvRole::Assistant {
-                            last.content.push('\n');
-                            last.content.push_str(text);
-                            continue;
-                        }
+                    if let Some(last) = msgs.last_mut()
+                        && last.role == AgentConvRole::Assistant
+                    {
+                        last.content.push('\n');
+                        last.content.push_str(text);
+                        continue;
                     }
                     msgs.push(AgentConvMessage {
                         role: AgentConvRole::Assistant,
@@ -355,12 +362,12 @@ impl AgentOrchestrator {
                         req.tool_name,
                         serde_json::to_string(&req.args).unwrap_or_default(),
                     );
-                    if let Some(last) = msgs.last_mut() {
-                        if last.role == AgentConvRole::Assistant {
-                            last.content.push('\n');
-                            last.content.push_str(&xml);
-                            continue;
-                        }
+                    if let Some(last) = msgs.last_mut()
+                        && last.role == AgentConvRole::Assistant
+                    {
+                        last.content.push('\n');
+                        last.content.push_str(&xml);
+                        continue;
                     }
                     msgs.push(AgentConvMessage {
                         role: AgentConvRole::Assistant,
@@ -368,18 +375,14 @@ impl AgentOrchestrator {
                     });
                 }
                 AgentStep::ToolResult { tool_name, result } => {
-                    let formatted = prompt::format_tool_result(
-                        tool_name,
-                        &result.output,
-                        result.is_error,
-                    );
+                    let formatted =
+                        prompt::format_tool_result(tool_name, &result.output, result.is_error);
                     msgs.push(AgentConvMessage {
                         role: AgentConvRole::Tool,
                         content: formatted,
                     });
                 }
-                AgentStep::FinalAnswer => {
-                }
+                AgentStep::FinalAnswer => {}
                 AgentStep::Error(msg) => {
                     msgs.push(AgentConvMessage {
                         role: AgentConvRole::Tool,
@@ -467,7 +470,10 @@ mod tests {
 
         let next = orch.on_tool_result(
             "shell_exec".into(),
-            ToolResult { output: "file.txt".into(), is_error: false },
+            ToolResult {
+                output: "file.txt".into(),
+                is_error: false,
+            },
         );
         assert!(matches!(next, AgentNext::RunInference { .. }));
 
@@ -514,7 +520,10 @@ mod tests {
         let _ = orch.on_approval(ApprovalDecision::ApproveOnce);
         let _ = orch.on_tool_result(
             "shell_exec".into(),
-            ToolResult { output: "a.txt b.txt".into(), is_error: false },
+            ToolResult {
+                output: "a.txt b.txt".into(),
+                is_error: false,
+            },
         );
 
         let msgs = orch.build_conversation_messages();

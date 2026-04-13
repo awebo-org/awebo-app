@@ -8,7 +8,9 @@ use crate::prompt::{PromptInfo, SegmentKind};
 use crate::renderer::icons::{Icon, IconRenderer};
 
 use crate::renderer::pixel_buffer::{PixelBuffer, Rgb};
-use crate::renderer::text::{draw_text_at, draw_text_at_bold, measure_text_width, measure_text_width_bold};
+use crate::renderer::text::{
+    draw_text_at, draw_text_at_bold, measure_text_width, measure_text_width_bold,
+};
 use crate::renderer::theme;
 
 use super::overlay::fill_rounded_rect;
@@ -18,7 +20,6 @@ pub struct PromptBarHitRects {
     pub ctx_bar: Option<(usize, usize, usize, usize)>,
     pub stop_button: Option<(usize, usize, usize, usize)>,
 }
-
 
 const SEGMENT_H_LOGICAL: f32 = 20.0;
 const SEGMENT_PAD_X: f32 = 8.0;
@@ -38,7 +39,6 @@ const PROMPT_PAD_BOTTOM: f32 = 10.0;
 
 const CHAR_WIDTH_EST: f32 = 7.0;
 
-
 const BORDER_COLOR: Rgb = theme::BORDER;
 const SEPARATOR_COLOR: Rgb = (28, 28, 32);
 const INPUT_TEXT: Rgb = theme::FG_PRIMARY;
@@ -53,7 +53,6 @@ const CURSOR_COLOR: Rgb = theme::PRIMARY;
 const PASSTHROUGH_HINT: Rgb = theme::WARNING;
 /// AI fix suggestion — uses primary accent.
 const AI_SUGGESTION_COLOR: Rgb = theme::PRIMARY;
-
 
 /// Definition of a slash command for the prompt input autocomplete menu.
 pub struct SlashCommandDef {
@@ -100,7 +99,6 @@ pub const SLASH_COMMANDS: &[SlashCommandDef] = &[
         agent_only: false,
     },
 ];
-
 
 /// The current input mode of the smart terminal.
 ///
@@ -232,12 +230,12 @@ fn find_path_suggestion(prefix: &str) -> Option<String> {
             Err(_) => continue,
         };
         for entry in entries.flatten() {
-            if let Some(name) = entry.file_name().to_str() {
-                if name.starts_with(prefix) && name != prefix {
-                    if best.as_ref().map_or(true, |b| name.len() < b.len()) {
-                        best = Some(name.to_string());
-                    }
-                }
+            if let Some(name) = entry.file_name().to_str()
+                && name.starts_with(prefix)
+                && name != prefix
+                && best.as_ref().is_none_or(|b| name.len() < b.len())
+            {
+                best = Some(name.to_string());
             }
         }
     }
@@ -251,8 +249,9 @@ fn find_file_suggestion(full_text: &str, cwd: Option<&str>) -> Option<String> {
     let prefix_cmd = &full_text[..=last_space];
     let arg_partial = &full_text[last_space + 1..];
 
-    let base_dir = cwd.map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
+    let base_dir = cwd.map(std::path::PathBuf::from).unwrap_or_else(|| {
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+    });
 
     let (search_dir, name_prefix) = if let Some(sep) = arg_partial.rfind('/') {
         let dir_part = &arg_partial[..=sep];
@@ -286,8 +285,8 @@ fn find_file_suggestion(full_text: &str, cwd: Option<&str>) -> Option<String> {
         if name_str.starts_with('.') && !name_prefix.starts_with('.') {
             continue;
         }
-        if best.as_ref().map_or(true, |b| name_str.len() < b.len()) {
-            let is_dir = entry.file_type().map_or(false, |ft| ft.is_dir());
+        if best.as_ref().is_none_or(|b| name_str.len() < b.len()) {
+            let is_dir = entry.file_type().is_ok_and(|ft| ft.is_dir());
             let completed_arg = if let Some(sep) = arg_partial.rfind('/') {
                 let dir_part = &arg_partial[..=sep];
                 if is_dir {
@@ -306,14 +305,18 @@ fn find_file_suggestion(full_text: &str, cwd: Option<&str>) -> Option<String> {
     best
 }
 
-
 /// Total prompt bar height in physical pixels:
 /// margin_top + pad_top + segments_row + gap + input_row + pad_bottom.
 pub fn prompt_bar_height(sf: f32) -> usize {
-    ((PROMPT_MARGIN_TOP + PROMPT_PAD_TOP + SEGMENT_H_LOGICAL + PROMPT_GAP + INPUT_H_LOGICAL + PROMPT_PAD_BOTTOM) * sf)
+    ((PROMPT_MARGIN_TOP
+        + PROMPT_PAD_TOP
+        + SEGMENT_H_LOGICAL
+        + PROMPT_GAP
+        + INPUT_H_LOGICAL
+        + PROMPT_PAD_BOTTOM)
+        * sf)
         .ceil() as usize
 }
-
 
 /// Returns hit-test rects for the context usage bar and stop button.
 pub fn draw(
@@ -334,14 +337,26 @@ pub fn draw(
 ) -> PromptBarHitRects {
     let total_h = prompt_bar_height(sf);
 
-    buf.fill_rect(x_start, y_start, buf.width.saturating_sub(x_start), total_h, theme::BG);
+    buf.fill_rect(
+        x_start,
+        y_start,
+        buf.width.saturating_sub(x_start),
+        total_h,
+        theme::BG,
+    );
 
     let content_pad = (PROMPT_PAD_X * sf) as usize;
 
     let margin_top = (PROMPT_MARGIN_TOP * sf) as usize;
     let sep_y = y_start + margin_top;
     let sep_h = (1.0 * sf).max(1.0) as usize;
-    buf.fill_rect(x_start, sep_y, buf.width.saturating_sub(x_start), sep_h, SEPARATOR_COLOR);
+    buf.fill_rect(
+        x_start,
+        sep_y,
+        buf.width.saturating_sub(x_start),
+        sep_h,
+        SEPARATOR_COLOR,
+    );
 
     let seg_h = (SEGMENT_H_LOGICAL * sf) as usize;
     let pad_x = (SEGMENT_PAD_X * sf) as usize;
@@ -359,14 +374,19 @@ pub fn draw(
 
     for seg in &info.segments {
         let text = &seg.text;
-        let text_w = measure_text_width_bold(font_system, text, seg_metrics, Family::Monospace).ceil() as usize;
+        let text_w = measure_text_width_bold(font_system, text, seg_metrics, Family::Monospace)
+            .ceil() as usize;
 
         let icon = match seg.kind {
             SegmentKind::Cwd => Some(Icon::Folder),
             SegmentKind::GitBranch => Some(Icon::GitBranch),
             SegmentKind::Shell => None,
         };
-        let icon_space = if icon.is_some() { icon_sz as usize + icon_gap } else { 0 };
+        let icon_space = if icon.is_some() {
+            icon_sz as usize + icon_gap
+        } else {
+            0
+        };
         let seg_w = pad_x + icon_space + text_w + pad_x;
 
         stroke_rounded_rect(buf, x, seg_y, seg_w, seg_h, radius, sf, BORDER_COLOR);
@@ -417,10 +437,8 @@ pub fn draw(
             .map(|t| t.elapsed())
             .unwrap_or_default();
         Some(format_duration(elapsed))
-    } else if let Some(d) = input.last_command_duration {
-        Some(format_duration(d))
     } else {
-        None
+        input.last_command_duration.map(format_duration)
     };
     if let Some(ref label) = duration_label {
         let res = badges::duration::draw(&mut badge_ctx, right_x, label);
@@ -482,7 +500,11 @@ pub fn draw(
         let slash_cmd_len = if input.text.starts_with('/') {
             let cmd_end = input.text.find(' ').unwrap_or(input.text.len());
             let cmd = &input.text[..cmd_end];
-            if SLASH_COMMANDS.iter().any(|sc| sc.name == cmd) || SLASH_COMMANDS.iter().any(|sc| cmd.len() < sc.name.len() && sc.name.starts_with(cmd)) {
+            if SLASH_COMMANDS.iter().any(|sc| sc.name == cmd)
+                || SLASH_COMMANDS
+                    .iter()
+                    .any(|sc| cmd.len() < sc.name.len() && sc.name.starts_with(cmd))
+            {
                 cmd_end
             } else {
                 0
@@ -495,55 +517,104 @@ pub fn draw(
             let cmd_text = &input.text[..slash_cmd_len];
             let rest_text = &input.text[slash_cmd_len..];
 
-            let cmd_w = measure_text_width(font_system, cmd_text, input_metrics, Family::Monospace) as usize;
+            let cmd_w = measure_text_width(font_system, cmd_text, input_metrics, Family::Monospace)
+                as usize;
             let pill_pad = (3.0 * sf) as usize;
             let pill_h = (input_line_height * 0.85) as usize;
             let pill_y = text_y + ((input_line_height - pill_h as f32) / 2.0) as usize;
             let pill_r = (3.0 * sf) as usize;
             const SLASH_CMD_BG: Rgb = (55, 20, 45);
-            fill_rounded_rect(buf, text_x.saturating_sub(pill_pad), pill_y, cmd_w + pill_pad * 2, pill_h, pill_r, SLASH_CMD_BG);
+            fill_rounded_rect(
+                buf,
+                text_x.saturating_sub(pill_pad),
+                pill_y,
+                cmd_w + pill_pad * 2,
+                pill_h,
+                pill_r,
+                SLASH_CMD_BG,
+            );
 
-            draw_text_at(buf, font_system, swash_cache, text_x, text_y, buf.height,
-                cmd_text, input_metrics, theme::PRIMARY, Family::Monospace);
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                text_x,
+                text_y,
+                buf.height,
+                cmd_text,
+                input_metrics,
+                theme::PRIMARY,
+                Family::Monospace,
+            );
 
             if !rest_text.is_empty() {
-                draw_text_at(buf, font_system, swash_cache, text_x + cmd_w, text_y, buf.height,
-                    rest_text, input_metrics, INPUT_TEXT, Family::Monospace);
-            }
-        } else {
-            draw_text_at(buf, font_system, swash_cache, text_x, text_y, buf.height,
-                &input.text, input_metrics, INPUT_TEXT, Family::Monospace);
-        }
-
-        if cursor_visible {
-            let before_cursor = &input.text[..input.cursor.min(input.text.len())];
-            let cursor_offset = measure_text_width(font_system, before_cursor, input_metrics, Family::Monospace) as usize;
-            let beam_w = (1.5 * sf).max(1.0) as usize;
-            let cursor_h = (input_line_height * 0.85) as usize;
-            let cursor_y = input_y + ((input_h as f32 - cursor_h as f32) / 2.0) as usize;
-            let r = beam_w / 2;
-            fill_rounded_rect(buf, cursor_x + cursor_offset, cursor_y, beam_w, cursor_h, r, CURSOR_COLOR);
-        }
-
-        if let Some(ref suggestion) = input.suggestion {
-            if suggestion.len() > input.text.len() {
-                let ghost = &suggestion[input.text.len()..];
-                let text_w =
-                    measure_text_width(font_system, &input.text, input_metrics, Family::Monospace)
-                        as usize;
                 draw_text_at(
                     buf,
                     font_system,
                     swash_cache,
-                    text_x + text_w,
+                    text_x + cmd_w,
                     text_y,
                     buf.height,
-                    ghost,
+                    rest_text,
                     input_metrics,
-                    SUGGESTION_COLOR,
+                    INPUT_TEXT,
                     Family::Monospace,
                 );
             }
+        } else {
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                text_x,
+                text_y,
+                buf.height,
+                &input.text,
+                input_metrics,
+                INPUT_TEXT,
+                Family::Monospace,
+            );
+        }
+
+        if cursor_visible {
+            let before_cursor = &input.text[..input.cursor.min(input.text.len())];
+            let cursor_offset =
+                measure_text_width(font_system, before_cursor, input_metrics, Family::Monospace)
+                    as usize;
+            let beam_w = (1.5 * sf).max(1.0) as usize;
+            let cursor_h = (input_line_height * 0.85) as usize;
+            let cursor_y = input_y + ((input_h as f32 - cursor_h as f32) / 2.0) as usize;
+            let r = beam_w / 2;
+            fill_rounded_rect(
+                buf,
+                cursor_x + cursor_offset,
+                cursor_y,
+                beam_w,
+                cursor_h,
+                r,
+                CURSOR_COLOR,
+            );
+        }
+
+        if let Some(ref suggestion) = input.suggestion
+            && suggestion.len() > input.text.len()
+        {
+            let ghost = &suggestion[input.text.len()..];
+            let text_w =
+                measure_text_width(font_system, &input.text, input_metrics, Family::Monospace)
+                    as usize;
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                text_x + text_w,
+                text_y,
+                buf.height,
+                ghost,
+                input_metrics,
+                SUGGESTION_COLOR,
+                Family::Monospace,
+            );
         }
     } else {
         let placeholder_x = text_x;
@@ -578,14 +649,32 @@ pub fn draw(
             );
         } else {
             let placeholder = input.placeholder();
-            draw_text_at(buf, font_system, swash_cache, placeholder_x, text_y, buf.height,
-                placeholder, input_metrics, SUGGESTION_COLOR, Family::Monospace);
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                placeholder_x,
+                text_y,
+                buf.height,
+                placeholder,
+                input_metrics,
+                SUGGESTION_COLOR,
+                Family::Monospace,
+            );
             if cursor_visible {
                 let beam_w = (1.5 * sf).max(1.0) as usize;
                 let cursor_h = (input_line_height * 0.85) as usize;
                 let cursor_y = input_y + ((input_h as f32 - cursor_h as f32) / 2.0) as usize;
                 let r = beam_w / 2;
-                fill_rounded_rect(buf, placeholder_x, cursor_y, beam_w, cursor_h, r, CURSOR_COLOR);
+                fill_rounded_rect(
+                    buf,
+                    placeholder_x,
+                    cursor_y,
+                    beam_w,
+                    cursor_h,
+                    r,
+                    CURSOR_COLOR,
+                );
             }
         }
     }
@@ -694,7 +783,6 @@ pub fn draw_slash_menu(
     }
 }
 
-
 pub fn stroke_rounded_rect(
     buf: &mut PixelBuffer,
     x: usize,
@@ -795,7 +883,11 @@ mod tests {
     #[test]
     fn all_slash_commands_start_with_slash() {
         for cmd in SLASH_COMMANDS {
-            assert!(cmd.name.starts_with('/'), "Command '{}' missing leading /", cmd.name);
+            assert!(
+                cmd.name.starts_with('/'),
+                "Command '{}' missing leading /",
+                cmd.name
+            );
         }
     }
 

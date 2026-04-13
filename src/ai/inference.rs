@@ -1,6 +1,6 @@
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::Arc;
 
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::sampling::LlamaSampler;
@@ -110,9 +110,10 @@ fn do_inference(
         }
         batch.clear();
         let chunk_end = (chunk_start + chunk_size).min(n_tokens);
-        for i in chunk_start..chunk_end {
-            let is_last = i == n_tokens - 1;
-            if batch.add(tokens[i], i as i32, &[0], is_last).is_err() {
+        for (i, token) in tokens[chunk_start..chunk_end].iter().enumerate() {
+            let pos = chunk_start + i;
+            let is_last = pos == n_tokens - 1;
+            if batch.add(*token, pos as i32, &[0], is_last).is_err() {
                 log::error!("Failed to add token to batch");
                 let _ = token_tx.send(String::new());
                 return Some(InferenceResult {
@@ -174,13 +175,10 @@ fn do_inference(
             break;
         }
 
-        let piece = match handle
+        let piece = handle
             .model
             .token_to_piece(token, &mut decoder, false, None)
-        {
-            Ok(p) => p,
-            Err(_) => String::new(),
-        };
+            .unwrap_or_default();
 
         if !piece.is_empty() {
             buf.push_str(&piece);

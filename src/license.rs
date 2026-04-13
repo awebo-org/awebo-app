@@ -96,7 +96,10 @@ impl std::fmt::Display for ActivationError {
         match self {
             ActivationError::InvalidKey => write!(f, "Invalid license key."),
             ActivationError::MaxDevicesReached { used, max } => {
-                write!(f, "Key already activated on maximum number of devices ({used}/{max}).")
+                write!(
+                    f,
+                    "Key already activated on maximum number of devices ({used}/{max})."
+                )
             }
             ActivationError::NetworkError(e) => write!(f, "Network error: {e}"),
             ActivationError::StorageError(e) => write!(f, "Failed to save license: {e}"),
@@ -118,7 +121,9 @@ fn validate_key_online(key: &str, machine_id: &str) -> Result<LicenseData, Activ
 
     match resp {
         Ok(resp) => {
-            let text = resp.into_body().read_to_string()
+            let text = resp
+                .into_body()
+                .read_to_string()
                 .map_err(|e| ActivationError::NetworkError(e.to_string()))?;
             let json: serde_json::Value = serde_json::from_str(&text)
                 .map_err(|e| ActivationError::NetworkError(e.to_string()))?;
@@ -129,10 +134,7 @@ fn validate_key_online(key: &str, machine_id: &str) -> Result<LicenseData, Activ
                 let max_devices = json["license_key"]["activation_limit"]
                     .as_u64()
                     .unwrap_or(3) as u32;
-                let instance_id = json["instance"]["id"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string();
+                let instance_id = json["instance"]["id"].as_str().unwrap_or("").to_string();
 
                 let now = SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
@@ -150,8 +152,12 @@ fn validate_key_online(key: &str, machine_id: &str) -> Result<LicenseData, Activ
             } else if json["error"].as_str().is_some() {
                 let msg = json["error"].as_str().unwrap_or("Unknown error");
                 if msg.contains("limit") || msg.contains("activation") {
-                    let used = json["license_key"]["activation_usage"].as_u64().unwrap_or(0) as u32;
-                    let max = json["license_key"]["activation_limit"].as_u64().unwrap_or(3) as u32;
+                    let used = json["license_key"]["activation_usage"]
+                        .as_u64()
+                        .unwrap_or(0) as u32;
+                    let max = json["license_key"]["activation_limit"]
+                        .as_u64()
+                        .unwrap_or(3) as u32;
                     Err(ActivationError::MaxDevicesReached { used, max })
                 } else {
                     Err(ActivationError::InvalidKey)
@@ -227,8 +233,8 @@ fn derive_key() -> [u8; 32] {
 }
 
 fn save_encrypted_license(data: &LicenseData) -> Result<(), ActivationError> {
-    let json = serde_json::to_string(data)
-        .map_err(|e| ActivationError::StorageError(e.to_string()))?;
+    let json =
+        serde_json::to_string(data).map_err(|e| ActivationError::StorageError(e.to_string()))?;
 
     let key = derive_key();
     let cipher = ChaCha20Poly1305::new_from_slice(&key)
@@ -252,8 +258,7 @@ fn save_encrypted_license(data: &LicenseData) -> Result<(), ActivationError> {
         std::fs::create_dir_all(parent)
             .map_err(|e| ActivationError::StorageError(e.to_string()))?;
     }
-    std::fs::write(&path, &out)
-        .map_err(|e| ActivationError::StorageError(e.to_string()))?;
+    std::fs::write(&path, &out).map_err(|e| ActivationError::StorageError(e.to_string()))?;
 
     Ok(())
 }

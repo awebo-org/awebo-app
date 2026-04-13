@@ -21,14 +21,24 @@ pub fn search(query: &str, max_results: usize) -> Option<String> {
     if results.is_empty() {
         return None;
     }
-    Some(results.iter().map(|r| r.snippet.clone()).collect::<Vec<_>>().join("\n"))
+    Some(
+        results
+            .iter()
+            .map(|r| r.snippet.clone())
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
 }
 
 /// Perform a blocking DuckDuckGo search and return structured results.
 pub fn search_structured(query: &str, max_results: usize) -> Option<Vec<SearchResult>> {
     let body = fetch_search_html(query)?;
     let results = extract_results(&body, max_results);
-    if results.is_empty() { None } else { Some(results) }
+    if results.is_empty() {
+        None
+    } else {
+        Some(results)
+    }
 }
 
 /// Fetch the raw HTML from DuckDuckGo. Exposed for reuse.
@@ -82,10 +92,11 @@ fn extract_results(html: &str, max: usize) -> Vec<SearchResult> {
             None => break,
         };
 
-        let tag_start = html[..title_marker_pos].rfind('<').unwrap_or(title_marker_pos);
+        let tag_start = html[..title_marker_pos]
+            .rfind('<')
+            .unwrap_or(title_marker_pos);
         let href_search_end = (title_marker_pos + title_marker.len() + 200).min(html.len());
-        let url = extract_href(&html[tag_start..href_search_end])
-            .unwrap_or_default();
+        let url = extract_href(&html[tag_start..href_search_end]).unwrap_or_default();
 
         let title_tag_end = match html[title_marker_pos..].find('>') {
             Some(p) => title_marker_pos + p + 1,
@@ -95,18 +106,26 @@ fn extract_results(html: &str, max: usize) -> Vec<SearchResult> {
             Some(p) => title_tag_end + p,
             None => break,
         };
-        let title = strip_html_tags(&html[title_tag_end..title_close]).trim().to_string();
+        let title = strip_html_tags(&html[title_tag_end..title_close])
+            .trim()
+            .to_string();
 
         let search_from = title_close;
         let snippet = if let Some(sp) = html[search_from..].find(snippet_marker) {
             let spos = search_from + sp;
             let stag_end = match html[spos..].find('>') {
                 Some(p) => spos + p + 1,
-                None => { pos = title_close; continue; }
+                None => {
+                    pos = title_close;
+                    continue;
+                }
             };
             let sclose = match html[stag_end..].find("</") {
                 Some(p) => stag_end + p,
-                None => { pos = title_close; continue; }
+                None => {
+                    pos = title_close;
+                    continue;
+                }
             };
             pos = sclose;
             strip_html_tags(&html[stag_end..sclose]).trim().to_string()
@@ -116,7 +135,11 @@ fn extract_results(html: &str, max: usize) -> Vec<SearchResult> {
         };
 
         if !title.is_empty() {
-            results.push(SearchResult { title, url, snippet });
+            results.push(SearchResult {
+                title,
+                url,
+                snippet,
+            });
         }
     }
 
@@ -168,7 +191,10 @@ fn hex_val(b: u8) -> u8 {
 /// Extract result snippets from DuckDuckGo HTML response (legacy helper).
 #[cfg(test)]
 fn extract_snippets(html: &str, max: usize) -> Vec<String> {
-    extract_results(html, max).into_iter().map(|r| r.snippet).collect()
+    extract_results(html, max)
+        .into_iter()
+        .map(|r| r.snippet)
+        .collect()
 }
 
 /// Strip HTML tags and decode basic entities from a string.
@@ -357,7 +383,7 @@ mod tests {
 
     #[test]
     fn web_search_tool_missing_query() {
-        use crate::agent::tools::{WebSearchTool, Tool, ToolCallArgs};
+        use crate::agent::tools::{Tool, ToolCallArgs, WebSearchTool};
         let tool = WebSearchTool;
         let args = ToolCallArgs::new();
         let result = tool.execute(&args, "/tmp");

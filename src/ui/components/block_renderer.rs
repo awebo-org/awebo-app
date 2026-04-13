@@ -27,11 +27,7 @@ fn measure_char_width(font_system: &mut FontSystem, sf: f32) -> f32 {
     let out_line_height = LINE_H * sf;
     let metrics = Metrics::new(out_font_size, out_line_height);
     let w = crate::renderer::text::measure_text_width(font_system, "M", metrics, Family::Monospace);
-    if w > 0.0 {
-        w
-    } else {
-        CHAR_W_FALLBACK * sf
-    }
+    if w > 0.0 { w } else { CHAR_W_FALLBACK * sf }
 }
 
 /// Public wrapper: measure the monospace character width used for block
@@ -134,7 +130,7 @@ fn output_line_height(line: &StyledLine, base_h: f32) -> f32 {
         return HR_HEIGHT;
     }
     let hl = line_heading_level(line);
-    if hl >= 1 && hl <= 3 {
+    if (1..=3).contains(&hl) {
         let scale = HEADING_SCALE[(hl - 1) as usize];
         base_h * scale + base_h * HEADING_PAD_TOP
     } else {
@@ -314,19 +310,24 @@ fn wrapped_output_lines(output: &[StyledLine], max_chars: usize) -> usize {
 /// Pixel height of block output content, accounting for headings and HR.
 fn output_content_height(output: &[StyledLine], sf: f32, max_chars: usize) -> f32 {
     let base_h = LINE_H * sf;
-    output.iter().map(|line| {
-        let visual_lines = if max_chars == 0 {
-            1
-        } else {
-            let total: usize = line.iter().map(|s| s.text.chars().count()).sum();
-            if total <= max_chars { 1 } else {
-                let full_text: String = line.iter().map(|s| s.text.as_str()).collect();
-                word_wrap_count(&full_text, max_chars)
-            }
-        };
-        let first = output_line_height(line, base_h);
-        first + (visual_lines.saturating_sub(1)) as f32 * base_h
-    }).sum()
+    output
+        .iter()
+        .map(|line| {
+            let visual_lines = if max_chars == 0 {
+                1
+            } else {
+                let total: usize = line.iter().map(|s| s.text.chars().count()).sum();
+                if total <= max_chars {
+                    1
+                } else {
+                    let full_text: String = line.iter().map(|s| s.text.as_str()).collect();
+                    word_wrap_count(&full_text, max_chars)
+                }
+            };
+            let first = output_line_height(line, base_h);
+            first + (visual_lines.saturating_sub(1)) as f32 * base_h
+        })
+        .sum()
 }
 
 /// Public version of `wrapped_output_lines` for use in select-all.
@@ -423,7 +424,10 @@ fn block_height(
     } else {
         0.0
     };
-    let approval = if matches!(&block.agent_step, Some(crate::blocks::AgentStepKind::ToolApproval { .. })) {
+    let approval = if matches!(
+        &block.agent_step,
+        Some(crate::blocks::AgentStepKind::ToolApproval { .. })
+    ) {
         APPROVAL_ROW_H * sf
     } else {
         0.0
@@ -518,27 +522,27 @@ pub fn hit_test(
         let bh = block_height(block, sf, is_last, max_chars) as i32;
         let block_bottom = y + bh;
 
-        if my < y as f64 && best.is_none() {
-            if !block.output.is_empty() && !block.thinking {
-                return Some(crate::blocks::BlockTextPos {
-                    block_idx: bi,
-                    line_idx: 0,
-                    char_idx: 0,
-                });
-            }
+        if my < y as f64 && best.is_none() && !block.output.is_empty() && !block.thinking {
+            return Some(crate::blocks::BlockTextPos {
+                block_idx: bi,
+                line_idx: 0,
+                char_idx: 0,
+            });
         }
 
         let header_cmd_top = y + block_pad_y;
         let output_top = header_cmd_top + (HEADER_H * sf) as i32 + (CMD_H * sf) as i32;
 
-        if my >= header_cmd_top as f64 && my < output_top as f64 {
-            if !block.output.is_empty() && !block.thinking {
-                return Some(crate::blocks::BlockTextPos {
-                    block_idx: bi,
-                    line_idx: 0,
-                    char_idx: char_idx_from_mx(mx),
-                });
-            }
+        if my >= header_cmd_top as f64
+            && my < output_top as f64
+            && !block.output.is_empty()
+            && !block.thinking
+        {
+            return Some(crate::blocks::BlockTextPos {
+                block_idx: bi,
+                line_idx: 0,
+                char_idx: char_idx_from_mx(mx),
+            });
         }
 
         y = output_top;
@@ -621,7 +625,13 @@ pub fn draw(
     if blocks.blocks.is_empty() {
         let available_h = y_end.saturating_sub(y_start);
         if available_h > 0 {
-            buf.fill_rect(x_offset, y_start, buf.width.saturating_sub(x_offset), available_h, crate::renderer::theme::BG);
+            buf.fill_rect(
+                x_offset,
+                y_start,
+                buf.width.saturating_sub(x_offset),
+                available_h,
+                crate::renderer::theme::BG,
+            );
         }
         return Vec::new();
     }
@@ -634,7 +644,9 @@ pub fn draw(
     let block_pad = (BLOCK_PAD_X * sf) as usize;
     let right_pad = pad;
     let pad = pad + x_offset;
-    let content_width = buf.width.saturating_sub(pad + block_pad + right_pad + block_pad);
+    let content_width = buf
+        .width
+        .saturating_sub(pad + block_pad + right_pad + block_pad);
     let max_chars = if char_w > 0.0 {
         (content_width as f32 / char_w).floor() as usize
     } else {
@@ -672,9 +684,20 @@ pub fn draw(
             let pad_y = BLOCK_PAD_Y * sf * 2.0;
             let header = HEADER_H * sf;
             let cmd = CMD_H * sf;
-            let content = if block.thinking { THINKING_H * sf } else { output_content_height(&block.output, sf, max_chars) };
-            let pending = if block.pending_line.is_some() { LINE_H * sf } else { 0.0 };
-            let approval = if matches!(&block.agent_step, Some(crate::blocks::AgentStepKind::ToolApproval { .. })) {
+            let content = if block.thinking {
+                THINKING_H * sf
+            } else {
+                output_content_height(&block.output, sf, max_chars)
+            };
+            let pending = if block.pending_line.is_some() {
+                LINE_H * sf
+            } else {
+                0.0
+            };
+            let approval = if matches!(
+                &block.agent_step,
+                Some(crate::blocks::AgentStepKind::ToolApproval { .. })
+            ) {
                 APPROVAL_ROW_H * sf
             } else {
                 0.0
@@ -703,7 +726,10 @@ pub fn draw(
     let link_gen = hovered_link.map_or(0u64, |l| {
         l.block_idx as u64 * 1000000 + l.visual_line_idx as u64 * 1000 + l.char_start as u64
     });
-    let any_pending = blocks.blocks.iter().any(|b| b.pending_line.is_some() || b.thinking);
+    let any_pending = blocks
+        .blocks
+        .iter()
+        .any(|b| b.pending_line.is_some() || b.thinking);
     let any_running = blocks.blocks.iter().any(|b| b.is_running());
 
     let dirty = !height_cache.pixels_valid
@@ -732,7 +758,13 @@ pub fn draw(
     height_cache.last_any_pending = any_pending;
     height_cache.last_overlay_active = overlay_active;
 
-    buf.fill_rect(x_offset, y_start, buf.width.saturating_sub(x_offset), available_h, crate::renderer::theme::BG);
+    buf.fill_rect(
+        x_offset,
+        y_start,
+        buf.width.saturating_sub(x_offset),
+        available_h,
+        crate::renderer::theme::BG,
+    );
 
     let total_h = height_cache.total_height as usize;
     let scroll = blocks.scroll_offset.max(0.0) as usize;
@@ -811,30 +843,62 @@ pub fn draw(
         let bh = height_cache.block_heights[i] as i32;
         let block_bottom = y + bh;
 
-        if y >= y_end as i32 { break; }
-        if block_bottom <= y_start as i32 { y = block_bottom; continue; }
+        if y >= y_end as i32 {
+            break;
+        }
+        if block_bottom <= y_start as i32 {
+            y = block_bottom;
+            continue;
+        }
 
         let is_agent = block.command.starts_with("/agent");
 
         if is_agent && !block.is_error {
             let bg_y = y.max(y_start as i32) as usize;
-            let bg_bottom = if is_last { block_bottom.min(y_end as i32) as usize }
-                else { (block_bottom - gap as i32 / 2).min(y_end as i32).max(0) as usize };
+            let bg_bottom = if is_last {
+                block_bottom.min(y_end as i32) as usize
+            } else {
+                (block_bottom - gap as i32 / 2).min(y_end as i32).max(0) as usize
+            };
             let bg_h = bg_bottom.saturating_sub(bg_y);
-            buf.fill_rect(pad, bg_y, buf.width.saturating_sub(pad + right_pad), bg_h, AGENT_BG);
+            buf.fill_rect(
+                pad,
+                bg_y,
+                buf.width.saturating_sub(pad + right_pad),
+                bg_h,
+                AGENT_BG,
+            );
             buf.fill_rect(pad, bg_y, (3.0 * sf).max(2.0) as usize, bg_h, AGENT_ACCENT);
         } else if block.is_error {
             let bg_y = y.max(y_start as i32) as usize;
-            let bg_bottom = if is_last { block_bottom.min(y_end as i32) as usize }
-                else { (block_bottom - gap as i32 / 2).min(y_end as i32).max(0) as usize };
+            let bg_bottom = if is_last {
+                block_bottom.min(y_end as i32) as usize
+            } else {
+                (block_bottom - gap as i32 / 2).min(y_end as i32).max(0) as usize
+            };
             let bg_h = bg_bottom.saturating_sub(bg_y);
-            buf.fill_rect(pad, bg_y, buf.width.saturating_sub(pad + right_pad), bg_h, ERROR_BG);
+            buf.fill_rect(
+                pad,
+                bg_y,
+                buf.width.saturating_sub(pad + right_pad),
+                bg_h,
+                ERROR_BG,
+            );
             buf.fill_rect(pad, bg_y, (3.0 * sf).max(2.0) as usize, bg_h, ERROR_ACCENT);
         } else if block.selected {
             let bg_y = y.max(y_start as i32) as usize;
-            let bg_bottom = if is_last { block_bottom.min(y_end as i32) as usize }
-                else { (block_bottom - gap as i32 / 2).min(y_end as i32).max(0) as usize };
-            buf.fill_rect(x_offset, bg_y, buf.width.saturating_sub(x_offset), bg_bottom.saturating_sub(bg_y), SELECTED_BG);
+            let bg_bottom = if is_last {
+                block_bottom.min(y_end as i32) as usize
+            } else {
+                (block_bottom - gap as i32 / 2).min(y_end as i32).max(0) as usize
+            };
+            buf.fill_rect(
+                x_offset,
+                bg_y,
+                buf.width.saturating_sub(x_offset),
+                bg_bottom.saturating_sub(bg_y),
+                SELECTED_BG,
+            );
         }
 
         let mut line_y = y + block_pad_y;
@@ -850,9 +914,19 @@ pub fn draw(
             } else {
                 HEADER_COLOR
             };
-            draw_text_at_buffered(buf, font_system, swash_cache, &mut text_buf,
-                pad + block_pad, line_y as usize, buf.height,
-                &label, header_metrics, hdr_color, Family::Monospace);
+            draw_text_at_buffered(
+                buf,
+                font_system,
+                swash_cache,
+                &mut text_buf,
+                pad + block_pad,
+                line_y as usize,
+                buf.height,
+                &label,
+                header_metrics,
+                hdr_color,
+                Family::Monospace,
+            );
         }
         line_y += (HEADER_H * sf) as i32;
 
@@ -865,10 +939,34 @@ pub fn draw(
                 ("$ ", CMD_PREFIX_COLOR)
             };
             let mut x = (pad + block_pad) as f32;
-            collect_glyphs(&mut glyphs, prefix, &mut x, line_y as usize,
-                prefix_color, char_w, cmd_font_size, cmd_line_height, y_start, y_end, true, false);
-            collect_glyphs(&mut glyphs, &block.command, &mut x, line_y as usize,
-                CMD_COLOR, char_w, cmd_font_size, cmd_line_height, y_start, y_end, false, false);
+            collect_glyphs(
+                &mut glyphs,
+                prefix,
+                &mut x,
+                line_y as usize,
+                prefix_color,
+                char_w,
+                cmd_font_size,
+                cmd_line_height,
+                y_start,
+                y_end,
+                true,
+                false,
+            );
+            collect_glyphs(
+                &mut glyphs,
+                &block.command,
+                &mut x,
+                line_y as usize,
+                CMD_COLOR,
+                char_w,
+                cmd_font_size,
+                cmd_line_height,
+                y_start,
+                y_end,
+                false,
+                false,
+            );
         }
         line_y += (CMD_H * sf) as i32;
 
@@ -883,13 +981,27 @@ pub fn draw(
                 super::awebo::draw(buf, dots_x, dots_y, sf, elapsed_ms, THINKING_TEXT_COLOR);
 
                 let dots_w = super::awebo::width(sf);
-                let offset = block.command.as_bytes().iter().fold(0usize, |h, &b| h.wrapping_mul(31).wrapping_add(b as usize));
+                let offset = block
+                    .command
+                    .as_bytes()
+                    .iter()
+                    .fold(0usize, |h, &b| h.wrapping_mul(31).wrapping_add(b as usize));
                 let phrase_idx = (offset + elapsed_ms as usize / 2500) % THINKING_PHRASES.len();
                 let phrase = THINKING_PHRASES[phrase_idx];
                 let label = format!("  {phrase}");
-                draw_text_at_buffered(buf, font_system, swash_cache, &mut text_buf,
-                    dots_x + dots_w + (2.0 * sf) as usize, line_y as usize, buf.height,
-                    &label, out_metrics, THINKING_TEXT_COLOR, Family::Monospace);
+                draw_text_at_buffered(
+                    buf,
+                    font_system,
+                    swash_cache,
+                    &mut text_buf,
+                    dots_x + dots_w + (2.0 * sf) as usize,
+                    line_y as usize,
+                    buf.height,
+                    &label,
+                    out_metrics,
+                    THINKING_TEXT_COLOR,
+                    Family::Monospace,
+                );
             }
         } else {
             let cum = &height_cache.block_cum_lines[i];
@@ -916,8 +1028,10 @@ pub fn draw(
                     0usize
                 };
 
-                for (_source_line_idx, styled_line) in block.output[first_line..].iter().enumerate() {
-                    if line_y >= y_end as i32 { break; }
+                for styled_line in block.output[first_line..].iter() {
+                    if line_y >= y_end as i32 {
+                        break;
+                    }
 
                     let hl = line_heading_level(styled_line);
                     let is_hr = line_is_hr(styled_line);
@@ -928,14 +1042,20 @@ pub fn draw(
                             let rule_y = (line_y + hr_h / 2) as usize;
                             let rule_x = pad + block_pad;
                             let rule_w = content_width;
-                            buf.fill_rect(rule_x, rule_y, rule_w, (1.0 * sf).max(1.0) as usize, HR_COLOR);
+                            buf.fill_rect(
+                                rule_x,
+                                rule_y,
+                                rule_w,
+                                (1.0 * sf).max(1.0) as usize,
+                                HR_COLOR,
+                            );
                         }
                         line_y += hr_h;
                         visual_line_idx += 1;
                         continue;
                     }
 
-                    let (span_font_size, span_line_height, extra_top) = if hl >= 1 && hl <= 3 {
+                    let (span_font_size, span_line_height, extra_top) = if (1..=3).contains(&hl) {
                         let scale = HEADING_SCALE[(hl - 1) as usize];
                         let fs = out_font_size * scale;
                         let lh = out_line_height * scale;
@@ -944,7 +1064,7 @@ pub fn draw(
                     } else {
                         (out_font_size, out_line_height, 0i32)
                     };
-                    let cur_line_h = if hl >= 1 && hl <= 3 {
+                    let cur_line_h = if (1..=3).contains(&hl) {
                         (span_line_height as i32) + extra_top
                     } else {
                         line_h_i32
@@ -954,7 +1074,9 @@ pub fn draw(
 
                     let wrapped = wrap_styled_line(styled_line, max_chars);
                     for (wrap_idx, visual_line) in wrapped.iter().enumerate() {
-                        if line_y >= y_end as i32 { break; }
+                        if line_y >= y_end as i32 {
+                            break;
+                        }
                         let (vl_font_size, vl_line_height, vl_h) = if wrap_idx == 0 {
                             (span_font_size, span_line_height, cur_line_h)
                         } else {
@@ -962,29 +1084,47 @@ pub fn draw(
                         };
 
                         if line_y >= y_start as i32 && !visual_line.is_empty() {
-                            let line_text: String = visual_line.iter().map(|s| s.text.as_str()).collect();
+                            let line_text: String =
+                                visual_line.iter().map(|s| s.text.as_str()).collect();
                             let line_char_count = line_text.chars().count();
                             let base_x = (pad + block_pad) as f32;
 
                             if let Some(sel) = selection {
                                 let ss = sel.start();
                                 let se = sel.end();
-                                let on_line = (i > ss.block_idx || (i == ss.block_idx && visual_line_idx >= ss.line_idx))
-                                    && (i < se.block_idx || (i == se.block_idx && visual_line_idx <= se.line_idx));
+                                let on_line = (i > ss.block_idx
+                                    || (i == ss.block_idx && visual_line_idx >= ss.line_idx))
+                                    && (i < se.block_idx
+                                        || (i == se.block_idx && visual_line_idx <= se.line_idx));
                                 if on_line {
-                                    let is_first = i == ss.block_idx && visual_line_idx == ss.line_idx;
-                                    let is_last_s = i == se.block_idx && visual_line_idx == se.line_idx;
-                                    let cs = if is_first { ss.char_idx } else { 0 }.min(line_char_count);
-                                    let ce = if is_last_s { se.char_idx } else { line_char_count }.min(line_char_count);
+                                    let is_first =
+                                        i == ss.block_idx && visual_line_idx == ss.line_idx;
+                                    let is_last_s =
+                                        i == se.block_idx && visual_line_idx == se.line_idx;
+                                    let cs =
+                                        if is_first { ss.char_idx } else { 0 }.min(line_char_count);
+                                    let ce = if is_last_s {
+                                        se.char_idx
+                                    } else {
+                                        line_char_count
+                                    }
+                                    .min(line_char_count);
                                     let extend = !is_last_s;
                                     if ce > cs || extend {
                                         let sx = (base_x + cs as f32 * char_w) as usize;
                                         let sw = if extend {
-                                            content_width.saturating_sub((cs as f32 * char_w) as usize)
+                                            content_width
+                                                .saturating_sub((cs as f32 * char_w) as usize)
                                         } else {
                                             ((ce - cs) as f32 * char_w) as usize
                                         };
-                                        buf.fill_rect(sx, line_y as usize, sw, vl_h as usize, SELECTION_BG);
+                                        buf.fill_rect(
+                                            sx,
+                                            line_y as usize,
+                                            sw,
+                                            vl_h as usize,
+                                            SELECTION_BG,
+                                        );
                                     }
                                 }
                             }
@@ -993,12 +1133,16 @@ pub fn draw(
                             let link_range: Option<(usize, usize)> = hovered_link.and_then(|hl| {
                                 if hl.block_idx == i && hl.visual_line_idx == visual_line_idx {
                                     Some((hl.char_start, hl.char_end))
-                                } else { None }
+                                } else {
+                                    None
+                                }
                             });
 
                             let mut char_offset = 0usize;
                             for span in visual_line {
-                                if span.text.is_empty() { continue; }
+                                if span.text.is_empty() {
+                                    continue;
+                                }
                                 let span_chars = span.text.chars().count();
                                 let span_start = char_offset;
                                 let span_end = char_offset + span_chars;
@@ -1006,32 +1150,85 @@ pub fn draw(
                                 if span.code && line_y >= y_start as i32 && line_y < y_end as i32 {
                                     let code_x = x as usize;
                                     let code_w = (span_chars as f32 * char_w) as usize;
-                                    buf.fill_rect(code_x, line_y as usize, code_w, vl_h as usize, CODE_BG);
+                                    buf.fill_rect(
+                                        code_x,
+                                        line_y as usize,
+                                        code_w,
+                                        vl_h as usize,
+                                        CODE_BG,
+                                    );
                                 }
 
                                 if let Some((link_cs, link_ce)) = link_range {
-                                    for (pt, pf) in &split_span_for_link(&span.text, span.fg, span_start, span_end, link_cs, link_ce) {
-                                        if pt.is_empty() { continue; }
-                                        collect_glyphs(&mut glyphs, pt, &mut x, line_y as usize,
-                                            *pf, char_w, vl_font_size, vl_line_height, y_start, y_end, span.bold, span.italic);
+                                    for (pt, pf) in &split_span_for_link(
+                                        &span.text, span.fg, span_start, span_end, link_cs, link_ce,
+                                    ) {
+                                        if pt.is_empty() {
+                                            continue;
+                                        }
+                                        collect_glyphs(
+                                            &mut glyphs,
+                                            pt,
+                                            &mut x,
+                                            line_y as usize,
+                                            *pf,
+                                            char_w,
+                                            vl_font_size,
+                                            vl_line_height,
+                                            y_start,
+                                            y_end,
+                                            span.bold,
+                                            span.italic,
+                                        );
                                     }
                                 } else {
-                                    collect_glyphs(&mut glyphs, &span.text, &mut x, line_y as usize,
-                                        span.fg, char_w, vl_font_size, vl_line_height, y_start, y_end, span.bold, span.italic);
+                                    collect_glyphs(
+                                        &mut glyphs,
+                                        &span.text,
+                                        &mut x,
+                                        line_y as usize,
+                                        span.fg,
+                                        char_w,
+                                        vl_font_size,
+                                        vl_line_height,
+                                        y_start,
+                                        y_end,
+                                        span.bold,
+                                        span.italic,
+                                    );
                                 }
 
-                                if span.underline && line_y >= y_start as i32 && line_y < y_end as i32 {
+                                if span.underline
+                                    && line_y >= y_start as i32
+                                    && line_y < y_end as i32
+                                {
                                     let ux = (base_x + char_offset as f32 * char_w) as usize;
                                     let uw = (span_chars as f32 * char_w) as usize;
-                                    let uy = line_y as usize + vl_h as usize - (1.5 * sf).max(1.0) as usize;
-                                    buf.fill_rect(ux, uy, uw, (1.0 * sf).max(1.0) as usize, span.fg);
+                                    let uy = line_y as usize + vl_h as usize
+                                        - (1.5 * sf).max(1.0) as usize;
+                                    buf.fill_rect(
+                                        ux,
+                                        uy,
+                                        uw,
+                                        (1.0 * sf).max(1.0) as usize,
+                                        span.fg,
+                                    );
                                 }
 
-                                if span.strikethrough && line_y >= y_start as i32 && line_y < y_end as i32 {
+                                if span.strikethrough
+                                    && line_y >= y_start as i32
+                                    && line_y < y_end as i32
+                                {
                                     let sx = (base_x + char_offset as f32 * char_w) as usize;
                                     let sw = (span_chars as f32 * char_w) as usize;
                                     let sy = line_y as usize + (vl_h as usize / 2);
-                                    buf.fill_rect(sx, sy, sw, (1.0 * sf).max(1.0) as usize, span.fg);
+                                    buf.fill_rect(
+                                        sx,
+                                        sy,
+                                        sw,
+                                        (1.0 * sf).max(1.0) as usize,
+                                        span.fg,
+                                    );
                                 }
 
                                 char_offset = span_end;
@@ -1040,7 +1237,8 @@ pub fn draw(
                             if let Some((lcs, lce)) = link_range {
                                 let ux = (base_x + lcs as f32 * char_w) as usize;
                                 let uw = ((lce - lcs) as f32 * char_w) as usize;
-                                let uy = line_y as usize + vl_h as usize - (1.5 * sf).max(1.0) as usize;
+                                let uy =
+                                    line_y as usize + vl_h as usize - (1.5 * sf).max(1.0) as usize;
                                 buf.fill_rect(ux, uy, uw, (1.0 * sf).max(1.0) as usize, LINK_COLOR);
                             }
                         }
@@ -1051,25 +1249,48 @@ pub fn draw(
             }
         }
 
-        if let Some(pending) = &block.pending_line {
-            if line_y >= y_start as i32 && line_y < y_end as i32 && !pending.is_empty() {
-                let mut x = (pad + block_pad) as f32;
-                for span in pending {
-                    if span.text.is_empty() { continue; }
-                    collect_glyphs(&mut glyphs, &span.text, &mut x, line_y as usize,
-                        span.fg, char_w, out_font_size, out_line_height, y_start, y_end, span.bold, span.italic);
+        if let Some(pending) = &block.pending_line
+            && line_y >= y_start as i32
+            && line_y < y_end as i32
+            && !pending.is_empty()
+        {
+            let mut x = (pad + block_pad) as f32;
+            for span in pending {
+                if span.text.is_empty() {
+                    continue;
                 }
+                collect_glyphs(
+                    &mut glyphs,
+                    &span.text,
+                    &mut x,
+                    line_y as usize,
+                    span.fg,
+                    char_w,
+                    out_font_size,
+                    out_line_height,
+                    y_start,
+                    y_end,
+                    span.bold,
+                    span.italic,
+                );
             }
         }
 
-        if let Some(crate::blocks::AgentStepKind::ToolApproval { selected_option, .. }) = &block.agent_step {
+        if let Some(crate::blocks::AgentStepKind::ToolApproval {
+            selected_option, ..
+        }) = &block.agent_step
+        {
             let row_h = (APPROVAL_ROW_H * sf) as i32;
             let btn_y = line_y + (4.0 * sf) as i32;
             let btn_h = (row_h - (8.0 * sf) as i32).max(1);
             let sel = *selected_option;
 
             if btn_y >= y_start as i32 && btn_y < y_end as i32 {
-                let labels = ["  [Enter] Approve  ", "  [A] Always approve  ", "  [Esc] Reject  "];
+                let labels = [
+                    "  [Enter] Approve  ",
+                    "  [A] Always approve  ",
+                    "  [Esc] Reject  ",
+                ];
                 let mut bx = (pad + block_pad) as i32;
                 let btn_gap = (6.0 * sf) as i32;
 
@@ -1077,23 +1298,61 @@ pub fn draw(
                     let w = (label.chars().count() as f32 * char_w) as i32;
                     let is_sel = idx == sel;
 
-                    let bg_color = if is_sel { APPROVAL_ACTIVE_BG } else { theme::AGENT_BUTTON_BG };
-                    buf.fill_rect(bx as usize, btn_y as usize, w as usize, btn_h as usize, bg_color);
+                    let bg_color = if is_sel {
+                        APPROVAL_ACTIVE_BG
+                    } else {
+                        theme::AGENT_BUTTON_BG
+                    };
+                    buf.fill_rect(
+                        bx as usize,
+                        btn_y as usize,
+                        w as usize,
+                        btn_h as usize,
+                        bg_color,
+                    );
 
                     if !is_sel {
                         let bw = (1.0 * sf).max(1.0) as usize;
                         let border_c = theme::BORDER;
                         buf.fill_rect(bx as usize, btn_y as usize, w as usize, bw, border_c);
-                        buf.fill_rect(bx as usize, (btn_y + btn_h - bw as i32).max(0) as usize, w as usize, bw, border_c);
+                        buf.fill_rect(
+                            bx as usize,
+                            (btn_y + btn_h - bw as i32).max(0) as usize,
+                            w as usize,
+                            bw,
+                            border_c,
+                        );
                         buf.fill_rect(bx as usize, btn_y as usize, bw, btn_h as usize, border_c);
-                        buf.fill_rect((bx + w - bw as i32).max(0) as usize, btn_y as usize, bw, btn_h as usize, border_c);
+                        buf.fill_rect(
+                            (bx + w - bw as i32).max(0) as usize,
+                            btn_y as usize,
+                            bw,
+                            btn_h as usize,
+                            border_c,
+                        );
                     }
 
-                    let text_color = if is_sel { (255, 255, 255) } else { theme::FG_SECONDARY };
+                    let text_color = if is_sel {
+                        (255, 255, 255)
+                    } else {
+                        theme::FG_SECONDARY
+                    };
                     let text_y = btn_y + (btn_h - (out_line_height as i32)) / 2;
                     let mut gx = bx as f32;
-                    collect_glyphs(&mut glyphs, label, &mut gx, text_y as usize,
-                        text_color, char_w, out_font_size, out_line_height, y_start, y_end, is_sel, false);
+                    collect_glyphs(
+                        &mut glyphs,
+                        label,
+                        &mut gx,
+                        text_y as usize,
+                        text_color,
+                        char_w,
+                        out_font_size,
+                        out_line_height,
+                        y_start,
+                        y_end,
+                        is_sel,
+                        false,
+                    );
 
                     bx += w + btn_gap;
                 }
@@ -1105,8 +1364,13 @@ pub fn draw(
         if !is_last {
             let sep_y = (block_bottom - gap as i32 / 2).max(0) as usize;
             if sep_y > y_start && sep_y < y_end {
-                buf.fill_rect(pad, sep_y, buf.width.saturating_sub(pad + right_pad),
-                    (1.0 * sf).max(1.0) as usize, SEPARATOR_COLOR);
+                buf.fill_rect(
+                    pad,
+                    sep_y,
+                    buf.width.saturating_sub(pad + right_pad),
+                    (1.0 * sf).max(1.0) as usize,
+                    SEPARATOR_COLOR,
+                );
             }
         }
 
@@ -1115,7 +1379,11 @@ pub fn draw(
 
     if total_h > available_h {
         let geom = scrollbar_geometry(buf.width, y_start, available_h, total_h, scroll, sf);
-        let sc: Rgb = if scrollbar_hovered { (255, 255, 255) } else { (80, 84, 96) };
+        let sc: Rgb = if scrollbar_hovered {
+            (255, 255, 255)
+        } else {
+            (80, 84, 96)
+        };
         buf.fill_rect(geom.track_x, geom.thumb_y, geom.width, geom.thumb_h, sc);
     }
 

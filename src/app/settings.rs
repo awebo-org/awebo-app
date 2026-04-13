@@ -41,12 +41,12 @@ return POSIX path of theFolder",
                         current
                     ))
                     .output();
-                if let Ok(out) = result {
-                    if out.status.success() {
-                        let new_path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                        if !new_path.is_empty() {
-                            self.settings_state.models_path = new_path;
-                        }
+                if let Ok(out) = result
+                    && out.status.success()
+                {
+                    let new_path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if !new_path.is_empty() {
+                        self.settings_state.models_path = new_path;
                     }
                 }
             }
@@ -65,9 +65,8 @@ return POSIX path of theFolder",
                         let proxy = self.proxy.clone();
                         tokio::task::spawn_blocking(move || {
                             let _ = std::fs::remove_file(&path);
-                            let _ = proxy.send_event(
-                                crate::terminal::TerminalEvent::ModelDeleted(idx),
-                            );
+                            let _ =
+                                proxy.send_event(crate::terminal::TerminalEvent::ModelDeleted(idx));
                         });
                     }
                 }
@@ -95,7 +94,10 @@ return POSIX path of theFolder",
             &self.settings_state.font_family,
         );
         for tab in self.tab_mgr.iter() {
-            if let TabKind::Terminal { terminal, is_alt, .. } = &tab.kind {
+            if let TabKind::Terminal {
+                terminal, is_alt, ..
+            } = &tab.kind
+            {
                 let ws = Self::compute_window_size(renderer, *is_alt);
                 terminal.resize(ws);
             }

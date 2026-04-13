@@ -111,7 +111,11 @@ impl PromptState {
             fg: SEG_SHELL_FG,
         });
 
-        PromptInfo { segments, diff_additions, diff_deletions }
+        PromptInfo {
+            segments,
+            diff_additions,
+            diff_deletions,
+        }
     }
 
     fn refresh_git_if_stale(&self, cwd: &str) {
@@ -176,10 +180,7 @@ fn query_git(cwd: &str) -> (Option<String>, bool, usize, usize) {
 
 /// Compute total lines added/removed in the working directory against HEAD.
 fn diff_stats(repo: &git2::Repository) -> (usize, usize) {
-    let head_tree = repo
-        .head()
-        .ok()
-        .and_then(|h| h.peel_to_tree().ok());
+    let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
 
     let diff = repo.diff_tree_to_workdir_with_index(
         head_tree.as_ref(),

@@ -82,7 +82,11 @@ impl Widget for SearchInput<'_> {
 
         painter.fill_rounded_rect(rect, r, s.bg);
 
-        let border_color = if self.focused { s.focus_border } else { s.border };
+        let border_color = if self.focused {
+            s.focus_border
+        } else {
+            s.border
+        };
         painter.stroke_rounded_rect(rect, bw, r, border_color);
 
         let pad_x = painter.px(s.padding_x);
@@ -93,8 +97,12 @@ impl Widget for SearchInput<'_> {
 
         if self.text.is_empty() {
             painter.text(
-                self.placeholder, text_x, text_y,
-                font_sz, s.placeholder_color, Family::SansSerif,
+                self.placeholder,
+                text_x,
+                text_y,
+                font_sz,
+                s.placeholder_color,
+                Family::SansSerif,
             );
 
             if self.focused && self.cursor_visible {
@@ -108,8 +116,12 @@ impl Widget for SearchInput<'_> {
             }
         } else {
             painter.text(
-                self.text, text_x, text_y,
-                font_sz, s.text_color, Family::SansSerif,
+                self.text,
+                text_x,
+                text_y,
+                font_sz,
+                s.text_color,
+                Family::SansSerif,
             );
 
             if self.focused && self.cursor_visible {

@@ -183,7 +183,7 @@ pub fn draw_settings_ai_models(
     let icon_pad = (icon_btn_sz - icon_sz) / 2;
 
     for (mi, model) in models.iter().enumerate() {
-        let path = models_dir.join(&model.filename);
+        let path = models_dir.join(model.filename);
         if !path.exists() {
             continue;
         }
@@ -210,19 +210,38 @@ pub fn draw_settings_ai_models(
         if is_deleting {
             let del_label = "Deleting…";
             let del_metrics = Metrics::new(11.0 * sf, 16.0 * sf);
-            let del_text_x = area_x + area_w.saturating_sub(pad + (del_label.len() as f32 * 6.5 * sf) as usize);
+            let del_text_x =
+                area_x + area_w.saturating_sub(pad + (del_label.len() as f32 * 6.5 * sf) as usize);
             let del_text_y = y + ((model_row_h as f32 - 16.0 * sf) / 2.0) as usize;
             draw_text_at(
-                buf, font_system, swash_cache,
-                del_text_x, del_text_y, clip_h,
-                del_label, del_metrics, theme::FG_DIM, Family::Monospace,
+                buf,
+                font_system,
+                swash_cache,
+                del_text_x,
+                del_text_y,
+                clip_h,
+                del_label,
+                del_metrics,
+                theme::FG_DIM,
+                Family::Monospace,
             );
         } else {
             let del_x = area_x + area_w.saturating_sub(pad + icon_btn_sz);
             let del_y = y + (model_row_h - icon_btn_sz) / 2;
             let is_del_hovered = state.hovered_btn == Some(AiModelsHit::DeleteModel(mi));
-            let del_color = if is_del_hovered { DELETE_TEXT } else { SIZE_TEXT };
-            icon_renderer.draw(buf, Icon::Trash, del_x + icon_pad, del_y + icon_pad, icon_sz as u32, del_color);
+            let del_color = if is_del_hovered {
+                DELETE_TEXT
+            } else {
+                SIZE_TEXT
+            };
+            icon_renderer.draw(
+                buf,
+                Icon::Trash,
+                del_x + icon_pad,
+                del_y + icon_pad,
+                icon_sz as u32,
+                del_color,
+            );
         }
 
         y += model_row_h;
@@ -448,11 +467,12 @@ fn compute_disk_usage(path: &str) -> String {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let p = entry.path();
-            if p.is_file() && p.extension().map(|e| e == "gguf").unwrap_or(false) {
-                if let Ok(meta) = p.metadata() {
-                    total += meta.len();
-                    count += 1;
-                }
+            if p.is_file()
+                && p.extension().map(|e| e == "gguf").unwrap_or(false)
+                && let Ok(meta) = p.metadata()
+            {
+                total += meta.len();
+                count += 1;
             }
         }
     }

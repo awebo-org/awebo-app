@@ -38,22 +38,12 @@ const CLOSE_BG: Rgb = (50, 50, 56);
 const CLOSE_HOVER_BG: Rgb = (70, 70, 78);
 const CLOSE_TEXT: Rgb = theme::FG_SECONDARY;
 
-const TRACKED: &[Feature] = &[
-    Feature::Ask,
-    Feature::Agent,
-    Feature::Sandbox,
-    Feature::Git,
-];
+const TRACKED: &[Feature] = &[Feature::Ask, Feature::Agent, Feature::Sandbox, Feature::Git];
 
+#[derive(Default)]
 pub struct UsageLimitBannerState {
     pub visible: bool,
     pub hovered: Option<usize>,
-}
-
-impl Default for UsageLimitBannerState {
-    fn default() -> Self {
-        Self { visible: false, hovered: None }
-    }
 }
 
 impl UsageLimitBannerState {
@@ -143,26 +133,51 @@ pub fn draw(
     let title_y = py + pad;
     let icon_sz = (18.0 * sf) as u32;
     let icon_y = title_y + ((title_lh - icon_sz as f32) / 2.0).max(0.0) as usize;
-    icon_renderer.draw(buf, Icon::Sparkle, content_x, icon_y, icon_sz, BAR_EXHAUSTED);
+    icon_renderer.draw(
+        buf,
+        Icon::Sparkle,
+        content_x,
+        icon_y,
+        icon_sz,
+        BAR_EXHAUSTED,
+    );
 
     let title_text_x = content_x + icon_sz as usize + (8.0 * sf) as usize;
     draw_text_at_bold(
-        buf, font_system, swash_cache,
-        title_text_x, title_y, buf.height,
-        "Daily limit reached", title_m, TITLE_COLOR, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        title_text_x,
+        title_y,
+        buf.height,
+        "Daily limit reached",
+        title_m,
+        TITLE_COLOR,
+        Family::SansSerif,
     );
 
     let reset_fs = 11.0 * sf;
     let reset_lh = 16.0 * sf;
     let reset_m = Metrics::new(reset_fs, reset_lh);
-    let reset_text = format!("Resets in {}", crate::usage::format_duration_short(tracker.time_until_reset()));
-    let reset_tw = measure_text_width(font_system, &reset_text, reset_m, Family::SansSerif) as usize;
+    let reset_text = format!(
+        "Resets in {}",
+        crate::usage::format_duration_short(tracker.time_until_reset())
+    );
+    let reset_tw =
+        measure_text_width(font_system, &reset_text, reset_m, Family::SansSerif) as usize;
     let reset_x = (px + pw).saturating_sub(pad + reset_tw);
     let reset_y = title_y + ((title_lh - reset_lh) / 2.0) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        reset_x, reset_y, buf.height,
-        &reset_text, reset_m, RESET_COLOR, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        reset_x,
+        reset_y,
+        buf.height,
+        &reset_text,
+        reset_m,
+        RESET_COLOR,
+        Family::SansSerif,
     );
 
     let label_fs = 12.0 * sf;
@@ -185,9 +200,16 @@ pub fn draw(
         let fy = features_y + i * row_h;
 
         draw_text_at(
-            buf, font_system, swash_cache,
-            content_x, fy, buf.height,
-            feature.label(), label_m, LABEL_COLOR, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            content_x,
+            fy,
+            buf.height,
+            feature.label(),
+            label_m,
+            LABEL_COLOR,
+            Family::SansSerif,
         );
 
         let bar_x = content_x + label_w;
@@ -206,9 +228,16 @@ pub fn draw(
         let count_text = format!("{}/{}", used, limit);
         let count_x = bar_x + bar_w + count_gap;
         draw_text_at(
-            buf, font_system, swash_cache,
-            count_x, fy, buf.height,
-            &count_text, count_m, COUNT_COLOR, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            count_x,
+            fy,
+            buf.height,
+            &count_text,
+            count_m,
+            COUNT_COLOR,
+            Family::Monospace,
         );
     }
 
@@ -219,16 +248,28 @@ pub fn draw(
     let btn_gap = (10.0 * sf) as usize;
 
     let upgrade_text = "Upgrade to Pro";
-    let upgrade_tw = measure_text_width(font_system, upgrade_text, label_m, Family::SansSerif) as usize;
+    let upgrade_tw =
+        measure_text_width(font_system, upgrade_text, label_m, Family::SansSerif) as usize;
     let upgrade_pad = (16.0 * sf) as usize;
     let upgrade_w = upgrade_tw + upgrade_pad * 2;
-    let upgrade_bg = if state.hovered == Some(0) { UPGRADE_HOVER_BG } else { UPGRADE_BG };
+    let upgrade_bg = if state.hovered == Some(0) {
+        UPGRADE_HOVER_BG
+    } else {
+        UPGRADE_BG
+    };
     fill_rounded_rect(buf, content_x, btn_y, upgrade_w, btn_h, btn_r, upgrade_bg);
     let upgrade_text_y = btn_y + ((btn_h as f32 - label_lh) / 2.0) as usize;
     draw_text_at_bold(
-        buf, font_system, swash_cache,
-        content_x + upgrade_pad, upgrade_text_y, buf.height,
-        upgrade_text, label_m, UPGRADE_TEXT, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        content_x + upgrade_pad,
+        upgrade_text_y,
+        buf.height,
+        upgrade_text,
+        label_m,
+        UPGRADE_TEXT,
+        Family::SansSerif,
     );
 
     let close_text = "Close";
@@ -236,13 +277,24 @@ pub fn draw(
     let close_pad = (16.0 * sf) as usize;
     let close_w = close_tw + close_pad * 2;
     let close_x = content_x + upgrade_w + btn_gap;
-    let close_bg = if state.hovered == Some(1) { CLOSE_HOVER_BG } else { CLOSE_BG };
+    let close_bg = if state.hovered == Some(1) {
+        CLOSE_HOVER_BG
+    } else {
+        CLOSE_BG
+    };
     fill_rounded_rect(buf, close_x, btn_y, close_w, btn_h, btn_r, close_bg);
     let close_text_y = btn_y + ((btn_h as f32 - label_lh) / 2.0) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        close_x + close_pad, close_text_y, buf.height,
-        close_text, label_m, CLOSE_TEXT, Family::SansSerif,
+        buf,
+        font_system,
+        swash_cache,
+        close_x + close_pad,
+        close_text_y,
+        buf.height,
+        close_text,
+        label_m,
+        CLOSE_TEXT,
+        Family::SansSerif,
     );
 }
 

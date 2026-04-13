@@ -31,14 +31,33 @@ pub fn draw(
     let add_label = format!("+{additions}");
     let del_label = format!("-{deletions}");
     let inner_gap = (4.0 * ctx.sf) as usize;
-    let add_w = measure_text_width_bold(ctx.font_system, &add_label, ctx.seg_metrics, Family::Monospace).ceil() as usize;
-    let del_w = measure_text_width_bold(ctx.font_system, &del_label, ctx.seg_metrics, Family::Monospace).ceil() as usize;
+    let add_w = measure_text_width_bold(
+        ctx.font_system,
+        &add_label,
+        ctx.seg_metrics,
+        Family::Monospace,
+    )
+    .ceil() as usize;
+    let del_w = measure_text_width_bold(
+        ctx.font_system,
+        &del_label,
+        ctx.seg_metrics,
+        Family::Monospace,
+    )
+    .ceil() as usize;
     let content_w = add_w + inner_gap + del_w;
     let seg_w = content_w + ctx.pad_x * 2;
     let x = right_x.saturating_sub(seg_w);
 
     super::super::stroke_rounded_rect(
-        ctx.buf, x, ctx.seg_y, seg_w, ctx.seg_h, ctx.radius, ctx.sf, DIFF_BORDER,
+        ctx.buf,
+        x,
+        ctx.seg_y,
+        seg_w,
+        ctx.seg_h,
+        ctx.radius,
+        ctx.sf,
+        DIFF_BORDER,
     );
 
     let text_y = ctx.seg_y + ((ctx.seg_h as f32 - ctx.seg_metrics.line_height) / 2.0) as usize;

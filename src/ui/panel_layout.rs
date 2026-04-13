@@ -4,35 +4,23 @@
 //! The renderer queries `content_x_offset()` / `right_physical_width()`
 //! to position all content areas relative to the panels.
 
-
 /// Which sub-view is active inside the left side panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SidePanelTab {
+    #[default]
     Sessions,
     Files,
     /// Sandbox management — only visible when a sandbox tab is active.
     Sandbox,
 }
 
-impl Default for SidePanelTab {
-    fn default() -> Self {
-        Self::Sessions
-    }
-}
-
 /// Which sub-view is active inside the right (git) panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum GitPanelTab {
+    #[default]
     Changes,
     Branches,
 }
-
-impl Default for GitPanelTab {
-    fn default() -> Self {
-        Self::Changes
-    }
-}
-
 
 /// Drag-to-resize state for a panel edge.
 #[derive(Debug, Default)]
@@ -42,7 +30,6 @@ pub struct ResizeState {
     /// True when the cursor hovers over the resize hit-zone.
     pub hovered: bool,
 }
-
 
 const DEFAULT_WIDTH: f32 = 260.0;
 const MIN_WIDTH: f32 = 180.0;
@@ -77,7 +64,6 @@ impl Default for PanelLayout {
 }
 
 impl PanelLayout {
-
     /// Logical width of the left panel.
     pub fn left_width(&self) -> f32 {
         self.left_width
@@ -96,7 +82,6 @@ impl PanelLayout {
         phys_x >= edge - zone && phys_x <= edge + zone
     }
 
-
     /// Physical width of the right panel.
     pub fn right_physical_width(&self, sf: f32) -> usize {
         (self.right_width * sf) as usize
@@ -111,7 +96,6 @@ impl PanelLayout {
         let zone = RESIZE_HIT_ZONE as f64 * sf;
         phys_x >= edge - zone && phys_x <= edge + zone
     }
-
 
     /// Set the left panel width (logical px), clamped to bounds.
     pub fn set_left_width(&mut self, w: f32) {
@@ -133,7 +117,6 @@ impl PanelLayout {
         self.active_tab = tab;
     }
 
-
     /// Set the right panel width (logical px), clamped to bounds.
     pub fn set_right_width(&mut self, w: f32) {
         self.right_width = w.clamp(MIN_WIDTH, MAX_WIDTH);
@@ -154,7 +137,6 @@ impl PanelLayout {
         self.git_tab = tab;
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -8,7 +8,7 @@ use cosmic_text::{Family, FontSystem, Metrics, SwashCache};
 
 use crate::renderer::icons::{Icon, IconRenderer};
 use crate::renderer::pixel_buffer::PixelBuffer;
-use crate::renderer::text::{draw_text_at, draw_text_at_buffered, draw_text_at_bold_buffered};
+use crate::renderer::text::{draw_text_at, draw_text_at_bold_buffered, draw_text_at_buffered};
 use crate::renderer::theme;
 use crate::session::Session;
 use crate::ui::file_tree::FileTreeState;
@@ -93,7 +93,13 @@ pub fn draw(
     buf.fill_rect(0, bar_h, panel_w, panel_h, (0, 0, 0));
 
     let border_w = (1.0 * sf).max(1.0) as usize;
-    buf.fill_rect(panel_w.saturating_sub(border_w), bar_h, border_w, panel_h, theme::BORDER);
+    buf.fill_rect(
+        panel_w.saturating_sub(border_w),
+        bar_h,
+        border_w,
+        panel_h,
+        theme::BORDER,
+    );
 
     let header_h = (HEADER_HEIGHT * sf) as usize;
     let icon_sz = (TOOLBAR_BTN_SIZE * sf).round() as u32;
@@ -112,28 +118,83 @@ pub fn draw(
     match panel_layout.active_tab {
         SidePanelTab::Sessions => {
             let visible_h = buf.height.saturating_sub(content_y);
-            draw_sessions(buf, font_system, swash_cache, icon_renderer, sessions, state, panel_w, content_y, border_w, sf);
+            draw_sessions(
+                buf,
+                font_system,
+                swash_cache,
+                icon_renderer,
+                sessions,
+                state,
+                panel_w,
+                content_y,
+                border_w,
+                sf,
+            );
             let total_h = sessions.len() * (ITEM_HEIGHT * sf) as usize;
             let sb_hover = state.scrollbar_hovered || state.scrollbar_dragging;
-            draw_panel_scrollbar(buf, panel_w, content_y, visible_h, total_h, state.scroll_offset as usize, sb_hover, sf);
+            draw_panel_scrollbar(
+                buf,
+                panel_w,
+                content_y,
+                visible_h,
+                total_h,
+                state.scroll_offset as usize,
+                sb_hover,
+                sf,
+            );
         }
         SidePanelTab::Files => {
             let visible_h = buf.height.saturating_sub(content_y);
-            crate::ui::file_tree::draw(buf, font_system, swash_cache, icon_renderer, file_tree, active_file_path, panel_w, content_y, sf);
+            crate::ui::file_tree::draw(
+                buf,
+                font_system,
+                swash_cache,
+                icon_renderer,
+                file_tree,
+                active_file_path,
+                panel_w,
+                content_y,
+                sf,
+            );
             let row_count = file_tree.row_count();
             let total_h = row_count * (crate::ui::file_tree::ITEM_HEIGHT_PX * sf) as usize
                 + (crate::ui::file_tree::PAD_Y_PX * sf) as usize * 2;
             let sb_hover = file_tree.scrollbar_hovered || file_tree.scrollbar_dragging;
-            draw_panel_scrollbar(buf, panel_w, content_y, visible_h, total_h, file_tree.scroll_offset as usize, sb_hover, sf);
+            draw_panel_scrollbar(
+                buf,
+                panel_w,
+                content_y,
+                visible_h,
+                total_h,
+                file_tree.scroll_offset as usize,
+                sb_hover,
+                sf,
+            );
         }
         SidePanelTab::Sandbox => {
-            draw_sandbox_panel(buf, font_system, swash_cache, icon_renderer, &state.sandbox, sandbox_info, panel_w, content_y, sf);
+            draw_sandbox_panel(
+                buf,
+                font_system,
+                swash_cache,
+                icon_renderer,
+                &state.sandbox,
+                sandbox_info,
+                panel_w,
+                content_y,
+                sf,
+            );
         }
     }
 
     buf.fill_rect(0, bar_h, panel_w, header_h, (0, 0, 0));
     buf.fill_rect(0, divider_y, panel_w, border_w, theme::BORDER);
-    buf.fill_rect(panel_w.saturating_sub(border_w), bar_h, border_w, header_h + border_w, theme::BORDER);
+    buf.fill_rect(
+        panel_w.saturating_sub(border_w),
+        bar_h,
+        border_w,
+        header_h + border_w,
+        theme::BORDER,
+    );
 
     fn draw_toolbar_btn(
         buf: &mut PixelBuffer,
@@ -156,7 +217,15 @@ pub fn draw(
             None
         };
         if let Some(bg_color) = bg {
-            super::overlay::fill_rounded_rect(buf, cx, cy, container_sz, container_sz, btn_r, bg_color);
+            super::overlay::fill_rounded_rect(
+                buf,
+                cx,
+                cy,
+                container_sz,
+                container_sz,
+                btn_r,
+                bg_color,
+            );
         }
         let icon_x = cx + icon_inset as usize;
         let icon_y = cy + icon_inset as usize;
@@ -173,19 +242,55 @@ pub fn draw(
     let mut cx = pad_x;
     let sessions_active = panel_layout.active_tab == SidePanelTab::Sessions;
     let sessions_hovered = state.hovered_toolbar_btn == Some(SidePanelTab::Sessions);
-    draw_toolbar_btn(buf, icon_renderer, Icon::Rows, cx, container_y, container_sz, icon_sz, icon_inset, btn_r, sessions_active, sessions_hovered);
+    draw_toolbar_btn(
+        buf,
+        icon_renderer,
+        Icon::Rows,
+        cx,
+        container_y,
+        container_sz,
+        icon_sz,
+        icon_inset,
+        btn_r,
+        sessions_active,
+        sessions_hovered,
+    );
 
     cx += container_sz + btn_gap;
 
     let files_active = panel_layout.active_tab == SidePanelTab::Files;
     let files_hovered = state.hovered_toolbar_btn == Some(SidePanelTab::Files);
-    draw_toolbar_btn(buf, icon_renderer, Icon::Files, cx, container_y, container_sz, icon_sz, icon_inset, btn_r, files_active, files_hovered);
+    draw_toolbar_btn(
+        buf,
+        icon_renderer,
+        Icon::Files,
+        cx,
+        container_y,
+        container_sz,
+        icon_sz,
+        icon_inset,
+        btn_r,
+        files_active,
+        files_hovered,
+    );
 
     if sandbox_info.is_some() {
         cx += container_sz + btn_gap;
         let sandbox_active = panel_layout.active_tab == SidePanelTab::Sandbox;
         let sandbox_hovered = state.hovered_toolbar_btn == Some(SidePanelTab::Sandbox);
-        draw_toolbar_btn(buf, icon_renderer, Icon::CodeSandbox, cx, container_y, container_sz, icon_sz, icon_inset, btn_r, sandbox_active, sandbox_hovered);
+        draw_toolbar_btn(
+            buf,
+            icon_renderer,
+            Icon::CodeSandbox,
+            cx,
+            container_y,
+            container_sz,
+            icon_sz,
+            icon_inset,
+            btn_r,
+            sandbox_active,
+            sandbox_hovered,
+        );
     }
 
     panel_w
@@ -217,18 +322,29 @@ pub fn panel_scrollbar_thumb_rect(
     let thumb_h = ((visible_h as f64 / total_h as f64) * track_h as f64)
         .max(SCROLLBAR_MIN_THUMB as f64 * sf as f64) as usize;
     let max_scroll = total_h.saturating_sub(visible_h);
-    let frac = if max_scroll > 0 { scroll.min(max_scroll) as f64 / max_scroll as f64 } else { 0.0 };
+    let frac = if max_scroll > 0 {
+        scroll.min(max_scroll) as f64 / max_scroll as f64
+    } else {
+        0.0
+    };
     let thumb_y = y_start + (frac * (track_h.saturating_sub(thumb_h)) as f64) as usize;
     Some((track_x, thumb_y, sb_w, thumb_h))
 }
 
 /// Hit-test: is (px, py) inside the scrollbar thumb?
 pub fn panel_scrollbar_hit_test(
-    px: usize, py: usize,
-    panel_w: usize, y_start: usize, visible_h: usize,
-    total_h: usize, scroll: usize, sf: f32,
+    px: usize,
+    py: usize,
+    panel_w: usize,
+    y_start: usize,
+    visible_h: usize,
+    total_h: usize,
+    scroll: usize,
+    sf: f32,
 ) -> bool {
-    if let Some((tx, ty, tw, th)) = panel_scrollbar_thumb_rect(panel_w, y_start, visible_h, total_h, scroll, sf) {
+    if let Some((tx, ty, tw, th)) =
+        panel_scrollbar_thumb_rect(panel_w, y_start, visible_h, total_h, scroll, sf)
+    {
         let margin = (4.0 * sf) as usize;
         px + margin >= tx && px < tx + tw + margin && py >= ty && py < ty + th
     } else {
@@ -269,8 +385,14 @@ fn draw_panel_scrollbar(
     hovered: bool,
     sf: f32,
 ) {
-    if let Some((tx, ty, tw, th)) = panel_scrollbar_thumb_rect(panel_w, y_start, visible_h, total_h, scroll, sf) {
-        let color = if hovered { SCROLLBAR_HOVER_COLOR } else { SCROLLBAR_COLOR };
+    if let Some((tx, ty, tw, th)) =
+        panel_scrollbar_thumb_rect(panel_w, y_start, visible_h, total_h, scroll, sf)
+    {
+        let color = if hovered {
+            SCROLLBAR_HOVER_COLOR
+        } else {
+            SCROLLBAR_COLOR
+        };
         buf.fill_rect(tx, ty, tw, th, color);
     }
 }
@@ -303,24 +425,42 @@ fn draw_sandbox_panel(
     let mut y = content_y + (12.0 * sf) as usize;
 
     draw_text_at(
-        buf, font_system, swash_cache,
-        pad_x, y, clip_h,
-        "SANDBOX", title_metrics, theme::FG_MUTED, Family::Monospace,
+        buf,
+        font_system,
+        swash_cache,
+        pad_x,
+        y,
+        clip_h,
+        "SANDBOX",
+        title_metrics,
+        theme::FG_MUTED,
+        Family::Monospace,
     );
     y += (22.0 * sf) as usize;
 
     if info.is_none() {
         draw_text_at(
-            buf, font_system, swash_cache,
-            pad_x, y + (row_h as f32 / 2.0 - 8.5 * sf) as usize, clip_h,
-            "No active sandbox", label_metrics, theme::FG_MUTED, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            pad_x,
+            y + (row_h as f32 / 2.0 - 8.5 * sf) as usize,
+            clip_h,
+            "No active sandbox",
+            label_metrics,
+            theme::FG_MUTED,
+            Family::Monospace,
         );
         return;
     }
 
     let image_val = info.map(|i| i.display_name.as_str()).unwrap_or("—");
-    let cpu_val = info.map(|i| format!("{} vCPU", i.cpus)).unwrap_or_else(|| "—".into());
-    let mem_val = info.map(|i| format!("{} MiB", i.memory_mib)).unwrap_or_else(|| "—".into());
+    let cpu_val = info
+        .map(|i| format!("{} vCPU", i.cpus))
+        .unwrap_or_else(|| "—".into());
+    let mem_val = info
+        .map(|i| format!("{} MiB", i.memory_mib))
+        .unwrap_or_else(|| "—".into());
 
     let info_items: &[(&str, &str)] = &[
         ("Image", image_val),
@@ -330,15 +470,29 @@ fn draw_sandbox_panel(
 
     for (label, value) in info_items {
         draw_text_at(
-            buf, font_system, swash_cache,
-            pad_x, y + (row_h as f32 / 2.0 - 8.5 * sf) as usize, clip_h,
-            label, label_metrics, theme::FG_MUTED, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            pad_x,
+            y + (row_h as f32 / 2.0 - 8.5 * sf) as usize,
+            clip_h,
+            label,
+            label_metrics,
+            theme::FG_MUTED,
+            Family::Monospace,
         );
         let val_x = panel_w / 2;
         draw_text_at(
-            buf, font_system, swash_cache,
-            val_x, y + (row_h as f32 / 2.0 - 8.0 * sf) as usize, clip_h,
-            value, value_metrics, theme::FG_PRIMARY, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            val_x,
+            y + (row_h as f32 / 2.0 - 8.0 * sf) as usize,
+            clip_h,
+            value,
+            value_metrics,
+            theme::FG_PRIMARY,
+            Family::Monospace,
         );
         y += row_h;
     }
@@ -348,13 +502,26 @@ fn draw_sandbox_panel(
         y += section_gap;
 
         let divider_h = (1.0 * sf).max(1.0) as usize;
-        buf.fill_rect(pad_x, y, panel_w.saturating_sub(pad_x * 2), divider_h, theme::DIVIDER);
+        buf.fill_rect(
+            pad_x,
+            y,
+            panel_w.saturating_sub(pad_x * 2),
+            divider_h,
+            theme::DIVIDER,
+        );
         y += section_gap;
 
         draw_text_at(
-            buf, font_system, swash_cache,
-            pad_x, y, clip_h,
-            "VOLUMES", title_metrics, theme::FG_MUTED, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            pad_x,
+            y,
+            clip_h,
+            "VOLUMES",
+            title_metrics,
+            theme::FG_MUTED,
+            Family::Monospace,
         );
         y += (20.0 * sf) as usize;
 
@@ -365,15 +532,29 @@ fn draw_sandbox_panel(
             }
 
             draw_text_at(
-                buf, font_system, swash_cache,
-                pad_x, y + (4.0 * sf) as usize, clip_h,
-                guest, label_metrics, theme::FG_PRIMARY, Family::Monospace,
+                buf,
+                font_system,
+                swash_cache,
+                pad_x,
+                y + (4.0 * sf) as usize,
+                clip_h,
+                guest,
+                label_metrics,
+                theme::FG_PRIMARY,
+                Family::Monospace,
             );
 
             draw_text_at(
-                buf, font_system, swash_cache,
-                pad_x, y + (22.0 * sf) as usize, clip_h,
-                host, small_metrics, theme::FG_MUTED, Family::Monospace,
+                buf,
+                font_system,
+                swash_cache,
+                pad_x,
+                y + (22.0 * sf) as usize,
+                clip_h,
+                host,
+                small_metrics,
+                theme::FG_MUTED,
+                Family::Monospace,
             );
 
             y += vol_row_h;
@@ -387,23 +568,46 @@ fn draw_sandbox_panel(
     let btn_h = (STOP_BTN_HEIGHT * sf) as usize;
     let btn_r = (4.0 * sf) as usize;
     let is_hovered = has_live && state.stop_hovered;
-    let btn_bg = if is_hovered { theme::BG_HOVER } else { theme::BG_ELEVATED };
+    let btn_bg = if is_hovered {
+        theme::BG_HOVER
+    } else {
+        theme::BG_ELEVATED
+    };
     super::overlay::fill_rounded_rect(buf, pad_x, y, btn_w, btn_h, btn_r, btn_bg);
 
     let icon_sz = (14.0 * sf).round() as u32;
     let icon_x = pad_x + (8.0 * sf) as usize;
     let icon_y = y + (btn_h as f32 / 2.0 - icon_sz as f32 / 2.0) as usize;
     let muted = !has_live;
-    let icon_color = if muted { theme::FG_MUTED } else if is_hovered { theme::ERROR } else { theme::FG_SECONDARY };
+    let icon_color = if muted {
+        theme::FG_MUTED
+    } else if is_hovered {
+        theme::ERROR
+    } else {
+        theme::FG_SECONDARY
+    };
     icon_renderer.draw(buf, Icon::Stop, icon_x, icon_y, icon_sz, icon_color);
 
     let label_x = icon_x + icon_sz as usize + (6.0 * sf) as usize;
     let label_y = y + (btn_h as f32 / 2.0 - 8.5 * sf) as usize;
-    let stop_color = if muted { theme::FG_MUTED } else if is_hovered { theme::ERROR } else { theme::FG_SECONDARY };
+    let stop_color = if muted {
+        theme::FG_MUTED
+    } else if is_hovered {
+        theme::ERROR
+    } else {
+        theme::FG_SECONDARY
+    };
     draw_text_at(
-        buf, font_system, swash_cache,
-        label_x, label_y, clip_h,
-        "Stop Sandbox", label_metrics, stop_color, Family::Monospace,
+        buf,
+        font_system,
+        swash_cache,
+        label_x,
+        label_y,
+        clip_h,
+        "Stop Sandbox",
+        label_metrics,
+        stop_color,
+        Family::Monospace,
     );
 }
 
@@ -435,8 +639,12 @@ fn draw_sessions(
     let visible_count = buf.height.saturating_sub(list_y) / item_h.max(1) + 2;
     let last_visible = (first_visible + visible_count).min(sessions.len());
 
-    for i in first_visible..last_visible {
-        let session = &sessions[i];
+    for (i, session) in sessions
+        .iter()
+        .enumerate()
+        .skip(first_visible)
+        .take(last_visible - first_visible)
+    {
         let y = list_y + i * item_h - scroll;
         if y + item_h <= list_y || y >= buf.height {
             continue;
@@ -449,9 +657,21 @@ fn draw_sessions(
         if is_current && !is_hovered {
             let accent_w = (3.0 * sf).max(2.0) as usize;
             buf.fill_rect(0, y, accent_w, item_h, theme::PRIMARY);
-            buf.fill_rect(accent_w, y, panel_w.saturating_sub(border_w + accent_w), item_h, theme::BG_SELECTION);
+            buf.fill_rect(
+                accent_w,
+                y,
+                panel_w.saturating_sub(border_w + accent_w),
+                item_h,
+                theme::BG_SELECTION,
+            );
         } else if is_hovered {
-            buf.fill_rect(0, y, panel_w.saturating_sub(border_w), item_h, theme::BG_HOVER);
+            buf.fill_rect(
+                0,
+                y,
+                panel_w.saturating_sub(border_w),
+                item_h,
+                theme::BG_HOVER,
+            );
             if is_current {
                 let accent_w = (3.0 * sf).max(2.0) as usize;
                 buf.fill_rect(0, y, accent_w, item_h, theme::PRIMARY);
@@ -459,7 +679,9 @@ fn draw_sessions(
         }
 
         let title = session.display_title();
-        let max_chars = ((panel_w as f32 - pad_x as f32 * 2.0 - clear_sz as f32 - 8.0 * sf) / (7.0 * sf)).max(1.0) as usize;
+        let max_chars = ((panel_w as f32 - pad_x as f32 * 2.0 - clear_sz as f32 - 8.0 * sf)
+            / (7.0 * sf))
+            .max(1.0) as usize;
         let needs_truncation = title.len() > max_chars && max_chars > 3;
         let truncated_title;
         let display_title: &str = if needs_truncation {
@@ -469,24 +691,32 @@ fn draw_sessions(
             &title
         };
 
-        let title_color = if is_current || is_hovered { theme::FG_BRIGHT } else { theme::FG_PRIMARY };
+        let title_color = if is_current || is_hovered {
+            theme::FG_BRIGHT
+        } else {
+            theme::FG_PRIMARY
+        };
         draw_text_at_bold_buffered(
-            buf, font_system, swash_cache, &mut title_buf,
-            pad_x, y + pad_y, buf.height,
-            display_title, title_metrics, title_color, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            &mut title_buf,
+            pad_x,
+            y + pad_y,
+            buf.height,
+            display_title,
+            title_metrics,
+            title_color,
+            Family::SansSerif,
         );
 
         let entry_count = session.entries.len();
-        let age = session.entries.last()
+        let age = session
+            .entries
+            .last()
             .map(|e| e.started_at.elapsed().unwrap_or_default())
             .unwrap_or_else(|| session.created_at.elapsed().unwrap_or_default());
-        let age_str = if age.as_secs() < 60 {
-            "just now"
-        } else if age.as_secs() < 3600 {
-            ""
-        } else {
-            ""
-        };
+        let age_str = if age.as_secs() < 60 { "just now" } else { "" };
         let detail = if age.as_secs() < 60 {
             if entry_count == 1 {
                 format!("1 command · {}", age_str)
@@ -517,21 +747,40 @@ fn draw_sessions(
         };
 
         draw_text_at_buffered(
-            buf, font_system, swash_cache, &mut detail_buf,
-            pad_x, y + pad_y + (18.0 * sf) as usize, buf.height,
-            &detail, detail_metrics, theme::FG_SECONDARY, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            &mut detail_buf,
+            pad_x,
+            y + pad_y + (18.0 * sf) as usize,
+            buf.height,
+            &detail,
+            detail_metrics,
+            theme::FG_SECONDARY,
+            Family::SansSerif,
         );
 
-        let clear_x = (panel_w as f32 - ITEM_PAD_X * sf - clear_sz as f32 - border_w as f32) as usize;
+        let clear_x =
+            (panel_w as f32 - ITEM_PAD_X * sf - clear_sz as f32 - border_w as f32) as usize;
         let clear_y = y + (item_h.saturating_sub(clear_sz as usize)) / 2;
 
         if is_hovered || is_clear_hovered {
-            let clear_color = if is_clear_hovered { theme::ERROR } else { theme::FG_MUTED };
+            let clear_color = if is_clear_hovered {
+                theme::ERROR
+            } else {
+                theme::FG_MUTED
+            };
             icon_renderer.draw(buf, Icon::Trash, clear_x, clear_y, clear_sz, clear_color);
         }
 
         let item_divider_y = y + item_h - border_w;
-        buf.fill_rect(pad_x, item_divider_y, panel_w.saturating_sub(pad_x * 2), border_w, theme::DIVIDER);
+        buf.fill_rect(
+            pad_x,
+            item_divider_y,
+            panel_w.saturating_sub(pad_x * 2),
+            border_w,
+            theme::DIVIDER,
+        );
     }
 }
 
@@ -622,7 +871,14 @@ fn toolbar_hit(phys_x: f64, phys_y: f64, bar_h_phys: f64, sf: f64) -> SidePanelH
 }
 
 /// Hit-test sandbox panel content (stop button).
-fn sandbox_hit_test(phys_x: f64, phys_y: f64, bar_h_phys: f64, sf: f64, panel_w: f64, volume_count: usize) -> SidePanelHit {
+fn sandbox_hit_test(
+    phys_x: f64,
+    phys_y: f64,
+    bar_h_phys: f64,
+    sf: f64,
+    panel_w: f64,
+    volume_count: usize,
+) -> SidePanelHit {
     let header_h = HEADER_HEIGHT as f64 * sf;
     let border_w = (1.0_f64 * sf).max(1.0);
     let content_y = bar_h_phys + header_h + border_w;
@@ -639,7 +895,7 @@ fn sandbox_hit_test(phys_x: f64, phys_y: f64, bar_h_phys: f64, sf: f64, panel_w:
     if volume_count > 0 {
         y += section_gap; // gap before divider
         y += section_gap; // divider + gap
-        y += 20.0 * sf;  // "VOLUMES" title
+        y += 20.0 * sf; // "VOLUMES" title
         let vol_row_h = 44.0 * sf;
         y += vol_row_h * volume_count as f64; // volume rows
     }

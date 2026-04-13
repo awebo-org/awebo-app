@@ -1,9 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use alacritty_terminal::Term;
 use alacritty_terminal::event::WindowSize;
 use alacritty_terminal::sync::FairMutex;
-use alacritty_terminal::Term;
 use winit::event_loop::ActiveEventLoop;
 
 use crate::blocks::BlockList;
@@ -57,7 +57,11 @@ impl Tab {
     }
 
     /// Create a terminal tab with a pre-populated block_list (for session restore).
-    pub fn new_terminal_with_blocks(terminal: Terminal, session_id: SessionId, block_list: BlockList) -> Self {
+    pub fn new_terminal_with_blocks(
+        terminal: Terminal,
+        session_id: SessionId,
+        block_list: BlockList,
+    ) -> Self {
         Self {
             router: Router::new(),
             kind: TabKind::Terminal {
@@ -150,14 +154,18 @@ impl Tab {
 
     pub fn block_list(&self) -> Option<&BlockList> {
         match &self.kind {
-            TabKind::Terminal { block_list, .. } | TabKind::Sandbox { block_list, .. } => Some(block_list),
+            TabKind::Terminal { block_list, .. } | TabKind::Sandbox { block_list, .. } => {
+                Some(block_list)
+            }
             _ => None,
         }
     }
 
     pub fn block_list_mut(&mut self) -> Option<&mut BlockList> {
         match &mut self.kind {
-            TabKind::Terminal { block_list, .. } | TabKind::Sandbox { block_list, .. } => Some(block_list),
+            TabKind::Terminal { block_list, .. } | TabKind::Sandbox { block_list, .. } => {
+                Some(block_list)
+            }
             _ => None,
         }
     }
@@ -264,9 +272,7 @@ impl TabManager {
 
     /// Find the index of an editor tab for the given file path, if any.
     pub fn find_editor(&self, path: &Path) -> Option<usize> {
-        self.tabs
-            .iter()
-            .position(|t| t.editor_path() == Some(path))
+        self.tabs.iter().position(|t| t.editor_path() == Some(path))
     }
 
     /// Build display info for the tab bar.
@@ -276,11 +282,16 @@ impl TabManager {
             .enumerate()
             .map(|(i, tab)| {
                 let is_error = match &tab.kind {
-                    TabKind::Terminal { block_list, .. } | TabKind::Sandbox { block_list, .. } => block_list.last_is_error(),
+                    TabKind::Terminal { block_list, .. } | TabKind::Sandbox { block_list, .. } => {
+                        block_list.last_is_error()
+                    }
                     TabKind::Settings | TabKind::Models | TabKind::Editor { .. } => false,
                 };
                 let (icon, is_muted) = match &tab.kind {
-                    TabKind::Sandbox { bridge, .. } => (Some(crate::renderer::icons::Icon::CodeSandbox), !bridge.is_alive()),
+                    TabKind::Sandbox { bridge, .. } => (
+                        Some(crate::renderer::icons::Icon::CodeSandbox),
+                        !bridge.is_alive(),
+                    ),
                     _ => (None, false),
                 };
                 TabInfo {
@@ -374,14 +385,18 @@ impl super::App {
 
         log::info!(
             "create_tab: {}x{} cols/lines (term_w={}, term_h={}, cell={}x{})",
-            cols, lines,
-            renderer.terminal_width(is_alt), term_h,
-            renderer.cell_width, renderer.cell_height,
+            cols,
+            lines,
+            renderer.terminal_width(is_alt),
+            term_h,
+            renderer.cell_width,
+            renderer.cell_height,
         );
 
         let event_proxy = JsonEventProxy::new(self.proxy.clone());
         let terminal = Terminal::new(
-            cols, lines,
+            cols,
+            lines,
             renderer.cell_width as u16,
             renderer.cell_height as u16,
             event_proxy,
@@ -389,7 +404,9 @@ impl super::App {
         );
 
         self.tab_mgr.push(Tab::new_terminal(terminal));
-        if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); };
+        if let Some(r) = self.renderer.as_mut() {
+            r.invalidate_grid_cache();
+        };
     }
 
     /// Command: create a sandbox terminal tab for the given image index.
@@ -407,7 +424,10 @@ impl super::App {
                 Some(ci) => {
                     display_name = ci.display_name.clone();
                     config = crate::sandbox::config::SandboxConfig::new(
-                        &ci.oci_ref, &ci.oci_ref, &ci.default_shell, &ci.default_workdir,
+                        &ci.oci_ref,
+                        &ci.oci_ref,
+                        &ci.default_shell,
+                        &ci.default_workdir,
                     );
                 }
                 None => {
@@ -482,25 +502,32 @@ impl super::App {
     }
 
     /// Attempt to close tab. If it's an unsaved editor, shows a confirmation dialog instead.
-    pub(crate) fn close_tab(&mut self, idx: usize, event_loop: &winit::event_loop::ActiveEventLoop) {
+    pub(crate) fn close_tab(
+        &mut self,
+        idx: usize,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+    ) {
         if idx >= self.tab_mgr.len() {
             return;
         }
 
-        if let Some(tab) = self.tab_mgr.get(idx) {
-            if let Some(editor) = tab.editor_state() {
-                if editor.is_modified() {
-                    self.overlay.request_confirm_close(idx);
-                    return;
-                }
-            }
+        if let Some(tab) = self.tab_mgr.get(idx)
+            && let Some(editor) = tab.editor_state()
+            && editor.is_modified()
+        {
+            self.overlay.request_confirm_close(idx);
+            return;
         }
 
         self.force_close_tab(idx, event_loop);
     }
 
     /// Close tab unconditionally, bypassing unsaved checks.
-    pub(crate) fn force_close_tab(&mut self, idx: usize, event_loop: &winit::event_loop::ActiveEventLoop) {
+    pub(crate) fn force_close_tab(
+        &mut self,
+        idx: usize,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+    ) {
         if idx >= self.tab_mgr.len() {
             return;
         }
@@ -508,7 +535,9 @@ impl super::App {
         self.overlay.dismiss_confirm_close();
 
         if let Some(terminal) = self.tab_mgr.get(idx).and_then(|t| t.terminal()) {
-            let _ = terminal.sender.send(alacritty_terminal::event_loop::Msg::Shutdown);
+            let _ = terminal
+                .sender
+                .send(alacritty_terminal::event_loop::Msg::Shutdown);
         }
         let empty = self.tab_mgr.remove(idx);
 
@@ -517,7 +546,9 @@ impl super::App {
             return;
         }
 
-        if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); };
+        if let Some(r) = self.renderer.as_mut() {
+            r.invalidate_grid_cache();
+        };
     }
 
     /// Open a file in an editor tab, or switch to an existing editor for that path.
@@ -556,11 +587,12 @@ impl super::App {
 
         if let Some(idx) = self.tab_mgr.find_editor(path) {
             self.tab_mgr.switch_to(idx);
-            if let Some(tab) = self.tab_mgr.active_tab_mut() {
-                if let Some(editor) = tab.editor_state_mut() {
-                    let diff_markers = crate::ui::editor::parse_diff_markers(diff_text, editor.lines.len());
-                    editor.diff_lines = diff_markers;
-                }
+            if let Some(tab) = self.tab_mgr.active_tab_mut()
+                && let Some(editor) = tab.editor_state_mut()
+            {
+                let diff_markers =
+                    crate::ui::editor::parse_diff_markers(diff_text, editor.lines.len());
+                editor.diff_lines = diff_markers;
             }
             if let Some(r) = self.renderer.as_mut() {
                 r.invalidate_grid_cache();
@@ -589,10 +621,18 @@ impl super::App {
     }
 
     /// Handle a file tree context menu action (new file, new folder, rename, delete).
-    pub(crate) fn handle_file_tree_context_action(&mut self, action_id: &str, path: &std::path::Path) {
+    pub(crate) fn handle_file_tree_context_action(
+        &mut self,
+        action_id: &str,
+        path: &std::path::Path,
+    ) {
         match action_id {
             "new_file" => {
-                let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
+                let dir = if path.is_dir() {
+                    path
+                } else {
+                    path.parent().unwrap_or(path)
+                };
                 let target = dir.join("untitled");
                 match std::fs::File::create(&target) {
                     Ok(_) => {
@@ -603,7 +643,11 @@ impl super::App {
                 }
             }
             "new_folder" => {
-                let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
+                let dir = if path.is_dir() {
+                    path
+                } else {
+                    path.parent().unwrap_or(path)
+                };
                 let target = dir.join("new_folder");
                 match std::fs::create_dir(&target) {
                     Ok(_) => self.reload_file_tree_at(dir),
@@ -635,11 +679,25 @@ impl super::App {
             }
             "reveal_in_finder" => {
                 #[cfg(target_os = "macos")]
-                { let _ = std::process::Command::new("open").arg("-R").arg(path).spawn(); }
+                {
+                    let _ = std::process::Command::new("open")
+                        .arg("-R")
+                        .arg(path)
+                        .spawn();
+                }
                 #[cfg(target_os = "linux")]
-                { let _ = std::process::Command::new("xdg-open").arg(path.parent().unwrap_or(path)).spawn(); }
+                {
+                    let _ = std::process::Command::new("xdg-open")
+                        .arg(path.parent().unwrap_or(path))
+                        .spawn();
+                }
                 #[cfg(target_os = "windows")]
-                { let _ = std::process::Command::new("explorer").arg("/select,").arg(path).spawn(); }
+                {
+                    let _ = std::process::Command::new("explorer")
+                        .arg("/select,")
+                        .arg(path)
+                        .spawn();
+                }
             }
             _ => log::warn!("Unknown context action: {}", action_id),
         }
@@ -654,11 +712,18 @@ impl super::App {
     ) {
         let rel = path.to_string_lossy().to_string();
         let action = match action_id {
-            "git_discard" => Some(crate::app::actions::AppAction::GitDiscardFileChanges { path: rel }),
-            "git_gitignore" => Some(crate::app::actions::AppAction::GitAddToGitignore { path: rel }),
+            "git_discard" => {
+                Some(crate::app::actions::AppAction::GitDiscardFileChanges { path: rel })
+            }
+            "git_gitignore" => {
+                Some(crate::app::actions::AppAction::GitAddToGitignore { path: rel })
+            }
             "git_open" => Some(crate::app::actions::AppAction::GitOpenFile { path: rel }),
             "git_reveal" => Some(crate::app::actions::AppAction::GitRevealInFinder { path: rel }),
-            _ => { log::warn!("Unknown git context action: {action_id}"); None }
+            _ => {
+                log::warn!("Unknown git context action: {action_id}");
+                None
+            }
         };
         if let Some(a) = action {
             self.dispatch(a, event_loop);
@@ -715,15 +780,20 @@ impl super::App {
 
         let event_proxy = JsonEventProxy::new(self.proxy.clone());
         let terminal = Terminal::new(
-            cols, lines,
+            cols,
+            lines,
             renderer.cell_width as u16,
             renderer.cell_height as u16,
             event_proxy,
             None,
         );
 
-        self.tab_mgr.push(Tab::new_terminal_with_blocks(terminal, session_id, block_list));
-        if let Some(r) = self.renderer.as_mut() { r.invalidate_grid_cache(); };
+        self.tab_mgr.push(Tab::new_terminal_with_blocks(
+            terminal, session_id, block_list,
+        ));
+        if let Some(r) = self.renderer.as_mut() {
+            r.invalidate_grid_cache();
+        };
     }
 
     pub(crate) fn build_tab_infos(&self) -> Vec<TabInfo> {
@@ -758,31 +828,42 @@ impl super::App {
                 None => continue,
             };
             let (now_app, prev) = match &tab.kind {
-                TabKind::Terminal { terminal, is_alt, .. } => {
-                    (terminal.is_app_controlled(), *is_alt)
-                }
+                TabKind::Terminal {
+                    terminal, is_alt, ..
+                } => (terminal.is_app_controlled(), *is_alt),
                 _ => continue,
             };
             if now_app != prev {
-                if !now_app && i == self.tab_mgr.active_index() {
-                    if let Some(tab) = self.tab_mgr.get_mut(i) {
-                        if let TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                            block_list.finish_app_block(terminal);
-                        }
-                    }
+                if !now_app
+                    && i == self.tab_mgr.active_index()
+                    && let Some(tab) = self.tab_mgr.get_mut(i)
+                    && let TabKind::Terminal {
+                        terminal,
+                        block_list,
+                        ..
+                    } = &mut tab.kind
+                {
+                    block_list.finish_app_block(terminal);
                 }
 
                 let ws = Self::compute_window_size(renderer, now_app);
                 log::info!(
                     "tab {} app_controlled {} -> {}: resize to {}x{} (cell {}x{})",
-                    i, prev, now_app,
-                    ws.num_cols, ws.num_lines, ws.cell_width, ws.cell_height
+                    i,
+                    prev,
+                    now_app,
+                    ws.num_cols,
+                    ws.num_lines,
+                    ws.cell_width,
+                    ws.cell_height
                 );
-                if let Some(tab) = self.tab_mgr.get_mut(i) {
-                    if let TabKind::Terminal { terminal, is_alt, .. } = &mut tab.kind {
-                        terminal.resize(ws);
-                        *is_alt = now_app;
-                    }
+                if let Some(tab) = self.tab_mgr.get_mut(i)
+                    && let TabKind::Terminal {
+                        terminal, is_alt, ..
+                    } = &mut tab.kind
+                {
+                    terminal.resize(ws);
+                    *is_alt = now_app;
                 }
                 any = true;
             }
@@ -817,7 +898,9 @@ impl super::App {
 
         for tab in self.tab_mgr.iter() {
             match &tab.kind {
-                super::TabKind::Terminal { terminal, is_alt, .. } => {
+                super::TabKind::Terminal {
+                    terminal, is_alt, ..
+                } => {
                     let ws = Self::compute_window_size(renderer, *is_alt);
                     terminal.resize(ws);
                 }
@@ -853,19 +936,29 @@ impl super::App {
         }
         let mut count = 0u32;
         for i in 0..self.tab_mgr.len() {
-            if let Some(t) = self.tab_mgr.get(i) {
-                if matches!(t.kind, super::TabKind::Editor { .. }) {
-                    count += 1;
-                }
+            if let Some(t) = self.tab_mgr.get(i)
+                && matches!(t.kind, super::TabKind::Editor { .. })
+            {
+                count += 1;
             }
         }
         count >= crate::usage::Feature::EditorTabs.free_limit()
     }
 
-    pub(crate) fn show_limit_reached(&mut self, feature: crate::usage::Feature, used: u32, limit: u32) {
+    pub(crate) fn show_limit_reached(
+        &mut self,
+        feature: crate::usage::Feature,
+        used: u32,
+        limit: u32,
+    ) {
         self.usage_limit_banner.show();
         self.toast_mgr.push(
-            format!("{} — daily limit reached ({}/{})", feature.label(), used, limit),
+            format!(
+                "{} — daily limit reached ({}/{})",
+                feature.label(),
+                used,
+                limit
+            ),
             crate::ui::components::toast::ToastLevel::Warning,
         );
     }
@@ -903,13 +996,17 @@ impl super::App {
 
     /// Command: send input bytes to the active tab (terminal or sandbox).
     pub(crate) fn buf_size(&self) -> (usize, usize) {
-        self.renderer.as_ref()
+        self.renderer
+            .as_ref()
             .map(|r| (r.width as usize, r.height as usize))
             .unwrap_or((0, 0))
     }
 
     pub(crate) fn scale_factor(&self) -> f32 {
-        self.renderer.as_ref().map(|r| r.scale_factor as f32).unwrap_or(1.0)
+        self.renderer
+            .as_ref()
+            .map(|r| r.scale_factor as f32)
+            .unwrap_or(1.0)
     }
 
     pub(crate) fn total_banners_height(&self, sf: f32) -> usize {
@@ -934,14 +1031,16 @@ impl super::App {
 
     /// Query: is the active tab a sandbox tab?
     pub(crate) fn is_sandbox_active(&self) -> bool {
-        self.tab_mgr.active_tab()
+        self.tab_mgr
+            .active_tab()
             .map(|t| matches!(&t.kind, TabKind::Sandbox { .. }))
             .unwrap_or(false)
     }
 
     /// Query: is the active tab an editor tab?
     pub(crate) fn is_editor_active(&self) -> bool {
-        self.tab_mgr.active_tab()
+        self.tab_mgr
+            .active_tab()
             .map(|t| t.route() == super::router::Route::Editor)
             .unwrap_or(false)
     }
@@ -953,7 +1052,9 @@ impl super::App {
 
     /// Command: mutable access to the active editor state.
     pub(crate) fn active_editor_state_mut(&mut self) -> Option<&mut EditorState> {
-        self.tab_mgr.active_tab_mut().and_then(|t| t.editor_state_mut())
+        self.tab_mgr
+            .active_tab_mut()
+            .and_then(|t| t.editor_state_mut())
     }
 
     /// Record the last finished block of the active tab into the session manager.
@@ -989,7 +1090,8 @@ impl super::App {
             }
         };
 
-        self.session_mgr.record_block(session_id, &block_clone, &block_clone.prompt);
+        self.session_mgr
+            .record_block(session_id, &block_clone, &block_clone.prompt);
     }
 }
 

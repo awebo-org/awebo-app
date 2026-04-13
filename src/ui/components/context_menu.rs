@@ -28,7 +28,12 @@ const SEPARATOR_COLOR: Rgb = (45, 45, 52);
 #[derive(Debug, Clone)]
 pub enum ContextMenuItem {
     /// A clickable action with a label.
-    Action { label: String, id: String, destructive: bool, disabled: bool },
+    Action {
+        label: String,
+        id: String,
+        destructive: bool,
+        disabled: bool,
+    },
     /// A visual separator line.
     Separator,
 }
@@ -36,17 +41,32 @@ pub enum ContextMenuItem {
 impl ContextMenuItem {
     /// Shorthand for a normal action.
     pub fn action(id: &str, label: &str) -> Self {
-        Self::Action { label: label.into(), id: id.into(), destructive: false, disabled: false }
+        Self::Action {
+            label: label.into(),
+            id: id.into(),
+            destructive: false,
+            disabled: false,
+        }
     }
 
     /// Shorthand for a disabled (greyed-out) action.
     pub fn disabled(id: &str, label: &str) -> Self {
-        Self::Action { label: label.into(), id: id.into(), destructive: false, disabled: true }
+        Self::Action {
+            label: label.into(),
+            id: id.into(),
+            destructive: false,
+            disabled: true,
+        }
     }
 
     /// Shorthand for a destructive (red) action.
     pub fn destructive(id: &str, label: &str) -> Self {
-        Self::Action { label: label.into(), id: id.into(), destructive: true, disabled: false }
+        Self::Action {
+            label: label.into(),
+            id: id.into(),
+            destructive: true,
+            disabled: false,
+        }
     }
 }
 
@@ -64,14 +84,22 @@ pub struct ContextMenuState {
 
 impl ContextMenuState {
     pub fn new(items: Vec<ContextMenuItem>, anchor_x: usize, anchor_y: usize) -> Self {
-        Self { items, anchor_x, anchor_y, hovered: None }
+        Self {
+            items,
+            anchor_x,
+            anchor_y,
+            hovered: None,
+        }
     }
 }
 
 /// Compute the menu rect (x, y, w, h) in physical pixels,
 /// clamped to fit within the buffer bounds.
 fn menu_rect(
-    state: &ContextMenuState, buf_w: usize, buf_h: usize, sf: f32,
+    state: &ContextMenuState,
+    buf_w: usize,
+    buf_h: usize,
+    sf: f32,
 ) -> (usize, usize, usize, usize) {
     let pad_y = (PAD_Y * sf) as usize;
     let item_h = (ITEM_H * sf) as usize;
@@ -123,7 +151,12 @@ pub fn draw_context_menu(
 
     for item in &state.items {
         match item {
-            ContextMenuItem::Action { label, destructive, disabled, .. } => {
+            ContextMenuItem::Action {
+                label,
+                destructive,
+                disabled,
+                ..
+            } => {
                 let is_hovered = !disabled && state.hovered == Some(action_idx);
 
                 if is_hovered {
@@ -144,17 +177,32 @@ pub fn draw_context_menu(
 
                 let text_y = y + ((item_h as f32 - LINE_HEIGHT * sf) / 2.0) as usize;
                 draw_text_at(
-                    buf, font_system, swash_cache,
-                    mx + pad_x, text_y, buf.height,
-                    label, metrics, text_color, Family::SansSerif,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    mx + pad_x,
+                    text_y,
+                    buf.height,
+                    label,
+                    metrics,
+                    text_color,
+                    Family::SansSerif,
                 );
 
-                if !*disabled { action_idx += 1; }
+                if !*disabled {
+                    action_idx += 1;
+                }
                 y += item_h;
             }
             ContextMenuItem::Separator => {
                 let sep_y = y + sep_h / 2;
-                buf.fill_rect(mx + pad_x, sep_y, mw.saturating_sub(pad_x * 2), 1, SEPARATOR_COLOR);
+                buf.fill_rect(
+                    mx + pad_x,
+                    sep_y,
+                    mw.saturating_sub(pad_x * 2),
+                    1,
+                    SEPARATOR_COLOR,
+                );
                 y += sep_h;
             }
         }
@@ -165,8 +213,10 @@ pub fn draw_context_menu(
 /// Returns `Some(action_id)` if an enabled action was clicked, `None` if outside.
 pub fn context_menu_hit_test(
     state: &ContextMenuState,
-    px: usize, py: usize,
-    buf_w: usize, buf_h: usize,
+    px: usize,
+    py: usize,
+    buf_w: usize,
+    buf_h: usize,
     sf: f32,
 ) -> Option<String> {
     let (mx, my, mw, mh) = menu_rect(state, buf_w, buf_h, sf);
@@ -188,7 +238,9 @@ pub fn context_menu_hit_test(
                 }
                 y += item_h;
             }
-            ContextMenuItem::Separator => { y += sep_h; }
+            ContextMenuItem::Separator => {
+                y += sep_h;
+            }
         }
     }
     None
@@ -197,8 +249,10 @@ pub fn context_menu_hit_test(
 /// Hover-test: returns which action index (0-based, skipping separators/disabled) the mouse is over.
 pub fn context_menu_hover_test(
     state: &ContextMenuState,
-    px: usize, py: usize,
-    buf_w: usize, buf_h: usize,
+    px: usize,
+    py: usize,
+    buf_w: usize,
+    buf_h: usize,
     sf: f32,
 ) -> Option<usize> {
     let (mx, my, mw, mh) = menu_rect(state, buf_w, buf_h, sf);
@@ -219,10 +273,14 @@ pub fn context_menu_hover_test(
                 if py >= y && py < y + item_h && !disabled {
                     return Some(action_idx);
                 }
-                if !disabled { action_idx += 1; }
+                if !disabled {
+                    action_idx += 1;
+                }
                 y += item_h;
             }
-            ContextMenuItem::Separator => { y += sep_h; }
+            ContextMenuItem::Separator => {
+                y += sep_h;
+            }
         }
     }
     None
@@ -231,8 +289,10 @@ pub fn context_menu_hover_test(
 /// Returns true if point is inside the menu rect (for backdrop detection).
 pub fn is_inside_menu(
     state: &ContextMenuState,
-    px: usize, py: usize,
-    buf_w: usize, buf_h: usize,
+    px: usize,
+    py: usize,
+    buf_w: usize,
+    buf_h: usize,
     sf: f32,
 ) -> bool {
     let (mx, my, mw, mh) = menu_rect(state, buf_w, buf_h, sf);
@@ -247,8 +307,16 @@ mod tests {
     fn action_index_to_item_idx(items: &[ContextMenuItem], action_idx: usize) -> Option<usize> {
         let mut count = 0;
         for (i, item) in items.iter().enumerate() {
-            if matches!(item, ContextMenuItem::Action { disabled: false, .. }) {
-                if count == action_idx { return Some(i); }
+            if matches!(
+                item,
+                ContextMenuItem::Action {
+                    disabled: false,
+                    ..
+                }
+            ) {
+                if count == action_idx {
+                    return Some(i);
+                }
                 count += 1;
             }
         }

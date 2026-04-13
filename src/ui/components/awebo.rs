@@ -93,11 +93,11 @@ fn draw_dot(
 
             let idx = (py * buf_w + px) * 4;
             if is_bgra {
-                buf.data[idx]     = (color.2 as f32 * alpha + buf.data[idx]     as f32 * inv) as u8;
+                buf.data[idx] = (color.2 as f32 * alpha + buf.data[idx] as f32 * inv) as u8;
                 buf.data[idx + 1] = (color.1 as f32 * alpha + buf.data[idx + 1] as f32 * inv) as u8;
                 buf.data[idx + 2] = (color.0 as f32 * alpha + buf.data[idx + 2] as f32 * inv) as u8;
             } else {
-                buf.data[idx]     = (color.0 as f32 * alpha + buf.data[idx]     as f32 * inv) as u8;
+                buf.data[idx] = (color.0 as f32 * alpha + buf.data[idx] as f32 * inv) as u8;
                 buf.data[idx + 1] = (color.1 as f32 * alpha + buf.data[idx + 1] as f32 * inv) as u8;
                 buf.data[idx + 2] = (color.2 as f32 * alpha + buf.data[idx + 2] as f32 * inv) as u8;
             }

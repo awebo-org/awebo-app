@@ -4,14 +4,12 @@ use std::path::{Path, PathBuf};
 
 use crate::ui::syntax::{SyntaxRegistry, Token};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditorMode {
     Text,
     Image,
     Hex,
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorMove {
@@ -25,7 +23,6 @@ pub enum CursorMove {
     PageDown(usize),
 }
 
-
 /// Per-line diff highlighting kind for git diff view.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiffLineKind {
@@ -36,7 +33,6 @@ pub enum DiffLineKind {
     /// Line was removed.
     Removed,
 }
-
 
 pub struct EditorState {
     pub path: PathBuf,
@@ -79,14 +75,18 @@ pub struct EditorState {
     pub diff_lines: Vec<DiffLineKind>,
 }
 
-
 impl EditorState {
     pub fn file_name(&self) -> String {
-        let name = self.path
+        let name = self
+            .path
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "untitled".to_string());
-        if self.modified { format!("● {}", name) } else { name }
+        if self.modified {
+            format!("● {}", name)
+        } else {
+            name
+        }
     }
 
     pub fn content_height(&self, sf: f32) -> f32 {
@@ -96,7 +96,7 @@ impl EditorState {
                 self.lines.len() as f32 * line_h + TEXT_PAD_Y * sf * 2.0
             }
             EditorMode::Hex => {
-                let row_count = (self.raw_bytes.len() + 15) / 16;
+                let row_count = self.raw_bytes.len().div_ceil(16);
                 let line_h = HEX_LINE_HEIGHT * sf;
                 row_count as f32 * line_h + HEX_PAD_Y * sf * 2.0
             }
@@ -104,20 +104,31 @@ impl EditorState {
         }
     }
 
-    pub fn cursor_line(&self) -> usize { self.cursor_line }
-    pub fn cursor_col(&self) -> usize { self.cursor_col }
-    pub fn is_modified(&self) -> bool { self.modified }
-    pub fn scroll_x(&self) -> f32 { self.scroll_x }
+    pub fn cursor_line(&self) -> usize {
+        self.cursor_line
+    }
+    pub fn cursor_col(&self) -> usize {
+        self.cursor_col
+    }
+    pub fn is_modified(&self) -> bool {
+        self.modified
+    }
+    pub fn scroll_x(&self) -> f32 {
+        self.scroll_x
+    }
 
     pub fn has_selection(&self) -> bool {
-        self.sel_anchor.map_or(false, |(al, ac)| al != self.cursor_line || ac != self.cursor_col)
+        self.sel_anchor
+            .is_some_and(|(al, ac)| al != self.cursor_line || ac != self.cursor_col)
     }
 
     /// Ordered selection range: (start_line, start_col, end_line, end_col).
     pub fn selection_range(&self) -> Option<(usize, usize, usize, usize)> {
         let (al, ac) = self.sel_anchor?;
         let (cl, cc) = (self.cursor_line, self.cursor_col);
-        if !self.has_selection() { return None; }
+        if !self.has_selection() {
+            return None;
+        }
         if (al, ac) <= (cl, cc) {
             Some((al, ac, cl, cc))
         } else {
@@ -149,7 +160,9 @@ impl EditorState {
         if self.highlight_cache.is_empty() {
             return &[];
         }
-        let start_idx = self.highlight_cache.partition_point(|t| t.end <= line_start);
+        let start_idx = self
+            .highlight_cache
+            .partition_point(|t| t.end <= line_start);
         let end_idx = self.highlight_cache.partition_point(|t| t.start < line_end);
         &self.highlight_cache[start_idx..end_idx]
     }
@@ -159,7 +172,6 @@ impl EditorState {
         self.syntax_config_idx.is_some()
     }
 }
-
 
 impl EditorState {
     pub fn open(path: &Path, syntax: Option<&mut SyntaxRegistry>) -> Result<Self, std::io::Error> {
@@ -255,7 +267,8 @@ impl EditorState {
         match dir {
             CursorMove::Left => {
                 if self.cursor_col > 0 {
-                    self.cursor_col = prev_char_boundary(&self.lines[self.cursor_line], self.cursor_col);
+                    self.cursor_col =
+                        prev_char_boundary(&self.lines[self.cursor_line], self.cursor_col);
                 } else if self.cursor_line > 0 {
                     self.cursor_line -= 1;
                     self.cursor_col = self.lines[self.cursor_line].len();
@@ -264,7 +277,8 @@ impl EditorState {
             CursorMove::Right => {
                 let line_len = self.lines[self.cursor_line].len();
                 if self.cursor_col < line_len {
-                    self.cursor_col = next_char_boundary(&self.lines[self.cursor_line], self.cursor_col);
+                    self.cursor_col =
+                        next_char_boundary(&self.lines[self.cursor_line], self.cursor_col);
                 } else if self.cursor_line + 1 < self.lines.len() {
                     self.cursor_line += 1;
                     self.cursor_col = 0;
@@ -312,7 +326,9 @@ impl EditorState {
 
     /// Insert a single character at cursor. Deletes selection first if any.
     pub fn insert_char(&mut self, ch: char) {
-        if self.mode != EditorMode::Text { return; }
+        if self.mode != EditorMode::Text {
+            return;
+        }
         self.delete_selection();
         let line = &mut self.lines[self.cursor_line];
         line.insert(self.cursor_col, ch);
@@ -322,7 +338,9 @@ impl EditorState {
 
     /// Insert a string (e.g. from paste) at cursor. Handles newlines.
     pub fn insert_str(&mut self, s: &str) {
-        if self.mode != EditorMode::Text { return; }
+        if self.mode != EditorMode::Text {
+            return;
+        }
         self.delete_selection();
         for ch in s.chars() {
             if ch == '\n' || ch == '\r' {
@@ -338,7 +356,9 @@ impl EditorState {
 
     /// Insert newline at cursor, splitting the current line.
     pub fn new_line(&mut self) {
-        if self.mode != EditorMode::Text { return; }
+        if self.mode != EditorMode::Text {
+            return;
+        }
         self.delete_selection();
         let tail = self.lines[self.cursor_line][self.cursor_col..].to_string();
         self.lines[self.cursor_line].truncate(self.cursor_col);
@@ -350,8 +370,12 @@ impl EditorState {
 
     /// Backspace — delete character before cursor, or delete selection.
     pub fn delete_backward(&mut self) {
-        if self.mode != EditorMode::Text { return; }
-        if self.delete_selection() { return; }
+        if self.mode != EditorMode::Text {
+            return;
+        }
+        if self.delete_selection() {
+            return;
+        }
 
         if self.cursor_col > 0 {
             let prev = prev_char_boundary(&self.lines[self.cursor_line], self.cursor_col);
@@ -369,8 +393,12 @@ impl EditorState {
 
     /// Delete — delete character at cursor, or delete selection.
     pub fn delete_forward(&mut self) {
-        if self.mode != EditorMode::Text { return; }
-        if self.delete_selection() { return; }
+        if self.mode != EditorMode::Text {
+            return;
+        }
+        if self.delete_selection() {
+            return;
+        }
 
         let line_len = self.lines[self.cursor_line].len();
         if self.cursor_col < line_len {
@@ -409,7 +437,9 @@ impl EditorState {
 
     /// Save to disk.
     pub fn save(&mut self) -> Result<(), std::io::Error> {
-        if self.mode != EditorMode::Text { return Ok(()); }
+        if self.mode != EditorMode::Text {
+            return Ok(());
+        }
         let content: String = self.lines.join("\n");
         std::fs::write(&self.path, &content)?;
         self.modified = false;
@@ -459,7 +489,6 @@ impl EditorState {
     }
 }
 
-
 fn prev_char_boundary(s: &str, pos: usize) -> usize {
     let mut i = pos.saturating_sub(1);
     while i > 0 && !s.is_char_boundary(i) {
@@ -490,7 +519,6 @@ fn safe_slice_to(s: &str, end: usize) -> &str {
     &s[..end.min(s.len())]
 }
 
-
 pub const TEXT_LINE_HEIGHT: f32 = 20.0;
 pub const TEXT_FONT_SIZE: f32 = 13.0;
 pub const TEXT_PAD_Y: f32 = 8.0;
@@ -502,18 +530,95 @@ pub const HEX_FONT_SIZE: f32 = 12.0;
 pub const HEX_PAD_Y: f32 = 8.0;
 pub const HEX_PAD_X: f32 = 12.0;
 
-
 const TEXT_EXTENSIONS: &[&str] = &[
-    "rs", "toml", "json", "md", "txt", "yml", "yaml", "js", "ts", "jsx", "tsx",
-    "py", "sh", "bash", "zsh", "fish", "css", "scss", "less", "html", "htm",
-    "xml", "svg", "log", "env", "cfg", "ini", "csv", "tsv", "sql", "graphql",
-    "rb", "go", "java", "kt", "swift", "c", "h", "cpp", "hpp", "cc", "hh",
-    "cs", "fs", "ml", "mli", "hs", "erl", "ex", "exs", "lua", "vim",
-    "dockerfile", "makefile", "cmake", "gitignore", "gitattributes",
-    "editorconfig", "prettierrc", "eslintrc", "babelrc",
-    "lock", "snap", "patch", "diff", "conf", "rc", "properties",
-    "r", "rmd", "jl", "pl", "pm", "php", "dart", "scala", "clj", "cljs",
-    "tf", "hcl", "nix", "dhall", "zig", "v", "d", "nim", "cr", "pony",
+    "rs",
+    "toml",
+    "json",
+    "md",
+    "txt",
+    "yml",
+    "yaml",
+    "js",
+    "ts",
+    "jsx",
+    "tsx",
+    "py",
+    "sh",
+    "bash",
+    "zsh",
+    "fish",
+    "css",
+    "scss",
+    "less",
+    "html",
+    "htm",
+    "xml",
+    "svg",
+    "log",
+    "env",
+    "cfg",
+    "ini",
+    "csv",
+    "tsv",
+    "sql",
+    "graphql",
+    "rb",
+    "go",
+    "java",
+    "kt",
+    "swift",
+    "c",
+    "h",
+    "cpp",
+    "hpp",
+    "cc",
+    "hh",
+    "cs",
+    "fs",
+    "ml",
+    "mli",
+    "hs",
+    "erl",
+    "ex",
+    "exs",
+    "lua",
+    "vim",
+    "dockerfile",
+    "makefile",
+    "cmake",
+    "gitignore",
+    "gitattributes",
+    "editorconfig",
+    "prettierrc",
+    "eslintrc",
+    "babelrc",
+    "lock",
+    "snap",
+    "patch",
+    "diff",
+    "conf",
+    "rc",
+    "properties",
+    "r",
+    "rmd",
+    "jl",
+    "pl",
+    "pm",
+    "php",
+    "dart",
+    "scala",
+    "clj",
+    "cljs",
+    "tf",
+    "hcl",
+    "nix",
+    "dhall",
+    "zig",
+    "v",
+    "d",
+    "nim",
+    "cr",
+    "pony",
 ];
 
 const IMAGE_EXTENSIONS: &[&str] = &[
@@ -534,10 +639,23 @@ fn detect_mode(path: &Path) -> EditorMode {
     if let Some(name) = path.file_name() {
         let name_lower = name.to_string_lossy().to_lowercase();
         let extensionless_text = [
-            "makefile", "dockerfile", "vagrantfile", "gemfile", "rakefile",
-            "procfile", "brewfile", "justfile", "cmakelists.txt",
-            ".gitignore", ".gitattributes", ".editorconfig", ".env",
-            ".dockerignore", ".prettierrc", ".eslintrc", ".babelrc",
+            "makefile",
+            "dockerfile",
+            "vagrantfile",
+            "gemfile",
+            "rakefile",
+            "procfile",
+            "brewfile",
+            "justfile",
+            "cmakelists.txt",
+            ".gitignore",
+            ".gitattributes",
+            ".editorconfig",
+            ".env",
+            ".dockerignore",
+            ".prettierrc",
+            ".eslintrc",
+            ".babelrc",
         ];
         if extensionless_text.iter().any(|n| *n == name_lower) {
             return EditorMode::Text;
@@ -588,7 +706,6 @@ pub fn parse_diff_markers(diff_text: &str, file_len: usize) -> Vec<DiffLineKind>
     }
     markers
 }
-
 
 #[cfg(test)]
 impl EditorState {
@@ -647,7 +764,6 @@ impl EditorState {
         self.cursor_col = col.min(self.lines[self.cursor_line].len());
     }
 }
-
 
 #[cfg(test)]
 mod tests {

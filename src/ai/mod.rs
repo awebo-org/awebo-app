@@ -11,12 +11,8 @@ use crate::ai::model_manager::LoadedModelHandle;
 
 /// Synchronously collect the result of a completed tokio blocking task.
 /// Only call when you know the task has finished (e.g. its channel disconnected).
-fn collect_blocking<T: Send + 'static>(
-    jh: tokio::task::JoinHandle<T>,
-) -> Option<T> {
-    tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(jh).ok()
-    })
+fn collect_blocking<T: Send + 'static>(jh: tokio::task::JoinHandle<T>) -> Option<T> {
+    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(jh).ok())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,10 +100,11 @@ impl AiState {
         if self.thinking_since.is_some() {
             self.thinking_since = None;
         }
-        if let Some(msg) = self.messages.last_mut() {
-            if msg.role == MessageRole::Assistant && msg.streaming {
-                msg.content.push_str(token);
-            }
+        if let Some(msg) = self.messages.last_mut()
+            && msg.role == MessageRole::Assistant
+            && msg.streaming
+        {
+            msg.content.push_str(token);
         }
         self.auto_scroll = true;
     }
@@ -122,11 +119,11 @@ impl AiState {
     /// Check if a model handle has been delivered asynchronously.
     /// Returns `true` if a model was just received.
     pub fn poll_model_events(&mut self) -> bool {
-        if let Some(rx) = &self.handle_rx {
-            if let Ok(handle) = rx.try_recv() {
-                self.loaded_model = Some(handle);
-                return true;
-            }
+        if let Some(rx) = &self.handle_rx
+            && let Ok(handle) = rx.try_recv()
+        {
+            self.loaded_model = Some(handle);
+            return true;
         }
         false
     }
@@ -159,12 +156,12 @@ impl AiState {
             }
         }
         if done {
-            if let Some(jh) = self.inference_handle.take() {
-                if let Some(Some(result)) = collect_blocking(jh) {
-                    self.last_prompt_tokens = result.prompt_tokens;
-                    self.last_generated_tokens = result.generated_tokens;
-                    self.loaded_model = Some(result.handle);
-                }
+            if let Some(jh) = self.inference_handle.take()
+                && let Some(Some(result)) = collect_blocking(jh)
+            {
+                self.last_prompt_tokens = result.prompt_tokens;
+                self.last_generated_tokens = result.generated_tokens;
+                self.loaded_model = Some(result.handle);
             }
         } else {
             self.inference_rx = Some(rx);
@@ -176,10 +173,7 @@ impl AiState {
     /// Returns `Some(command)` when the hint is complete,
     /// `None` if still running or not active.
     pub fn poll_hint(&mut self) -> Option<String> {
-        let rx = match self.hint_rx.take() {
-            Some(rx) => rx,
-            None => return None,
-        };
+        let rx = self.hint_rx.take()?;
         let mut done = false;
         loop {
             match rx.try_recv() {
@@ -198,10 +192,10 @@ impl AiState {
             }
         }
         if done {
-            if let Some(jh) = self.hint_handle.take() {
-                if let Some(Some(result)) = collect_blocking(jh) {
-                    self.loaded_model = Some(result.handle);
-                }
+            if let Some(jh) = self.hint_handle.take()
+                && let Some(Some(result)) = collect_blocking(jh)
+            {
+                self.loaded_model = Some(result.handle);
             }
             let result = std::mem::take(&mut self.hint_buffer);
             log::info!("raw model response: {:?}", result);
@@ -736,7 +730,12 @@ mod tests {
     fn detect_os_info_not_empty() {
         let info = detect_os_info();
         assert!(!info.is_empty());
-        assert!(info.contains("macOS") || info.contains("Linux") || info.contains("Windows") || info.contains("Unknown"));
+        assert!(
+            info.contains("macOS")
+                || info.contains("Linux")
+                || info.contains("Windows")
+                || info.contains("Unknown")
+        );
     }
 
     #[test]

@@ -3,9 +3,9 @@
 //! Every user-initiated state mutation is encoded as an [`AppAction`].
 //! Event handlers produce actions, and [`App::dispatch`] executes them.
 
-use crate::session::SessionId;
-use crate::agent::session::ApprovalDecision;
 use super::tabs::TabKind;
+use crate::agent::session::ApprovalDecision;
+use crate::session::SessionId;
 
 /// A discrete, side-effect-producing operation on the application state.
 ///
@@ -13,24 +13,40 @@ use super::tabs::TabKind;
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppAction {
     /// Open a session tab, or switch to it if one already exists.
-    OpenSession { session_id: SessionId },
+    OpenSession {
+        session_id: SessionId,
+    },
     /// Delete a session from history.
-    ClearSession { session_id: SessionId },
+    ClearSession {
+        session_id: SessionId,
+    },
 
     /// Create a new terminal tab, optionally with a specific shell.
-    CreateTab { shell_path: Option<String> },
+    CreateTab {
+        shell_path: Option<String>,
+    },
     /// Create a new sandbox terminal tab with the given image index.
-    CreateSandboxTab { image_idx: usize },
+    CreateSandboxTab {
+        image_idx: usize,
+    },
     /// Close the tab at the given index.
-    CloseTab { index: usize },
+    CloseTab {
+        index: usize,
+    },
     /// Force-close a tab without saving (from confirm dialog "Don't Save").
-    ForceCloseTab { index: usize },
+    ForceCloseTab {
+        index: usize,
+    },
     /// Save and then close a tab (from confirm dialog "Save").
-    SaveAndCloseTab { index: usize },
+    SaveAndCloseTab {
+        index: usize,
+    },
     /// Dismiss the unsaved-close confirmation dialog.
     DismissConfirmClose,
     /// Switch to the tab at the given index.
-    SwitchTab { index: usize },
+    SwitchTab {
+        index: usize,
+    },
     /// Switch to the previous tab.
     PreviousTab,
     /// Switch to the next tab.
@@ -41,19 +57,30 @@ pub enum AppAction {
     /// Toggle the git (right) panel.
     ToggleGitPanel,
     /// Switch the git panel sub-tab.
-    SwitchGitPanelTab { tab: crate::ui::panel_layout::GitPanelTab },
+    SwitchGitPanelTab {
+        tab: crate::ui::panel_layout::GitPanelTab,
+    },
     /// Git: stage a file by index.
-    GitStageFile { index: usize },
+    GitStageFile {
+        index: usize,
+    },
     /// Git: unstage a file by index.
-    GitUnstageFile { index: usize },
+    GitUnstageFile {
+        index: usize,
+    },
     /// Git: stage all files.
     GitStageAll,
     /// Git: unstage all files.
     GitUnstageAll,
     /// Git: checkout a branch by index.
-    GitCheckoutBranch { index: usize },
+    GitCheckoutBranch {
+        index: usize,
+    },
     /// Git: focus the commit message input and position cursor at click.
-    GitFocusCommitInput { rel_x: f64, rel_y: f64 },
+    GitFocusCommitInput {
+        rel_x: f64,
+        rel_y: f64,
+    },
     /// Git: generate AI commit message from staged diff.
     GitGenerateCommitMessage,
     /// Git: cancel ongoing AI commit message generation.
@@ -61,21 +88,37 @@ pub enum AppAction {
     /// Git: commit staged changes.
     GitCommit,
     /// Git: open file diff in editor.
-    GitOpenFileDiff { index: usize },
+    GitOpenFileDiff {
+        index: usize,
+    },
     /// Git: discard working-tree changes for a file by path.
-    GitDiscardFileChanges { path: String },
+    GitDiscardFileChanges {
+        path: String,
+    },
     /// Git: add a file pattern to .gitignore.
-    GitAddToGitignore { path: String },
+    GitAddToGitignore {
+        path: String,
+    },
     /// Git: open a file in the editor.
-    GitOpenFile { path: String },
+    GitOpenFile {
+        path: String,
+    },
     /// Git: reveal a file in the system file manager.
-    GitRevealInFinder { path: String },
+    GitRevealInFinder {
+        path: String,
+    },
     /// Switch the side panel sub-tab.
-    SwitchPanelTab { tab: crate::ui::panel_layout::SidePanelTab },
+    SwitchPanelTab {
+        tab: crate::ui::panel_layout::SidePanelTab,
+    },
     /// Toggle expand/collapse of a file tree directory node.
-    ToggleFileTreeNode { path: std::path::PathBuf },
+    ToggleFileTreeNode {
+        path: std::path::PathBuf,
+    },
     /// Open a file from the file tree in the default editor.
-    OpenFile { path: std::path::PathBuf },
+    OpenFile {
+        path: std::path::PathBuf,
+    },
     /// Toggle the debug overlay.
     ToggleDebugPanel,
     /// Open the command palette.
@@ -89,7 +132,10 @@ pub enum AppAction {
     /// Close all transient overlays (palette, pickers, menus).
     CloseAllOverlays,
     /// Handle a context menu action by id.
-    ContextMenuAction { id: String, path: std::path::PathBuf },
+    ContextMenuAction {
+        id: String,
+        path: std::path::PathBuf,
+    },
 
     /// Open the settings view as a tab (or focus existing).
     OpenSettings,
@@ -109,14 +155,20 @@ pub enum AppAction {
     DismissUsageLimitBanner,
 
     /// Load a model by its registry index.
-    LoadModel { index: usize },
+    LoadModel {
+        index: usize,
+    },
     /// Cancel ongoing AI inference.
     CancelInference,
 
     /// Start an agent session with a natural-language task.
-    StartAgent { task: String },
+    StartAgent {
+        task: String,
+    },
     /// User approved/rejected a pending agent tool call.
-    AgentApproval { decision: ApprovalDecision },
+    AgentApproval {
+        decision: ApprovalDecision,
+    },
     /// Enter persistent agent input mode.
     EnterAgentMode,
     /// Exit persistent agent input mode.
@@ -161,7 +213,8 @@ impl super::App {
                     return;
                 }
                 self.maybe_show_first_use_hint(crate::usage::Feature::Sandbox);
-                self.usage_tracker.record_use(crate::usage::Feature::Sandbox);
+                self.usage_tracker
+                    .record_use(crate::usage::Feature::Sandbox);
                 self.create_sandbox_tab(image_idx);
             }
             AppAction::CloseTab { index } => {
@@ -171,14 +224,13 @@ impl super::App {
                 self.force_close_tab(index, event_loop);
             }
             AppAction::SaveAndCloseTab { index } => {
-                if let Some(tab) = self.tab_mgr.get_mut(index) {
-                    if let Some(editor) = tab.editor_state_mut() {
-                        if let Err(e) = editor.save() {
-                            log::error!("Failed to save file: {}", e);
-                            self.overlay.dismiss_confirm_close();
-                            return;
-                        }
-                    }
+                if let Some(tab) = self.tab_mgr.get_mut(index)
+                    && let Some(editor) = tab.editor_state_mut()
+                    && let Err(e) = editor.save()
+                {
+                    log::error!("Failed to save file: {}", e);
+                    self.overlay.dismiss_confirm_close();
+                    return;
                 }
                 self.force_close_tab(index, event_loop);
             }
@@ -211,7 +263,8 @@ impl super::App {
             AppAction::ToggleGitPanel => {
                 self.overlay.toggle_git_panel();
                 if self.overlay.git_panel_open {
-                    let cwd = self.active_terminal()
+                    let cwd = self
+                        .active_terminal()
                         .and_then(|t| t.cwd())
                         .unwrap_or_else(|| ".".into());
                     self.git_panel.refresh(&cwd);
@@ -221,7 +274,8 @@ impl super::App {
             AppAction::SwitchGitPanelTab { tab } => {
                 self.panel_layout.switch_git_tab(tab);
                 self.git_panel.scroll_offset = 0.0;
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 self.git_panel.refresh(&cwd);
@@ -229,7 +283,8 @@ impl super::App {
             AppAction::GitStageFile { index } => {
                 if let Some(entry) = self.git_panel.data.entries.get(index) {
                     let path = entry.path.clone();
-                    let cwd = self.active_terminal()
+                    let cwd = self
+                        .active_terminal()
                         .and_then(|t| t.cwd())
                         .unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -243,7 +298,8 @@ impl super::App {
             AppAction::GitUnstageFile { index } => {
                 if let Some(entry) = self.git_panel.data.entries.get(index) {
                     let path = entry.path.clone();
-                    let cwd = self.active_terminal()
+                    let cwd = self
+                        .active_terminal()
                         .and_then(|t| t.cwd())
                         .unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -257,7 +313,8 @@ impl super::App {
             AppAction::GitCheckoutBranch { index } => {
                 if let Some(branch) = self.git_panel.data.branches.get(index) {
                     let name = branch.name.clone();
-                    let cwd = self.active_terminal()
+                    let cwd = self
+                        .active_terminal()
                         .and_then(|t| t.cwd())
                         .unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -269,7 +326,8 @@ impl super::App {
                 }
             }
             AppAction::GitStageAll => {
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -280,7 +338,8 @@ impl super::App {
                 }
             }
             AppAction::GitUnstageAll => {
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -292,16 +351,22 @@ impl super::App {
             }
             AppAction::GitFocusCommitInput { rel_x, rel_y } => {
                 self.git_panel.commit_input_focused = true;
-                let sf = self.renderer.as_ref().map(|r| r.scale_factor).unwrap_or(1.0);
+                let sf = self
+                    .renderer
+                    .as_ref()
+                    .map(|r| r.scale_factor)
+                    .unwrap_or(1.0);
                 let char_w = 7.0 * sf;
                 let panel_w = self.panel_layout.right_physical_width(sf as f32) as f64;
                 let input_pad_x = crate::ui::components::git_panel::COMMIT_INPUT_PAD_X as f64 * sf;
                 let text_max_px = panel_w - input_pad_x * 2.0 - 8.0 * sf - 16.0 * sf - 16.0 * sf;
                 let max_chars = (text_max_px / char_w).floor().max(1.0) as usize;
-                self.git_panel.cursor_from_click(rel_x, rel_y, char_w, max_chars);
+                self.git_panel
+                    .cursor_from_click(rel_x, rel_y, char_w, max_chars);
             }
             AppAction::GitGenerateCommitMessage => {
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -314,11 +379,15 @@ impl super::App {
                     log::info!("GitGenerateCommitMessage: diff len={}", diff.len());
                     let handle = match self.ai_ctrl.state.loaded_model.take() {
                         Some(h) => {
-                            log::info!("GitGenerateCommitMessage: model available, starting inference");
+                            log::info!(
+                                "GitGenerateCommitMessage: model available, starting inference"
+                            );
                             h
                         }
                         None => {
-                            log::info!("GitGenerateCommitMessage: no model loaded, setting pending");
+                            log::info!(
+                                "GitGenerateCommitMessage: no model loaded, setting pending"
+                            );
                             self.git_panel.pending_generate_commit_msg = true;
                             self.git_panel.generating_commit_msg = true;
                             self.git_panel.commit_message.clear();
@@ -329,19 +398,21 @@ impl super::App {
                         }
                     };
                     let system = "You write git commit messages. Output ONLY the message, nothing else. Format: <type>: <short summary>. Types: feat, fix, refactor, chore, docs, style, test. Example: \"refactor: simplify user auth flow\". Max 72 chars. Plain English. No code, no file names, no markdown, no quotes, no explanation.";
-                    let user_msg = format!("Summarize these staged changes in one commit message:\n\n{diff}");
+                    let user_msg =
+                        format!("Summarize these staged changes in one commit message:\n\n{diff}");
                     let fallback = self.ai_ctrl.fallback_template();
                     let prompt = self.ai_ctrl.state.build_custom_prompt(
                         system,
                         &[("user", &user_msg)],
                         &handle.model,
-                        &fallback,
+                        fallback,
                     );
                     self.ai_ctrl.state.begin_assistant_message();
                     let proxy = self.proxy.clone();
                     let cancel = self.ai_ctrl.arm_cancel();
                     let (tx, rx) = std::sync::mpsc::channel();
-                    let inf_handle = crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
+                    let inf_handle =
+                        crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
                     self.ai_ctrl.state.inference_rx = Some(rx);
                     self.ai_ctrl.state.inference_handle = Some(inf_handle);
                     self.git_panel.generating_commit_msg = true;
@@ -364,7 +435,8 @@ impl super::App {
                 }
                 self.maybe_show_first_use_hint(crate::usage::Feature::Git);
                 self.usage_tracker.record_use(crate::usage::Feature::Git);
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -383,7 +455,8 @@ impl super::App {
                 if let Some(entry) = self.git_panel.data.entries.get(index) {
                     let path = entry.path.clone();
                     let staged = entry.staged;
-                    let cwd = self.active_terminal()
+                    let cwd = self
+                        .active_terminal()
                         .and_then(|t| t.cwd())
                         .unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -400,7 +473,8 @@ impl super::App {
                 }
             }
             AppAction::GitDiscardFileChanges { path } => {
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -411,7 +485,8 @@ impl super::App {
                 }
             }
             AppAction::GitAddToGitignore { path } => {
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
@@ -422,7 +497,8 @@ impl super::App {
                 }
             }
             AppAction::GitOpenFile { path } => {
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 let abs = std::path::Path::new(&cwd).join(&path);
@@ -431,24 +507,43 @@ impl super::App {
                 }
             }
             AppAction::GitRevealInFinder { path } => {
-                let cwd = self.active_terminal()
+                let cwd = self
+                    .active_terminal()
                     .and_then(|t| t.cwd())
                     .unwrap_or_else(|| ".".into());
                 let abs = std::path::Path::new(&cwd).join(&path);
                 #[cfg(target_os = "macos")]
-                { let _ = std::process::Command::new("open").arg("-R").arg(&abs).spawn(); }
+                {
+                    let _ = std::process::Command::new("open")
+                        .arg("-R")
+                        .arg(&abs)
+                        .spawn();
+                }
                 #[cfg(target_os = "linux")]
-                { let _ = std::process::Command::new("xdg-open").arg(abs.parent().unwrap_or(&abs)).spawn(); }
+                {
+                    let _ = std::process::Command::new("xdg-open")
+                        .arg(abs.parent().unwrap_or(&abs))
+                        .spawn();
+                }
                 #[cfg(target_os = "windows")]
-                { let _ = std::process::Command::new("explorer").arg("/select,").arg(&abs).spawn(); }
+                {
+                    let _ = std::process::Command::new("explorer")
+                        .arg("/select,")
+                        .arg(&abs)
+                        .spawn();
+                }
             }
             AppAction::SwitchPanelTab { tab } => {
                 self.panel_layout.switch_tab(tab);
                 if tab == crate::ui::panel_layout::SidePanelTab::Files {
-                    let cwd = self.active_terminal()
+                    let cwd = self
+                        .active_terminal()
                         .and_then(|t| t.cwd())
                         .map(std::path::PathBuf::from)
-                        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
+                        .unwrap_or_else(|| {
+                            std::env::current_dir()
+                                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                        });
                     self.file_tree.load(&cwd);
                 }
             }
@@ -543,24 +638,22 @@ impl super::App {
                     }
                 }
             }
-            AppAction::DeactivateLicense => {
-                match self.license_mgr.deactivate() {
-                    Ok(()) => {
-                        self.usage_tracker.set_pro(false);
-                        self.toast_mgr.push(
-                            "License deactivated".to_string(),
-                            crate::ui::components::toast::ToastLevel::Info,
-                        );
-                        self.overlay.pro_panel_open = false;
-                    }
-                    Err(e) => {
-                        self.toast_mgr.push(
-                            format!("Deactivation failed: {e}"),
-                            crate::ui::components::toast::ToastLevel::Error,
-                        );
-                    }
+            AppAction::DeactivateLicense => match self.license_mgr.deactivate() {
+                Ok(()) => {
+                    self.usage_tracker.set_pro(false);
+                    self.toast_mgr.push(
+                        "License deactivated".to_string(),
+                        crate::ui::components::toast::ToastLevel::Info,
+                    );
+                    self.overlay.pro_panel_open = false;
                 }
-            }
+                Err(e) => {
+                    self.toast_mgr.push(
+                        format!("Deactivation failed: {e}"),
+                        crate::ui::components::toast::ToastLevel::Error,
+                    );
+                }
+            },
             AppAction::BuyPro => {
                 let _ = std::process::Command::new("open")
                     .arg("https://awebo-org.lemonsqueezy.com/checkout/buy/de81be1d-d76a-4d69-a95d-9c1e94fa2c9a?media=0")
@@ -607,7 +700,12 @@ impl super::App {
 
             AppAction::StopSandbox => {
                 let idx = self.tab_mgr.active_index();
-                if self.tab_mgr.get(idx).map(|t| matches!(&t.kind, TabKind::Sandbox { .. })).unwrap_or(false) {
+                if self
+                    .tab_mgr
+                    .get(idx)
+                    .map(|t| matches!(&t.kind, TabKind::Sandbox { .. }))
+                    .unwrap_or(false)
+                {
                     self.close_tab(idx, event_loop);
                 }
             }
@@ -676,9 +774,15 @@ mod tests {
             AppAction::PreviousTab,
             AppAction::NextTab,
             AppAction::ToggleSidebar,
-            AppAction::SwitchPanelTab { tab: crate::ui::panel_layout::SidePanelTab::Sessions },
-            AppAction::ToggleFileTreeNode { path: std::path::PathBuf::from("/tmp") },
-            AppAction::OpenFile { path: std::path::PathBuf::from("/tmp/test.txt") },
+            AppAction::SwitchPanelTab {
+                tab: crate::ui::panel_layout::SidePanelTab::Sessions,
+            },
+            AppAction::ToggleFileTreeNode {
+                path: std::path::PathBuf::from("/tmp"),
+            },
+            AppAction::OpenFile {
+                path: std::path::PathBuf::from("/tmp/test.txt"),
+            },
             AppAction::ToggleDebugPanel,
             AppAction::OpenPalette,
             AppAction::ToggleShellPicker,
@@ -698,8 +802,12 @@ mod tests {
             AppAction::DismissUsageLimitBanner,
             AppAction::LoadModel { index: 0 },
             AppAction::CancelInference,
-            AppAction::StartAgent { task: "test".into() },
-            AppAction::AgentApproval { decision: ApprovalDecision::ApproveOnce },
+            AppAction::StartAgent {
+                task: "test".into(),
+            },
+            AppAction::AgentApproval {
+                decision: ApprovalDecision::ApproveOnce,
+            },
             AppAction::EnterAgentMode,
             AppAction::ExitAgentMode,
             AppAction::DismissHintBanner,
@@ -708,13 +816,18 @@ mod tests {
             AppAction::Paste,
             AppAction::SelectAll,
             AppAction::ToggleGitPanel,
-            AppAction::SwitchGitPanelTab { tab: crate::ui::panel_layout::GitPanelTab::Changes },
+            AppAction::SwitchGitPanelTab {
+                tab: crate::ui::panel_layout::GitPanelTab::Changes,
+            },
             AppAction::GitStageFile { index: 0 },
             AppAction::GitUnstageFile { index: 0 },
             AppAction::GitStageAll,
             AppAction::GitUnstageAll,
             AppAction::GitCheckoutBranch { index: 0 },
-            AppAction::GitFocusCommitInput { rel_x: 0.0, rel_y: 0.0 },
+            AppAction::GitFocusCommitInput {
+                rel_x: 0.0,
+                rel_y: 0.0,
+            },
             AppAction::GitGenerateCommitMessage,
             AppAction::GitCancelGenerateCommitMessage,
             AppAction::GitCommit,
@@ -729,4 +842,3 @@ mod tests {
         assert_eq!(strs.len(), actions.len());
     }
 }
-

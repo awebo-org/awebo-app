@@ -3,7 +3,7 @@
 use crate::renderer::pixel_buffer::Rgb;
 use crate::renderer::theme;
 
-use super::{draw_badge_text, BadgeCtx, BadgeResult};
+use super::{BadgeCtx, BadgeResult, draw_badge_text};
 
 const MODEL_LOADED_FG: Rgb = theme::FG_SECONDARY;
 const MODEL_NONE_FG: Rgb = theme::FG_DIM;

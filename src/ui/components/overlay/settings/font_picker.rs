@@ -145,11 +145,7 @@ pub fn font_picker_hit_test(
     }
 
     let idx = (rel_y / item_h) as usize;
-    if idx < font_count {
-        Some(idx)
-    } else {
-        None
-    }
+    if idx < font_count { Some(idx) } else { None }
 }
 
 fn font_picker_anchor(

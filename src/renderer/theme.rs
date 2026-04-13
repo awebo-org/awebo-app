@@ -15,7 +15,9 @@ pub const PRIMARY: Rgb = (219, 39, 119);
 
 pub const BG: Rgb = (0, 0, 0);
 /// The color `NamedColor::Background` resolves to (used for bg_override remapping).
-pub const fn named_bg() -> Rgb { (13, 13, 15) }
+pub const fn named_bg() -> Rgb {
+    (13, 13, 15)
+}
 /// Slightly lifted surface (status bar, panels, popups).
 pub const BG_SURFACE: Rgb = (12, 12, 14);
 /// Even more lifted (active tabs, input fields).
@@ -283,6 +285,9 @@ mod tests {
     #[test]
     fn tab_indicator_is_primary() {
         let (r, _g, _b) = TAB_INDICATOR;
-        assert!(r > 100, "TAB_INDICATOR should have a strong primary channel");
+        assert!(
+            r > 100,
+            "TAB_INDICATOR should have a strong primary channel"
+        );
     }
 }

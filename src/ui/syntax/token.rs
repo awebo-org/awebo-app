@@ -54,25 +54,23 @@ impl TokenKind {
     /// Query: map this token kind to an editor theme color.
     pub fn to_color(self) -> Rgb {
         match self {
-            Self::Plain       => theme::FG_PRIMARY,
-            Self::Keyword
-            | Self::ControlFlow => (198, 120, 221),
-            Self::Type          => (229, 192, 123),
-            Self::Number        => (209, 154, 102),
-            Self::String
-            | Self::Char        => (152, 195, 121),
-            Self::Comment       => (92, 99, 112),
-            Self::Operator      => (86, 182, 194),
-            Self::Punctuation   => (171, 178, 191),
-            Self::Function      => (97, 175, 239),
-            Self::Macro         => (224, 108, 117),
-            Self::Attribute     => (229, 192, 123),
-            Self::Constant      => (209, 154, 102),
-            Self::Module        => (97, 175, 239),
-            Self::Boolean       => (209, 154, 102),
-            Self::Special       => (224, 108, 117),
-            Self::Label         => (86, 182, 194),
-            Self::Escape        => (86, 182, 194),
+            Self::Plain => theme::FG_PRIMARY,
+            Self::Keyword | Self::ControlFlow => (198, 120, 221),
+            Self::Type => (229, 192, 123),
+            Self::Number => (209, 154, 102),
+            Self::String | Self::Char => (152, 195, 121),
+            Self::Comment => (92, 99, 112),
+            Self::Operator => (86, 182, 194),
+            Self::Punctuation => (171, 178, 191),
+            Self::Function => (97, 175, 239),
+            Self::Macro => (224, 108, 117),
+            Self::Attribute => (229, 192, 123),
+            Self::Constant => (209, 154, 102),
+            Self::Module => (97, 175, 239),
+            Self::Boolean => (209, 154, 102),
+            Self::Special => (224, 108, 117),
+            Self::Label => (86, 182, 194),
+            Self::Escape => (86, 182, 194),
         }
     }
 }

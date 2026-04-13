@@ -8,7 +8,6 @@ use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::draw_text_at;
 use crate::renderer::theme;
 
-
 const TOAST_LOGICAL_W: f32 = 300.0;
 const TOAST_LOGICAL_H: f32 = 48.0;
 const TOAST_GAP: f32 = 8.0;
@@ -17,7 +16,6 @@ const TOAST_MARGIN_RIGHT: f32 = 16.0;
 const TOAST_CORNER_R: f32 = 6.0;
 const TOAST_AUTO_DISMISS: Duration = Duration::from_secs(4);
 const MAX_VISIBLE: usize = 5;
-
 
 /// Severity level for a toast notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,7 +63,6 @@ impl ToastManager {
         Self { toasts: Vec::new() }
     }
 
-
     /// Push a new toast notification.
     pub fn push(&mut self, message: String, level: ToastLevel) {
         self.toasts.push(Toast {
@@ -81,7 +78,8 @@ impl ToastManager {
     /// Remove expired toasts. Returns `true` if any were removed (needs redraw).
     pub fn tick(&mut self) -> bool {
         let before = self.toasts.len();
-        self.toasts.retain(|t| t.created_at.elapsed() < TOAST_AUTO_DISMISS);
+        self.toasts
+            .retain(|t| t.created_at.elapsed() < TOAST_AUTO_DISMISS);
         self.toasts.len() != before
     }
 
@@ -94,7 +92,6 @@ impl ToastManager {
         let vec_idx = len - 1 - visible_idx;
         self.toasts.remove(vec_idx);
     }
-
 
     /// Whether there are any active toasts (used to schedule redraw).
     pub fn has_active(&self) -> bool {
@@ -127,7 +124,6 @@ impl ToastManager {
         None
     }
 }
-
 
 /// Render active toasts in the top-right corner of the buffer.
 pub fn draw_toasts(
@@ -163,16 +159,28 @@ pub fn draw_toasts(
         }
 
         crate::ui::components::overlay::fill_rounded_rect(
-            buf, base_x, y, toast_w, toast_h, corner_r, theme::TOAST_BG,
+            buf,
+            base_x,
+            y,
+            toast_w,
+            toast_h,
+            corner_r,
+            theme::TOAST_BG,
         );
 
         let accent_color = toast.level.accent_color();
         let text_x = base_x + pad_x;
         draw_text_at(
-            buf, font_system, swash_cache,
-            text_x, y + (6.0 * sf) as usize, buf.height,
-            toast.level.label(), label_metrics,
-            accent_color, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            text_x,
+            y + (6.0 * sf) as usize,
+            buf.height,
+            toast.level.label(),
+            label_metrics,
+            accent_color,
+            Family::Monospace,
         );
 
         let max_msg_chars = ((toast_w - pad_x * 2) as f32 / (7.0 * sf)) as usize;
@@ -182,10 +190,16 @@ pub fn draw_toasts(
             toast.message.clone()
         };
         draw_text_at(
-            buf, font_system, swash_cache,
-            text_x, y + (24.0 * sf) as usize, buf.height,
-            &display_msg, msg_metrics,
-            theme::TOAST_TEXT, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            text_x,
+            y + (24.0 * sf) as usize,
+            buf.height,
+            &display_msg,
+            msg_metrics,
+            theme::TOAST_TEXT,
+            Family::Monospace,
         );
     }
 }
@@ -206,7 +220,12 @@ mod tests {
 
     #[test]
     fn level_colors_distinct() {
-        let levels = [ToastLevel::Info, ToastLevel::Success, ToastLevel::Warning, ToastLevel::Error];
+        let levels = [
+            ToastLevel::Info,
+            ToastLevel::Success,
+            ToastLevel::Warning,
+            ToastLevel::Error,
+        ];
         for (i, a) in levels.iter().enumerate() {
             for (j, b) in levels.iter().enumerate() {
                 if i != j {

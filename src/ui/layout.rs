@@ -27,7 +27,6 @@ impl Rect {
     pub fn center(&self) -> Point {
         Point::new(self.center_x(), self.center_y())
     }
-
 }
 
 /// A 2D point in floating-point coordinates.

@@ -73,8 +73,12 @@ pub fn draw_confirm_close(
 
     let title_clip_y = dy + pad + title_h;
     draw_text_at_bold(
-        buf, font_system, swash_cache,
-        dx + pad, dy + pad, title_clip_y,
+        buf,
+        font_system,
+        swash_cache,
+        dx + pad,
+        dy + pad,
+        title_clip_y,
         "Unsaved Changes",
         Metrics::new(font_size, font_size * 1.3),
         TEXT_COLOR,
@@ -88,8 +92,12 @@ pub fn draw_confirm_close(
     let msg_y = dy + pad + title_h + pad / 2;
     let msg_clip_y = msg_y + msg_h;
     draw_text_at(
-        buf, font_system, swash_cache,
-        dx + pad, msg_y, msg_clip_y,
+        buf,
+        font_system,
+        swash_cache,
+        dx + pad,
+        msg_y,
+        msg_clip_y,
         &msg,
         Metrics::new(small_size, small_size * 1.3),
         TEXT_DIM,
@@ -110,7 +118,11 @@ pub fn draw_confirm_close(
         let is_hovered = hovered == Some(i);
 
         let bg = if i == 2 {
-            if is_hovered { BTN_SAVE_HOVER } else { BTN_SAVE_BG }
+            if is_hovered {
+                BTN_SAVE_HOVER
+            } else {
+                BTN_SAVE_BG
+            }
         } else if is_hovered {
             BTN_HOVER
         } else {
@@ -123,8 +135,12 @@ pub fn draw_confirm_close(
         let label_x = bx + (btn_w as f32 / 2.0 - label_px_w / 2.0).max(0.0) as usize;
         let btn_clip_y = btns_y + btn_h;
         draw_text_at(
-            buf, font_system, swash_cache,
-            label_x, btns_y, btn_clip_y,
+            buf,
+            font_system,
+            swash_cache,
+            label_x,
+            btns_y,
+            btn_clip_y,
             label,
             Metrics::new(small_size, small_size * 1.3),
             TEXT_COLOR,
@@ -137,8 +153,10 @@ pub fn draw_confirm_close(
 ///
 /// Returns which button was hit, or `Backdrop` if clicked outside the dialog.
 pub fn confirm_close_hit_test(
-    mx: usize, my: usize,
-    buf_w: usize, buf_h: usize,
+    mx: usize,
+    my: usize,
+    buf_w: usize,
+    buf_h: usize,
     sf: f32,
 ) -> ConfirmCloseHit {
     let dw = (DIALOG_W * sf) as usize;
@@ -181,8 +199,10 @@ pub fn confirm_close_hit_test(
 
 /// Hover-test: returns which button index (0..3) the mouse is over, or None.
 pub fn confirm_close_hover_test(
-    mx: usize, my: usize,
-    buf_w: usize, buf_h: usize,
+    mx: usize,
+    my: usize,
+    buf_w: usize,
+    buf_h: usize,
     sf: f32,
 ) -> Option<usize> {
     let dw = (DIALOG_W * sf) as usize;

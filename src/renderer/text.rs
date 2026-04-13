@@ -106,9 +106,19 @@ pub fn draw_text_at_buffered(
     family: Family<'_>,
 ) {
     draw_text_impl(
-        buf, font_system, swash_cache, text_buf,
-        x_off, y_off, clip_h, text, metrics, color, family,
-        Shaping::Basic, Weight::NORMAL,
+        buf,
+        font_system,
+        swash_cache,
+        text_buf,
+        x_off,
+        y_off,
+        clip_h,
+        text,
+        metrics,
+        color,
+        family,
+        Shaping::Basic,
+        Weight::NORMAL,
     );
 }
 
@@ -128,9 +138,19 @@ pub fn draw_text_at(
 ) {
     let mut buffer = Buffer::new(font_system, metrics);
     draw_text_impl(
-        buf, font_system, swash_cache, &mut buffer,
-        x_off, y_off, clip_h, text, metrics, color, family,
-        Shaping::Advanced, Weight::NORMAL,
+        buf,
+        font_system,
+        swash_cache,
+        &mut buffer,
+        x_off,
+        y_off,
+        clip_h,
+        text,
+        metrics,
+        color,
+        family,
+        Shaping::Advanced,
+        Weight::NORMAL,
     );
 }
 
@@ -149,9 +169,19 @@ pub fn draw_text_at_bold(
 ) {
     let mut buffer = Buffer::new(font_system, metrics);
     draw_text_impl(
-        buf, font_system, swash_cache, &mut buffer,
-        x_off, y_off, clip_h, text, metrics, color, family,
-        Shaping::Advanced, Weight::BOLD,
+        buf,
+        font_system,
+        swash_cache,
+        &mut buffer,
+        x_off,
+        y_off,
+        clip_h,
+        text,
+        metrics,
+        color,
+        family,
+        Shaping::Advanced,
+        Weight::BOLD,
     );
 }
 
@@ -170,9 +200,19 @@ pub fn draw_text_at_bold_buffered(
     family: Family<'_>,
 ) {
     draw_text_impl(
-        buf, font_system, swash_cache, text_buf,
-        x_off, y_off, clip_h, text, metrics, color, family,
-        Shaping::Basic, Weight::BOLD,
+        buf,
+        font_system,
+        swash_cache,
+        text_buf,
+        x_off,
+        y_off,
+        clip_h,
+        text,
+        metrics,
+        color,
+        family,
+        Shaping::Basic,
+        Weight::BOLD,
     );
 }
 

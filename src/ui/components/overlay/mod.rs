@@ -6,33 +6,33 @@
 //! - `shell_picker` — shell picker dropdown
 //! - `settings/`    — full-screen settings panel (sidebar, appearance, about, font picker)
 
+mod confirm_close;
 mod debug_panel;
 mod model_picker;
 pub(crate) mod models_view;
 mod palette;
+pub(crate) mod pro_panel;
 pub mod settings;
 mod shell_picker;
-mod confirm_close;
 pub(crate) mod usage_panel;
-pub(crate) mod pro_panel;
 
 use crate::renderer::pixel_buffer::{PixelBuffer, Rgb};
 
-
+pub use confirm_close::{
+    ConfirmCloseHit, confirm_close_hit_test, confirm_close_hover_test, draw_confirm_close,
+};
 pub use debug_panel::draw_debug;
-pub use model_picker::{draw_model_picker, ModelPickerItem, ModelPickerState, ModelStatus};
-pub use palette::{draw_palette, PaletteState};
+pub use model_picker::{ModelPickerItem, ModelPickerState, ModelStatus, draw_model_picker};
+pub use palette::{PaletteState, draw_palette};
 pub use settings::{
+    AiModelsHit, InputType, SandboxSettingsState, SettingsCategory, SettingsState,
     detect_monospace_fonts, draw_font_picker, draw_settings, font_picker_hit_test,
     settings_ai_models_hit_test, settings_sidebar_hit_test,
-    AiModelsHit, InputType, SettingsCategory, SettingsState,
 };
 pub use shell_picker::{
-    draw_shell_picker, shell_picker_hit_test, shell_picker_hover_test,
-    ShellInfo, ShellPickerState, ShellPickerChoice, SandboxImageInfo,
+    SandboxImageInfo, ShellInfo, ShellPickerChoice, ShellPickerState, draw_shell_picker,
+    shell_picker_hit_test, shell_picker_hover_test,
 };
-pub use confirm_close::{draw_confirm_close, confirm_close_hit_test, confirm_close_hover_test, ConfirmCloseHit};
-
 
 pub(crate) fn draw_border(
     buf: &mut PixelBuffer,

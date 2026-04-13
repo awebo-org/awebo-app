@@ -10,12 +10,13 @@ impl super::super::App {
     /// Handle keyboard input when the active tab is a sandbox.
     pub(crate) fn handle_sandbox_keyboard(&mut self, event: &WindowEvent) {
         let WindowEvent::KeyboardInput {
-            event: KeyEvent {
-                logical_key,
-                text,
-                state: ElementState::Pressed,
-                ..
-            },
+            event:
+                KeyEvent {
+                    logical_key,
+                    text,
+                    state: ElementState::Pressed,
+                    ..
+                },
             ..
         } = event
         else {
@@ -58,7 +59,11 @@ impl super::super::App {
                 Key::Named(NamedKey::Delete) => Some(b"\x1b[3~".to_vec()),
                 _ => text.as_ref().and_then(|txt| {
                     let s = txt.to_string();
-                    if s.is_empty() { None } else { Some(s.into_bytes()) }
+                    if s.is_empty() {
+                        None
+                    } else {
+                        Some(s.into_bytes())
+                    }
                 }),
             }
         };

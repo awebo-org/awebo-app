@@ -152,7 +152,8 @@ impl super::super::App {
     }
 
     pub(crate) fn is_models_active(&self) -> bool {
-        self.tab_mgr.get(self.tab_mgr.active_index())
+        self.tab_mgr
+            .get(self.tab_mgr.active_index())
             .map(|t| t.route() == router::Route::Models)
             .unwrap_or(false)
     }
@@ -250,16 +251,12 @@ impl super::super::App {
                     )
                 };
 
-                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                    if let super::super::TabKind::Terminal { block_list, .. } = &mut tab.kind {
-                        if let Some(block) = block_list.blocks.last_mut() {
-                            block.output = vec![crate::blocks::plain_line(
-                                text,
-                                crate::blocks::DEFAULT_FG,
-                            )];
-                            block_list.generation += 1;
-                        }
-                    }
+                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                    && let super::super::TabKind::Terminal { block_list, .. } = &mut tab.kind
+                    && let Some(block) = block_list.blocks.last_mut()
+                {
+                    block.output = vec![crate::blocks::plain_line(text, crate::blocks::DEFAULT_FG)];
+                    block_list.generation += 1;
                 }
 
                 if progress.finished && progress.error.is_none() {
@@ -278,12 +275,16 @@ impl super::super::App {
             return;
         }
         let (bar_h, buf_w, sf) = match &self.renderer {
-            Some(r) => (r.tab_bar_height as usize, r.width as usize, r.scale_factor as f32),
+            Some(r) => (
+                r.tab_bar_height as usize,
+                r.width as usize,
+                r.scale_factor as f32,
+            ),
             None => return,
         };
         let x_off = self.side_panel_x_offset();
 
-        use crate::ui::components::overlay::models_view::{models_view_hit_test, ModelsViewHit};
+        use crate::ui::components::overlay::models_view::{ModelsViewHit, models_view_hit_test};
         let hit = models_view_hit_test(
             self.cursor_pos.0,
             self.cursor_pos.1,
@@ -339,12 +340,16 @@ impl super::super::App {
         self.models_view.hovered_delete = None;
 
         let (bar_h, buf_w, sf) = match &self.renderer {
-            Some(r) => (r.tab_bar_height as usize, r.width as usize, r.scale_factor as f32),
+            Some(r) => (
+                r.tab_bar_height as usize,
+                r.width as usize,
+                r.scale_factor as f32,
+            ),
             None => return false,
         };
         let x_off = self.side_panel_x_offset();
 
-        use crate::ui::components::overlay::models_view::{models_view_hit_test, ModelsViewHit};
+        use crate::ui::components::overlay::models_view::{ModelsViewHit, models_view_hit_test};
         let hit = models_view_hit_test(
             self.cursor_pos.0,
             self.cursor_pos.1,
@@ -360,14 +365,22 @@ impl super::super::App {
         let is_clickable = hit.is_some();
 
         match hit {
-            Some(ModelsViewHit::Download(idx) | ModelsViewHit::Load(idx) | ModelsViewHit::Unload(idx)) => {
-                let filtered = self.models_view.filtered_indices(&self.settings_state.models_path);
+            Some(
+                ModelsViewHit::Download(idx)
+                | ModelsViewHit::Load(idx)
+                | ModelsViewHit::Unload(idx),
+            ) => {
+                let filtered = self
+                    .models_view
+                    .filtered_indices(&self.settings_state.models_path);
                 if let Some(vi) = filtered.iter().position(|&i| i == idx) {
                     self.models_view.hovered_action = Some(vi);
                 }
             }
             Some(ModelsViewHit::Delete(idx)) => {
-                let filtered = self.models_view.filtered_indices(&self.settings_state.models_path);
+                let filtered = self
+                    .models_view
+                    .filtered_indices(&self.settings_state.models_path);
                 if let Some(vi) = filtered.iter().position(|&i| i == idx) {
                     self.models_view.hovered_delete = Some(vi);
                 }
@@ -375,7 +388,9 @@ impl super::super::App {
             _ => {}
         }
 
-        if self.models_view.hovered_action != prev_action || self.models_view.hovered_delete != prev_delete {
+        if self.models_view.hovered_action != prev_action
+            || self.models_view.hovered_delete != prev_delete
+        {
             self.request_redraw();
         }
 

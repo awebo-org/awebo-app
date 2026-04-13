@@ -65,8 +65,8 @@ impl super::App {
                     return;
                 }
             };
-            let params = llama_cpp_2::model::params::LlamaModelParams::default()
-                .with_n_gpu_layers(999);
+            let params =
+                llama_cpp_2::model::params::LlamaModelParams::default().with_n_gpu_layers(999);
             let model = match llama_cpp_2::model::LlamaModel::load_from_file(
                 &backend,
                 &path_clone,
@@ -145,7 +145,10 @@ impl super::App {
     /// After download completes, the model will be auto-loaded on the next
     /// `poll_model_downloads` cycle, which in turn fires `pending_agent_task`.
     pub(crate) fn auto_download_default_model(&mut self, task_hint: &str) {
-        let idx = match ai::registry::MODELS.iter().position(|m| m.name == Self::DEFAULT_MODEL_NAME) {
+        let idx = match ai::registry::MODELS
+            .iter()
+            .position(|m| m.name == Self::DEFAULT_MODEL_NAME)
+        {
             Some(i) => i,
             None => {
                 self.push_agent_block("No default model found in registry.");
@@ -177,14 +180,16 @@ impl super::App {
         self.auto_download_model_idx = Some(idx);
 
         let cmd = format!("/agent {task_hint}");
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-            if let super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                let prompt_info = terminal.prompt_info();
-                block_list.push_command(prompt_info, cmd);
-                block_list.append_output_text(
-                    &format!("Downloading {} …", model.name),
-                );
-            }
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, cmd);
+            block_list.append_output_text(&format!("Downloading {} …", model.name));
         }
     }
 
@@ -200,42 +205,55 @@ impl super::App {
             return;
         }
 
-        if self.ai_ctrl.state.loaded_model.is_none() && self.ai_ctrl.state.loaded_model_name.is_none() {
-            if !self.auto_load_best_efficient() {
-                self.auto_download_default_model(&format!("/ask {query}"));
-                self.pending_ai_query = Some(query.to_string());
-                return;
-            }
+        if self.ai_ctrl.state.loaded_model.is_none()
+            && self.ai_ctrl.state.loaded_model_name.is_none()
+            && !self.auto_load_best_efficient()
+        {
+            self.auto_download_default_model(&format!("/ask {query}"));
+            self.pending_ai_query = Some(query.to_string());
+            return;
         }
 
         if self.ai_ctrl.state.loaded_model.is_none() {
-            let model_label = self.ai_ctrl.state.loaded_model_name
+            let model_label = self
+                .ai_ctrl
+                .state
+                .loaded_model_name
                 .clone()
                 .unwrap_or_else(|| "model".into());
-            if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                if let super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                    let prompt_info = terminal.prompt_info();
-                    block_list.push_command(prompt_info, format!("/ask {}", query));
-                    block_list.append_output_text(&format!("Loading {model_label}…"));
-                }
+            if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                && let super::TabKind::Terminal {
+                    terminal,
+                    block_list,
+                    ..
+                } = &mut tab.kind
+            {
+                let prompt_info = terminal.prompt_info();
+                block_list.push_command(prompt_info, format!("/ask {}", query));
+                block_list.append_output_text(&format!("Loading {model_label}…"));
             }
             self.pending_ai_query = Some(query.to_string());
             return;
         }
 
-        let context_lines = self.active_block_list()
+        let context_lines = self
+            .active_block_list()
             .map(|bl| bl.context_for_ai(self.ai_ctrl.state.context_lines))
             .unwrap_or_default();
 
         let model_handle = self.ai_ctrl.state.loaded_model.take().unwrap();
 
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-            if let super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                let prompt_info = terminal.prompt_info();
-                block_list.push_command(prompt_info, format!("/ask {}", query));
-                if let Some(block) = block_list.blocks.last_mut() {
-                    block.thinking = true;
-                }
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, format!("/ask {}", query));
+            if let Some(block) = block_list.blocks.last_mut() {
+                block.thinking = true;
             }
         }
 
@@ -269,14 +287,12 @@ impl super::App {
         let got_token = self.ai_ctrl.state.poll_inference();
 
         if self.git_panel.generating_commit_msg {
-            if got_token {
-                if let Some(msg) = self.ai_ctrl.state.messages.last() {
-                    let raw = msg.content.trim().to_string();
-                    let cleaned = strip_commit_artifacts(&raw);
-                    self.git_panel.commit_message = cleaned;
-                    self.git_panel.cursor = self.git_panel.commit_message.len();
-                    self.git_panel.selection_anchor = None;
-                }
+            if got_token && let Some(msg) = self.ai_ctrl.state.messages.last() {
+                let raw = msg.content.trim().to_string();
+                let cleaned = strip_commit_artifacts(&raw);
+                self.git_panel.commit_message = cleaned;
+                self.git_panel.cursor = self.git_panel.commit_message.len();
+                self.git_panel.selection_anchor = None;
             }
             if self.ai_ctrl.state.inference_rx.is_none() {
                 self.git_panel.generating_commit_msg = false;
@@ -288,7 +304,11 @@ impl super::App {
         }
 
         if got_token {
-            let full_content: Option<String> = self.ai_ctrl.state.messages.last()
+            let full_content: Option<String> = self
+                .ai_ctrl
+                .state
+                .messages
+                .last()
                 .filter(|msg| !msg.content.is_empty())
                 .map(|msg| msg.content.clone());
 
@@ -298,10 +318,10 @@ impl super::App {
                 } else {
                     let display_text = ai::strip_channel_tokens(&full_text);
                     if let Some(bl) = self.active_block_list_mut() {
-                        if let Some(block) = bl.blocks.last_mut() {
-                            if block.thinking {
-                                block.thinking = false;
-                            }
+                        if let Some(block) = bl.blocks.last_mut()
+                            && block.thinking
+                        {
+                            block.thinking = false;
                         }
                         bl.set_output_markdown(&display_text);
                     }
@@ -311,18 +331,25 @@ impl super::App {
         }
 
         if self.ai_ctrl.state.inference_rx.is_none() && self.ai_ctrl.block_written > 0 {
-            let full_response = self.ai_ctrl.state.messages.last()
+            let full_response = self
+                .ai_ctrl
+                .state
+                .messages
+                .last()
                 .map(|m| m.content.clone())
                 .unwrap_or_default();
 
             if self.agent.is_some() {
-                if let Some(bl) = self.active_block_list_mut() {
-                    if let Some(last) = bl.blocks.last() {
-                        if last.thinking || matches!(last.agent_step, Some(crate::blocks::AgentStepKind::Thinking)) {
-                            bl.blocks.pop();
-                            bl.bump_generation();
-                        }
-                    }
+                if let Some(bl) = self.active_block_list_mut()
+                    && let Some(last) = bl.blocks.last()
+                    && (last.thinking
+                        || matches!(
+                            last.agent_step,
+                            Some(crate::blocks::AgentStepKind::Thinking)
+                        ))
+                {
+                    bl.blocks.pop();
+                    bl.bump_generation();
                 }
                 self.ai_ctrl.block_written = 0;
                 self.on_agent_inference_complete(full_response);
@@ -335,45 +362,49 @@ impl super::App {
             self.record_last_block();
             self.ai_ctrl.block_written = 0;
         }
-
     }
 
     /// Start a `/summarize` inference — uses the same streaming path as `/ask`
     /// but with a summarization-focused system prompt.
     pub(crate) fn start_summarize(&mut self) {
-        let context_lines = self.active_block_list()
+        let context_lines = self
+            .active_block_list()
             .map(|bl| bl.context_for_ai(self.ai_ctrl.state.context_lines))
             .unwrap_or_default();
 
         let model_handle = match self.ai_ctrl.state.loaded_model.take() {
             Some(h) => h,
             None => {
-                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-                    if let super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                        let prompt_info = terminal.prompt_info();
-                        block_list.push_command(prompt_info, "/summarize".to_string());
+                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                    && let super::TabKind::Terminal {
+                        terminal,
+                        block_list,
+                        ..
+                    } = &mut tab.kind
+                {
+                    let prompt_info = terminal.prompt_info();
+                    block_list.push_command(prompt_info, "/summarize".to_string());
 
-                        let models_dir = ai::model_manager::models_dir();
-                        let available: Vec<&str> = ai::registry::MODELS
-                            .iter()
-                            .filter(|m| models_dir.join(m.filename).exists())
-                            .map(|m| m.name)
-                            .collect();
+                    let models_dir = ai::model_manager::models_dir();
+                    let available: Vec<&str> = ai::registry::MODELS
+                        .iter()
+                        .filter(|m| models_dir.join(m.filename).exists())
+                        .map(|m| m.name)
+                        .collect();
 
-                        let msg = if available.is_empty() {
-                            "[AI] No model loaded. Use /models to browse and download one.".to_string()
-                        } else {
-                            format!(
-                                "[AI] No model loaded. Available: {}. Use /models to manage.",
-                                available.join(", ")
-                            )
-                        };
-                        block_list.append_output_text(&msg);
-                        if let Some(block) = block_list.blocks.last_mut() {
-                            block.is_error = true;
-                        }
-                        block_list.finish_last();
+                    let msg = if available.is_empty() {
+                        "[AI] No model loaded. Use /models to browse and download one.".to_string()
+                    } else {
+                        format!(
+                            "[AI] No model loaded. Available: {}. Use /models to manage.",
+                            available.join(", ")
+                        )
+                    };
+                    block_list.append_output_text(&msg);
+                    if let Some(block) = block_list.blocks.last_mut() {
+                        block.is_error = true;
                     }
+                    block_list.finish_last();
                 }
                 self.record_last_block();
                 self.open_models_view();
@@ -381,17 +412,23 @@ impl super::App {
             }
         };
 
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index()) {
-            if let super::TabKind::Terminal { terminal, block_list, .. } = &mut tab.kind {
-                let prompt_info = terminal.prompt_info();
-                block_list.push_command(prompt_info, "/summarize".to_string());
-                if let Some(block) = block_list.blocks.last_mut() {
-                    block.thinking = true;
-                }
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, "/summarize".to_string());
+            if let Some(block) = block_list.blocks.last_mut() {
+                block.thinking = true;
             }
         }
 
-        self.ai_ctrl.state.add_user_message("Summarize my recent terminal session.".to_string());
+        self.ai_ctrl
+            .state
+            .add_user_message("Summarize my recent terminal session.".to_string());
 
         let fallback_template = self.ai_ctrl.fallback_template();
         let prompt = self.ai_ctrl.state.build_summarize_prompt(
@@ -440,7 +477,7 @@ impl super::App {
                 .output
                 .iter()
                 .take(20)
-                .map(|line| blocks::styled_line_text(line))
+                .map(blocks::styled_line_text)
                 .collect::<Vec<_>>()
                 .join("\n");
 

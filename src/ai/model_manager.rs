@@ -103,7 +103,12 @@ pub fn download_model(
             Ok(f) => f,
             Err(e) => {
                 log::error!("Failed to create file: {e}");
-                send_progress(0, content_length, true, Some(format!("File create error: {e}")));
+                send_progress(
+                    0,
+                    content_length,
+                    true,
+                    Some(format!("File create error: {e}")),
+                );
                 return;
             }
         };
@@ -118,7 +123,12 @@ pub fn download_model(
                 Ok(n) => n,
                 Err(e) => {
                     log::error!("Download read error: {e}");
-                    send_progress(downloaded, content_length, true, Some(format!("Read error: {e}")));
+                    send_progress(
+                        downloaded,
+                        content_length,
+                        true,
+                        Some(format!("Read error: {e}")),
+                    );
                     let _ = std::fs::remove_file(&tmp_dest);
                     return;
                 }
@@ -140,7 +150,12 @@ pub fn download_model(
 
         if let Err(e) = std::fs::rename(&tmp_dest, &dest) {
             log::error!("Failed to rename downloaded file: {e}");
-            send_progress(downloaded, content_length, true, Some(format!("Rename error: {e}")));
+            send_progress(
+                downloaded,
+                content_length,
+                true,
+                Some(format!("Rename error: {e}")),
+            );
             return;
         }
 

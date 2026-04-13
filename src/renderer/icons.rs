@@ -148,8 +148,8 @@ pub fn icon_for_filename(name: &str) -> Icon {
         "makefile" | "gnumakefile" => return Icon::FtMakefile,
         "cmakelists.txt" => return Icon::FtCMake,
         ".gitignore" | ".gitattributes" | ".gitmodules" => return Icon::FtGitignore,
-        "cargo.lock" | "package-lock.json" | "yarn.lock" | "gemfile.lock"
-        | "poetry.lock" | "composer.lock" | "pnpm-lock.yaml" => return Icon::FtLock,
+        "cargo.lock" | "package-lock.json" | "yarn.lock" | "gemfile.lock" | "poetry.lock"
+        | "composer.lock" | "pnpm-lock.yaml" => return Icon::FtLock,
         _ => {}
     }
 
@@ -261,13 +261,17 @@ impl IconRenderer {
                 let inv = 1.0 - alpha;
                 let bidx = (py * buf_w + px) * 4;
                 if is_bgra {
-                    buf.data[bidx]     = (cb as f32 * alpha + buf.data[bidx]     as f32 * inv) as u8;
-                    buf.data[bidx + 1] = (cg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
-                    buf.data[bidx + 2] = (cr as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
+                    buf.data[bidx] = (cb as f32 * alpha + buf.data[bidx] as f32 * inv) as u8;
+                    buf.data[bidx + 1] =
+                        (cg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
+                    buf.data[bidx + 2] =
+                        (cr as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
                 } else {
-                    buf.data[bidx]     = (cr as f32 * alpha + buf.data[bidx]     as f32 * inv) as u8;
-                    buf.data[bidx + 1] = (cg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
-                    buf.data[bidx + 2] = (cb as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
+                    buf.data[bidx] = (cr as f32 * alpha + buf.data[bidx] as f32 * inv) as u8;
+                    buf.data[bidx + 1] =
+                        (cg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
+                    buf.data[bidx + 2] =
+                        (cb as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
                 }
             }
         }
@@ -317,11 +321,11 @@ impl IconRenderer {
 
                 let bidx = (py * buf_w + px) * 4;
                 if is_bgra {
-                    buf.data[bidx]     = (sb * alpha + buf.data[bidx]     as f32 * inv) as u8;
+                    buf.data[bidx] = (sb * alpha + buf.data[bidx] as f32 * inv) as u8;
                     buf.data[bidx + 1] = (sg * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
                     buf.data[bidx + 2] = (sr * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
                 } else {
-                    buf.data[bidx]     = (sr * alpha + buf.data[bidx]     as f32 * inv) as u8;
+                    buf.data[bidx] = (sr * alpha + buf.data[bidx] as f32 * inv) as u8;
                     buf.data[bidx + 1] = (sg * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
                     buf.data[bidx + 2] = (sb * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
                 }
@@ -351,15 +355,17 @@ impl IconRenderer {
         let sx = size as f32 / svg_size.width();
         let sy = size as f32 / svg_size.height();
 
-        let mut pixmap = Pixmap::new(size, size)
-            .expect("failed to allocate icon pixmap");
+        let mut pixmap = Pixmap::new(size, size).expect("failed to allocate icon pixmap");
         resvg::render(tree, Transform::from_scale(sx, sy), &mut pixmap.as_mut());
 
-        self.cache.insert(key, CachedRaster {
-            width: size,
-            height: size,
-            data: pixmap.data().to_vec(),
-        });
+        self.cache.insert(
+            key,
+            CachedRaster {
+                width: size,
+                height: size,
+                data: pixmap.data().to_vec(),
+            },
+        );
     }
 }
 
@@ -375,7 +381,10 @@ pub struct AvatarRenderer {
 impl AvatarRenderer {
     pub fn new() -> Self {
         let decoded = image::load_from_memory(AVATAR_PNG).ok();
-        Self { decoded, cache: HashMap::new() }
+        Self {
+            decoded,
+            cache: HashMap::new(),
+        }
     }
 
     /// Draw the avatar at `(x, y)` physical pixels, scaled to `size × size`,
@@ -412,7 +421,7 @@ impl AvatarRenderer {
                 if dist > radius {
                     continue;
                 }
-                let circle_alpha = (radius - dist).min(1.0).max(0.0);
+                let circle_alpha = (radius - dist).clamp(0.0, 1.0);
 
                 let ridx = (row_offset + rx) * 4;
                 let sr = raster.data[ridx];
@@ -425,13 +434,17 @@ impl AvatarRenderer {
 
                 let bidx = (py * buf_w + px) * 4;
                 if is_bgra {
-                    buf.data[bidx]     = (sb as f32 * alpha + buf.data[bidx]     as f32 * inv) as u8;
-                    buf.data[bidx + 1] = (sg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
-                    buf.data[bidx + 2] = (sr as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
+                    buf.data[bidx] = (sb as f32 * alpha + buf.data[bidx] as f32 * inv) as u8;
+                    buf.data[bidx + 1] =
+                        (sg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
+                    buf.data[bidx + 2] =
+                        (sr as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
                 } else {
-                    buf.data[bidx]     = (sr as f32 * alpha + buf.data[bidx]     as f32 * inv) as u8;
-                    buf.data[bidx + 1] = (sg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
-                    buf.data[bidx + 2] = (sb as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
+                    buf.data[bidx] = (sr as f32 * alpha + buf.data[bidx] as f32 * inv) as u8;
+                    buf.data[bidx + 1] =
+                        (sg as f32 * alpha + buf.data[bidx + 1] as f32 * inv) as u8;
+                    buf.data[bidx + 2] =
+                        (sb as f32 * alpha + buf.data[bidx + 2] as f32 * inv) as u8;
                 }
             }
         }
@@ -445,11 +458,14 @@ impl AvatarRenderer {
         let resized = img.resize_exact(size, size, image::imageops::FilterType::Triangle);
         let rgba = resized.to_rgba8();
 
-        self.cache.insert(size, CachedRaster {
-            width: size,
-            height: size,
-            data: rgba.into_raw(),
-        });
+        self.cache.insert(
+            size,
+            CachedRaster {
+                width: size,
+                height: size,
+                data: rgba.into_raw(),
+            },
+        );
     }
 }
 
@@ -461,24 +477,65 @@ mod tests {
     fn all_icons_parse() {
         let mut r = IconRenderer::new();
         let ui_icons = [
-            Icon::Folder, Icon::GitBranch, Icon::Timer, Icon::Stop,
-            Icon::Close, Icon::Plus, Icon::ChevronDown, Icon::ChevronRight,
+            Icon::Folder,
+            Icon::GitBranch,
+            Icon::Timer,
+            Icon::Stop,
+            Icon::Close,
+            Icon::Plus,
+            Icon::ChevronDown,
+            Icon::ChevronRight,
             Icon::PanelLeft,
-            Icon::Trash, Icon::Play, Icon::Download, Icon::Refresh,
-            Icon::Rows, Icon::Files,
-            Icon::CodeSandbox, Icon::Awebo, Icon::Diff, Icon::Sparkle,
+            Icon::Trash,
+            Icon::Play,
+            Icon::Download,
+            Icon::Refresh,
+            Icon::Rows,
+            Icon::Files,
+            Icon::CodeSandbox,
+            Icon::Awebo,
+            Icon::Diff,
+            Icon::Sparkle,
         ];
         let ft_icons = [
-            Icon::FtRust, Icon::FtPython, Icon::FtJavaScript, Icon::FtTypeScript,
-            Icon::FtJson, Icon::FtHtml, Icon::FtCss, Icon::FtGo,
-            Icon::FtJava, Icon::FtCSharp, Icon::FtCpp, Icon::FtC,
-            Icon::FtRuby, Icon::FtSwift, Icon::FtToml, Icon::FtYaml,
-            Icon::FtXml, Icon::FtMarkdown, Icon::FtShell, Icon::FtDocker,
-            Icon::FtSql, Icon::FtLua, Icon::FtScala, Icon::FtKotlin,
-            Icon::FtPhp, Icon::FtR, Icon::FtElixir, Icon::FtHaskell,
-            Icon::FtZig, Icon::FtProto, Icon::FtCMake, Icon::FtMakefile,
-            Icon::FtErlang, Icon::FtGitignore, Icon::FtLock, Icon::FtImage,
-            Icon::FtConfig, Icon::FtDefault,
+            Icon::FtRust,
+            Icon::FtPython,
+            Icon::FtJavaScript,
+            Icon::FtTypeScript,
+            Icon::FtJson,
+            Icon::FtHtml,
+            Icon::FtCss,
+            Icon::FtGo,
+            Icon::FtJava,
+            Icon::FtCSharp,
+            Icon::FtCpp,
+            Icon::FtC,
+            Icon::FtRuby,
+            Icon::FtSwift,
+            Icon::FtToml,
+            Icon::FtYaml,
+            Icon::FtXml,
+            Icon::FtMarkdown,
+            Icon::FtShell,
+            Icon::FtDocker,
+            Icon::FtSql,
+            Icon::FtLua,
+            Icon::FtScala,
+            Icon::FtKotlin,
+            Icon::FtPhp,
+            Icon::FtR,
+            Icon::FtElixir,
+            Icon::FtHaskell,
+            Icon::FtZig,
+            Icon::FtProto,
+            Icon::FtCMake,
+            Icon::FtMakefile,
+            Icon::FtErlang,
+            Icon::FtGitignore,
+            Icon::FtLock,
+            Icon::FtImage,
+            Icon::FtConfig,
+            Icon::FtDefault,
         ];
         for icon in ui_icons.iter().chain(ft_icons.iter()) {
             r.ensure_tree(*icon);

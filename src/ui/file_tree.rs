@@ -14,11 +14,10 @@ use std::path::{Path, PathBuf};
 
 use cosmic_text::{Buffer, Family, FontSystem, Metrics, SwashCache};
 
-use crate::renderer::icons::{icon_for_filename, Icon, IconRenderer};
+use crate::renderer::icons::{Icon, IconRenderer, icon_for_filename};
 use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::draw_text_at_buffered;
 use crate::renderer::theme;
-
 
 const ITEM_HEIGHT: f32 = 24.0;
 const INDENT_WIDTH: f32 = 16.0;
@@ -33,7 +32,6 @@ const LINE_HEIGHT: f32 = 17.0;
 pub const ITEM_HEIGHT_PX: f32 = ITEM_HEIGHT;
 pub const PAD_Y_PX: f32 = PAD_Y;
 
-
 /// A single entry in the file tree.
 #[derive(Debug, Clone)]
 pub struct TreeNode {
@@ -47,7 +45,8 @@ impl TreeNode {
     /// Build a tree from a directory root. Reads one level eagerly;
     /// deeper levels are loaded on expand (lazy).
     pub fn from_dir(path: &Path) -> Option<Self> {
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .unwrap_or(path.as_os_str())
             .to_string_lossy()
             .to_string();
@@ -115,10 +114,11 @@ impl TreeNode {
 
 fn sort_children(children: &mut [TreeNode]) {
     children.sort_by(|a, b| {
-        b.is_dir.cmp(&a.is_dir).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
 }
-
 
 /// Owned snapshot of one visible row — cheap to keep around.
 #[derive(Debug, Clone)]
@@ -128,7 +128,6 @@ pub struct FlatRow {
     pub is_dir: bool,
     pub depth: usize,
 }
-
 
 /// Tracks expanded directories, cached flat list, and hover state.
 pub struct FileTreeState {
@@ -222,7 +221,6 @@ pub fn load_children_at(node: &mut TreeNode, target_path: &Path) {
     }
 }
 
-
 fn flatten_into(
     node: &TreeNode,
     expanded: &HashSet<PathBuf>,
@@ -249,7 +247,6 @@ fn flatten_into(
         }
     }
 }
-
 
 /// Draw the file tree inside the side panel.
 pub fn draw(
@@ -283,15 +280,19 @@ pub fn draw(
     let visible_count = (buf.height.saturating_sub(y_start) / item_h.max(1)) + 2;
     let last_visible = (first_visible + visible_count).min(rows.len());
 
-    for i in first_visible..last_visible {
-        let row = &rows[i];
+    for (i, row) in rows
+        .iter()
+        .enumerate()
+        .skip(first_visible)
+        .take(last_visible - first_visible)
+    {
         let y = y_start + pad_y + i * item_h - scroll;
         if y + item_h < y_start || y >= buf.height {
             continue;
         }
 
         let is_hovered = state.hovered_idx == Some(i);
-        let is_active = !row.is_dir && active_path.map_or(false, |p| p == row.path);
+        let is_active = !row.is_dir && active_path.is_some_and(|p| p == row.path);
 
         if is_active {
             buf.fill_rect(0, y, panel_w, item_h, theme::BG_SELECTION);
@@ -311,7 +312,11 @@ pub fn draw(
             } else {
                 Icon::ChevronRight
             };
-            let chevron_color = if is_hovered || is_active { theme::FG_PRIMARY } else { theme::FG_MUTED };
+            let chevron_color = if is_hovered || is_active {
+                theme::FG_PRIMARY
+            } else {
+                theme::FG_MUTED
+            };
             icon_renderer.draw(buf, chevron_icon, x, chevron_y, icon_sz, chevron_color);
         }
         x += icon_sz as usize + (2.0 * sf) as usize;
@@ -337,11 +342,23 @@ pub fn draw(
             &row.name
         };
 
-        let name_color = if is_active { theme::FG_BRIGHT } else if is_hovered { theme::FG_BRIGHT } else { theme::FG_PRIMARY };
+        let name_color = if is_active || is_hovered {
+            theme::FG_BRIGHT
+        } else {
+            theme::FG_PRIMARY
+        };
         draw_text_at_buffered(
-            buf, font_system, swash_cache, &mut text_buf,
-            x, name_y, buf.height,
-            display_name, metrics, name_color, Family::SansSerif,
+            buf,
+            font_system,
+            swash_cache,
+            &mut text_buf,
+            x,
+            name_y,
+            buf.height,
+            display_name,
+            metrics,
+            name_color,
+            Family::SansSerif,
         );
     }
 }
@@ -395,7 +412,6 @@ pub fn update_hover(
     state.hovered_idx = if idx < row_count { Some(idx) } else { None };
     state.hovered_idx != prev
 }
-
 
 #[cfg(test)]
 mod tests {

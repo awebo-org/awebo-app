@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 /// Groups all transient overlay/popup state (palette, pickers, hover, tooltips).
+#[derive(Default)]
 pub(crate) struct OverlayState {
     pub palette_open: bool,
     pub palette_query: String,
@@ -126,44 +127,6 @@ impl OverlayState {
     pub fn is_confirm_close_open(&self) -> bool {
         self.confirm_close_tab.is_some()
     }
-
-}
-
-impl Default for OverlayState {
-    fn default() -> Self {
-        Self {
-            palette_open: false,
-            palette_query: String::new(),
-            palette_selected: 0,
-            model_picker_open: false,
-            model_picker_selected: 0,
-            shell_picker_open: false,
-            shell_picker_hovered: None,
-            debug_panel: false,
-            avatar_hovered: false,
-            user_menu_open: false,
-            user_menu_hovered: None,
-            new_tab_hovered: false,
-            shell_picker_btn_hovered: false,
-            sidebar_open: false,
-            sidebar_hovered: false,
-            last_empty_bar_click: None,
-            tooltip: None,
-            hovered_close: None,
-            ctx_bar_rect: None,
-            stop_button_rect: None,
-            git_panel_open: false,
-            git_panel_hovered: false,
-            confirm_close_tab: None,
-            confirm_close_hovered: None,
-            usage_panel_open: false,
-            pro_panel_open: false,
-            pro_license_input: String::new(),
-            pro_license_cursor: 0,
-            pro_license_focused: false,
-            pro_panel_hovered: None,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -274,5 +237,4 @@ mod tests {
         s.close_all_popups();
         assert!(!s.is_confirm_close_open());
     }
-
 }

@@ -23,7 +23,13 @@ struct SliderLayout {
 }
 
 /// Compute the slider pixel positions matching `draw_settings_sandbox` layout.
-fn compute_slider_layout(area_x: usize, area_y: usize, area_w: usize, sf: f32, scroll: usize) -> SliderLayout {
+fn compute_slider_layout(
+    area_x: usize,
+    area_y: usize,
+    area_w: usize,
+    sf: f32,
+    scroll: usize,
+) -> SliderLayout {
     let pad = (24.0 * sf) as usize;
     let row_h = (40.0 * sf) as usize;
     let section_gap = (24.0 * sf) as usize;
@@ -82,7 +88,9 @@ pub fn sandbox_slider_hit_test(
 
 /// Convert a slider fraction to a value in [min, max].
 pub fn fraction_to_value(frac: f32, min: u32, max: u32) -> u32 {
-    if max <= min { return min; }
+    if max <= min {
+        return min;
+    }
     let val = min as f32 + frac * (max - min) as f32;
     (val.round() as u32).clamp(min, max)
 }
@@ -196,15 +204,19 @@ pub fn sandbox_settings_hit_test(
     for bi in 0..builtin_count {
         let del_bx = area_x + area_w - pad - full_btn;
         let del_by = y + (row_h - full_btn) / 2;
-        if mx >= del_bx as f64 && mx < (del_bx + full_btn) as f64
-            && content_my >= del_by as f64 && content_my < (del_by + full_btn) as f64
+        if mx >= del_bx as f64
+            && mx < (del_bx + full_btn) as f64
+            && content_my >= del_by as f64
+            && content_my < (del_by + full_btn) as f64
         {
             return Some(SandboxSettingsHit::DeleteTrustedImage(bi));
         }
         let upd_bx = del_bx - btn_gap_x - full_btn;
         let upd_by = del_by;
-        if mx >= upd_bx as f64 && mx < (upd_bx + full_btn) as f64
-            && content_my >= upd_by as f64 && content_my < (upd_by + full_btn) as f64
+        if mx >= upd_bx as f64
+            && mx < (upd_bx + full_btn) as f64
+            && content_my >= upd_by as f64
+            && content_my < (upd_by + full_btn) as f64
         {
             return Some(SandboxSettingsHit::UpdateTrustedImage(bi));
         }
@@ -218,8 +230,10 @@ pub fn sandbox_settings_hit_test(
     for ci_idx in 0..config.sandbox.custom_images.len() {
         let del_bx = area_x + area_w - pad - full_btn;
         let del_by = y + (row_h - full_btn) / 2;
-        if mx >= del_bx as f64 && mx < (del_bx + full_btn) as f64
-            && content_my >= del_by as f64 && content_my < (del_by + full_btn) as f64
+        if mx >= del_bx as f64
+            && mx < (del_bx + full_btn) as f64
+            && content_my >= del_by as f64
+            && content_my < (del_by + full_btn) as f64
         {
             return Some(SandboxSettingsHit::DeleteCustomImage(ci_idx));
         }
@@ -237,15 +251,19 @@ pub fn sandbox_settings_hit_test(
     let input_w = area_w.saturating_sub(pad * 2 + btn_gap + add_btn_w);
     let input_x = area_x + pad;
 
-    if mx >= input_x as f64 && mx < (input_x + input_w) as f64
-        && content_my >= y as f64 && content_my < (y + input_h) as f64
+    if mx >= input_x as f64
+        && mx < (input_x + input_w) as f64
+        && content_my >= y as f64
+        && content_my < (y + input_h) as f64
     {
         return Some(SandboxSettingsHit::AddImageInput);
     }
 
     let add_x = input_x + input_w + btn_gap;
-    if mx >= add_x as f64 && mx < (add_x + add_btn_w) as f64
-        && content_my >= y as f64 && content_my < (y + input_h) as f64
+    if mx >= add_x as f64
+        && mx < (add_x + add_btn_w) as f64
+        && content_my >= y as f64
+        && content_my < (y + input_h) as f64
     {
         return Some(SandboxSettingsHit::AddImage);
     }
@@ -258,8 +276,10 @@ pub fn sandbox_settings_hit_test(
     for vi in 0..config.sandbox.volumes.len() {
         let del_bx = area_x + area_w - pad - full_btn;
         let del_by = y + (vol_row_h - full_btn) / 2;
-        if mx >= del_bx as f64 && mx < (del_bx + full_btn) as f64
-            && content_my >= del_by as f64 && content_my < (del_by + full_btn) as f64
+        if mx >= del_bx as f64
+            && mx < (del_bx + full_btn) as f64
+            && content_my >= del_by as f64
+            && content_my < (del_by + full_btn) as f64
         {
             return Some(SandboxSettingsHit::DeleteVolume(vi));
         }
@@ -307,10 +327,16 @@ pub fn draw_settings_sandbox(
 
     if let Some(sy) = vis(vy, 32) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy, clip_h,
-            "Runtime", section_metrics,
-            theme::SETTINGS_SECTION_TITLE, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy,
+            clip_h,
+            "Runtime",
+            section_metrics,
+            theme::SETTINGS_SECTION_TITLE,
+            Family::Monospace,
         );
     }
     vy += (32.0 * sf) as i32;
@@ -330,10 +356,16 @@ pub fn draw_settings_sandbox(
 
         let text_x = area_x + pad + (dot_r * 2.0 + 8.0 * sf) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
-            text_x, sy + (row_h as f32 / 2.0 - 9.0 * sf) as usize, clip_h,
-            status_text, label_metrics,
-            theme::SETTINGS_BODY_TEXT, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            text_x,
+            sy + (row_h as f32 / 2.0 - 9.0 * sf) as usize,
+            clip_h,
+            status_text,
+            label_metrics,
+            theme::SETTINGS_BODY_TEXT,
+            Family::Monospace,
         );
     }
     vy += row_h as i32;
@@ -347,32 +379,56 @@ pub fn draw_settings_sandbox(
     };
     if let Some(sy) = vis(vy, row_h) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy + (row_h as f32 / 2.0 - 9.0 * sf) as usize, clip_h,
-            "Platform", label_metrics,
-            theme::SETTINGS_LABEL, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy + (row_h as f32 / 2.0 - 9.0 * sf) as usize,
+            clip_h,
+            "Platform",
+            label_metrics,
+            theme::SETTINGS_LABEL,
+            Family::Monospace,
         );
         let val_x = area_x + area_w / 2;
         draw_text_at(
-            buf, font_system, swash_cache,
-            val_x, sy + (row_h as f32 / 2.0 - 9.0 * sf) as usize, clip_h,
-            platform, desc_metrics,
-            theme::SETTINGS_BODY_TEXT, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            val_x,
+            sy + (row_h as f32 / 2.0 - 9.0 * sf) as usize,
+            clip_h,
+            platform,
+            desc_metrics,
+            theme::SETTINGS_BODY_TEXT,
+            Family::Monospace,
         );
     }
     vy += row_h as i32 + section_gap as i32;
 
     if let Some(sy) = vis(vy, divider_h) {
-        buf.fill_rect(area_x + line_pad, sy, area_w.saturating_sub(line_pad * 2), divider_h, theme::SETTINGS_DIVIDER);
+        buf.fill_rect(
+            area_x + line_pad,
+            sy,
+            area_w.saturating_sub(line_pad * 2),
+            divider_h,
+            theme::SETTINGS_DIVIDER,
+        );
     }
     vy += section_gap as i32;
 
     if let Some(sy) = vis(vy, 32) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy, clip_h,
-            "Default Resources", section_metrics,
-            theme::SETTINGS_SECTION_TITLE, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy,
+            clip_h,
+            "Default Resources",
+            section_metrics,
+            theme::SETTINGS_SECTION_TITLE,
+            Family::Monospace,
         );
     }
     vy += (32.0 * sf) as i32;
@@ -381,26 +437,50 @@ pub fn draw_settings_sandbox(
     let cpu_label = format!("vCPU: {} / {}", sb.cpus, sb.system_cpus);
     if let Some(sy) = vis(vy, 22) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy, clip_h,
-            &cpu_label, label_metrics,
-            theme::SETTINGS_BODY_TEXT, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy,
+            clip_h,
+            &cpu_label,
+            label_metrics,
+            theme::SETTINGS_BODY_TEXT,
+            Family::Monospace,
         );
     }
     vy += (22.0 * sf) as i32;
 
     if let Some(sy) = vis(vy, 28) {
-        draw_slider(buf, area_x + pad, sy, slider_w, sf, sb.cpus, 1, sb.system_cpus);
+        draw_slider(
+            buf,
+            area_x + pad,
+            sy,
+            slider_w,
+            sf,
+            sb.cpus,
+            1,
+            sb.system_cpus,
+        );
     }
     vy += (28.0 * sf) as i32;
 
-    let mem_label = format!("Memory: {} MiB / {} MiB", sb.memory_mib, sb.system_memory_mib);
+    let mem_label = format!(
+        "Memory: {} MiB / {} MiB",
+        sb.memory_mib, sb.system_memory_mib
+    );
     if let Some(sy) = vis(vy, 22) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy, clip_h,
-            &mem_label, label_metrics,
-            theme::SETTINGS_BODY_TEXT, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy,
+            clip_h,
+            &mem_label,
+            label_metrics,
+            theme::SETTINGS_BODY_TEXT,
+            Family::Monospace,
         );
     }
     vy += (22.0 * sf) as i32;
@@ -408,21 +488,42 @@ pub fn draw_settings_sandbox(
     let mem_max = sb.system_memory_mib;
     let mem_min = 128_u32;
     if let Some(sy) = vis(vy, 28) {
-        draw_slider(buf, area_x + pad, sy, slider_w, sf, sb.memory_mib, mem_min, mem_max);
+        draw_slider(
+            buf,
+            area_x + pad,
+            sy,
+            slider_w,
+            sf,
+            sb.memory_mib,
+            mem_min,
+            mem_max,
+        );
     }
     vy += (28.0 * sf) as i32 + section_gap as i32;
 
     if let Some(sy) = vis(vy, divider_h) {
-        buf.fill_rect(area_x + line_pad, sy, area_w.saturating_sub(line_pad * 2), divider_h, theme::SETTINGS_DIVIDER);
+        buf.fill_rect(
+            area_x + line_pad,
+            sy,
+            area_w.saturating_sub(line_pad * 2),
+            divider_h,
+            theme::SETTINGS_DIVIDER,
+        );
     }
     vy += section_gap as i32;
 
     if let Some(sy) = vis(vy, 32) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy, clip_h,
-            "Trusted Images", section_metrics,
-            theme::SETTINGS_SECTION_TITLE, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy,
+            clip_h,
+            "Trusted Images",
+            section_metrics,
+            theme::SETTINGS_SECTION_TITLE,
+            Family::Monospace,
         );
     }
     vy += (32.0 * sf) as i32;
@@ -437,26 +538,72 @@ pub fn draw_settings_sandbox(
 
     for (bi, img) in images.iter().enumerate() {
         if let Some(sy) = vis(vy, row_h) {
-            draw_image_row(buf, font_system, swash_cache, icon_renderer,
-                area_x + pad, sy, area_w, row_h, sf,
-                icon_sz, img.display_name, img.oci_ref, None,
-                label_metrics, desc_metrics, small_metrics);
+            draw_image_row(
+                buf,
+                font_system,
+                swash_cache,
+                icon_renderer,
+                area_x + pad,
+                sy,
+                area_w,
+                row_h,
+                sf,
+                icon_sz,
+                img.display_name,
+                img.oci_ref,
+                None,
+                label_metrics,
+                desc_metrics,
+                small_metrics,
+            );
 
             let del_bx = area_x + area_w - pad - full_btn;
             let del_by = sy + (row_h - full_btn) / 2;
-            let is_del_hovered = sb.hovered_hit == Some(super::SandboxSettingsHit::DeleteTrustedImage(bi));
-            let del_bg = if is_del_hovered { theme::BG_HOVER } else { theme::BG_ELEVATED };
+            let is_del_hovered =
+                sb.hovered_hit == Some(super::SandboxSettingsHit::DeleteTrustedImage(bi));
+            let del_bg = if is_del_hovered {
+                theme::BG_HOVER
+            } else {
+                theme::BG_ELEVATED
+            };
             super::super::fill_rounded_rect(buf, del_bx, del_by, full_btn, full_btn, btn_r, del_bg);
-            let del_color = if is_del_hovered { theme::ERROR } else { theme::FG_MUTED };
-            icon_renderer.draw(buf, Icon::Trash, del_bx + btn_pad, del_by + btn_pad, btn_icon as u32, del_color);
+            let del_color = if is_del_hovered {
+                theme::ERROR
+            } else {
+                theme::FG_MUTED
+            };
+            icon_renderer.draw(
+                buf,
+                Icon::Trash,
+                del_bx + btn_pad,
+                del_by + btn_pad,
+                btn_icon as u32,
+                del_color,
+            );
 
             let upd_bx = del_bx - btn_gap_x - full_btn;
             let upd_by = del_by;
-            let is_upd_hovered = sb.hovered_hit == Some(super::SandboxSettingsHit::UpdateTrustedImage(bi));
-            let upd_bg = if is_upd_hovered { theme::BG_HOVER } else { theme::BG_ELEVATED };
+            let is_upd_hovered =
+                sb.hovered_hit == Some(super::SandboxSettingsHit::UpdateTrustedImage(bi));
+            let upd_bg = if is_upd_hovered {
+                theme::BG_HOVER
+            } else {
+                theme::BG_ELEVATED
+            };
             super::super::fill_rounded_rect(buf, upd_bx, upd_by, full_btn, full_btn, btn_r, upd_bg);
-            let upd_color = if is_upd_hovered { theme::TOAST_INFO_ACCENT } else { theme::FG_MUTED };
-            icon_renderer.draw(buf, Icon::Refresh, upd_bx + btn_pad, upd_by + btn_pad, btn_icon as u32, upd_color);
+            let upd_color = if is_upd_hovered {
+                theme::TOAST_INFO_ACCENT
+            } else {
+                theme::FG_MUTED
+            };
+            icon_renderer.draw(
+                buf,
+                Icon::Refresh,
+                upd_bx + btn_pad,
+                upd_by + btn_pad,
+                btn_icon as u32,
+                upd_color,
+            );
         }
         vy += row_h as i32;
     }
@@ -465,29 +612,69 @@ pub fn draw_settings_sandbox(
     vy += (8.0 * sf) as i32;
     if let Some(sy) = vis(vy, 22) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy, clip_h,
-            "Custom Images", Metrics::new(12.0 * sf, 17.0 * sf),
-            theme::FG_MUTED, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy,
+            clip_h,
+            "Custom Images",
+            Metrics::new(12.0 * sf, 17.0 * sf),
+            theme::FG_MUTED,
+            Family::Monospace,
         );
     }
     vy += (22.0 * sf) as i32;
 
     for (ci_idx, ci) in config.sandbox.custom_images.iter().enumerate() {
         if let Some(sy) = vis(vy, row_h) {
-            let pulled = if ci.last_pulled.is_empty() { None } else { Some(ci.last_pulled.as_str()) };
-            draw_image_row(buf, font_system, swash_cache, icon_renderer,
-                area_x + pad, sy, area_w, row_h, sf,
-                icon_sz, &ci.display_name, &ci.oci_ref, pulled,
-                label_metrics, desc_metrics, small_metrics);
+            let pulled = if ci.last_pulled.is_empty() {
+                None
+            } else {
+                Some(ci.last_pulled.as_str())
+            };
+            draw_image_row(
+                buf,
+                font_system,
+                swash_cache,
+                icon_renderer,
+                area_x + pad,
+                sy,
+                area_w,
+                row_h,
+                sf,
+                icon_sz,
+                &ci.display_name,
+                &ci.oci_ref,
+                pulled,
+                label_metrics,
+                desc_metrics,
+                small_metrics,
+            );
 
             let del_bx = area_x + area_w - pad - full_btn;
             let del_by = sy + (row_h - full_btn) / 2;
-            let is_hovered = sb.hovered_hit == Some(super::SandboxSettingsHit::DeleteCustomImage(ci_idx));
-            let del_bg = if is_hovered { theme::BG_HOVER } else { theme::BG_ELEVATED };
+            let is_hovered =
+                sb.hovered_hit == Some(super::SandboxSettingsHit::DeleteCustomImage(ci_idx));
+            let del_bg = if is_hovered {
+                theme::BG_HOVER
+            } else {
+                theme::BG_ELEVATED
+            };
             super::super::fill_rounded_rect(buf, del_bx, del_by, full_btn, full_btn, btn_r, del_bg);
-            let del_color = if is_hovered { theme::ERROR } else { theme::FG_MUTED };
-            icon_renderer.draw(buf, Icon::Trash, del_bx + btn_pad, del_by + btn_pad, btn_icon as u32, del_color);
+            let del_color = if is_hovered {
+                theme::ERROR
+            } else {
+                theme::FG_MUTED
+            };
+            icon_renderer.draw(
+                buf,
+                Icon::Trash,
+                del_bx + btn_pad,
+                del_by + btn_pad,
+                btn_icon as u32,
+                del_color,
+            );
         }
         vy += row_h as i32;
     }
@@ -495,10 +682,16 @@ pub fn draw_settings_sandbox(
     if config.sandbox.custom_images.is_empty() {
         if let Some(sy) = vis(vy, row_h) {
             draw_text_at(
-                buf, font_system, swash_cache,
-                area_x + pad, sy, clip_h,
-                "No custom images", desc_metrics,
-                theme::FG_MUTED, Family::Monospace,
+                buf,
+                font_system,
+                swash_cache,
+                area_x + pad,
+                sy,
+                clip_h,
+                "No custom images",
+                desc_metrics,
+                theme::FG_MUTED,
+                Family::Monospace,
             );
         }
         vy += row_h as i32;
@@ -512,8 +705,20 @@ pub fn draw_settings_sandbox(
     let input_x = area_x + pad;
 
     if let Some(sy) = vis(vy, input_h) {
-        let input_border = if sb.add_image_focused { theme::PRIMARY } else { theme::SETTINGS_DIVIDER };
-        super::super::draw_border(buf, input_x, sy, input_w, input_h, (1.0 * sf).max(1.0) as usize, input_border);
+        let input_border = if sb.add_image_focused {
+            theme::PRIMARY
+        } else {
+            theme::SETTINGS_DIVIDER
+        };
+        super::super::draw_border(
+            buf,
+            input_x,
+            sy,
+            input_w,
+            input_h,
+            (1.0 * sf).max(1.0) as usize,
+            input_border,
+        );
         let input_text = if sb.add_image_input.is_empty() && !sb.add_image_focused {
             "oci-ref (e.g. docker.io/library/ubuntu)"
         } else {
@@ -525,43 +730,71 @@ pub fn draw_settings_sandbox(
             theme::SETTINGS_INPUT_TEXT
         };
         draw_text_at(
-            buf, font_system, swash_cache,
+            buf,
+            font_system,
+            swash_cache,
             input_x + (8.0 * sf) as usize,
             sy + (input_h as f32 / 2.0 - 7.0 * sf) as usize,
             clip_h,
-            input_text, desc_metrics,
-            input_color, Family::Monospace,
+            input_text,
+            desc_metrics,
+            input_color,
+            Family::Monospace,
         );
 
         let add_x = input_x + input_w + btn_gap;
         let is_add_hovered = sb.hovered_hit == Some(super::SandboxSettingsHit::AddImage);
-        let add_bg = if is_add_hovered { theme::PRIMARY } else { theme::BG_ELEVATED };
+        let add_bg = if is_add_hovered {
+            theme::PRIMARY
+        } else {
+            theme::BG_ELEVATED
+        };
         let add_r = (4.0 * sf) as usize;
         super::super::fill_rounded_rect(buf, add_x, sy, add_btn_w, input_h, add_r, add_bg);
-        let add_text_color = if is_add_hovered { (255, 255, 255) } else { theme::FG_SECONDARY };
+        let add_text_color = if is_add_hovered {
+            (255, 255, 255)
+        } else {
+            theme::FG_SECONDARY
+        };
         let add_text_x = add_x + (add_btn_w as f32 / 2.0 - 10.0 * sf) as usize;
         draw_text_at(
-            buf, font_system, swash_cache,
+            buf,
+            font_system,
+            swash_cache,
             add_text_x,
             sy + (input_h as f32 / 2.0 - 7.0 * sf) as usize,
             clip_h,
-            "Add", desc_metrics,
-            add_text_color, Family::Monospace,
+            "Add",
+            desc_metrics,
+            add_text_color,
+            Family::Monospace,
         );
     }
     vy += input_h as i32 + section_gap as i32;
 
     if let Some(sy) = vis(vy, divider_h) {
-        buf.fill_rect(area_x + line_pad, sy, area_w.saturating_sub(line_pad * 2), divider_h, theme::SETTINGS_DIVIDER);
+        buf.fill_rect(
+            area_x + line_pad,
+            sy,
+            area_w.saturating_sub(line_pad * 2),
+            divider_h,
+            theme::SETTINGS_DIVIDER,
+        );
     }
     vy += section_gap as i32;
 
     if let Some(sy) = vis(vy, 32) {
         draw_text_at(
-            buf, font_system, swash_cache,
-            area_x + pad, sy, clip_h,
-            "Default Volumes", section_metrics,
-            theme::SETTINGS_SECTION_TITLE, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            area_x + pad,
+            sy,
+            clip_h,
+            "Default Volumes",
+            section_metrics,
+            theme::SETTINGS_SECTION_TITLE,
+            Family::Monospace,
         );
     }
     vy += (32.0 * sf) as i32;
@@ -569,10 +802,16 @@ pub fn draw_settings_sandbox(
     if config.sandbox.volumes.is_empty() {
         if let Some(sy) = vis(vy, row_h) {
             draw_text_at(
-                buf, font_system, swash_cache,
-                area_x + pad, sy, clip_h,
-                "No default volumes configured", desc_metrics,
-                theme::FG_MUTED, Family::Monospace,
+                buf,
+                font_system,
+                swash_cache,
+                area_x + pad,
+                sy,
+                clip_h,
+                "No default volumes configured",
+                desc_metrics,
+                theme::FG_MUTED,
+                Family::Monospace,
             );
         }
         vy += row_h as i32;
@@ -581,26 +820,56 @@ pub fn draw_settings_sandbox(
         for (vi, vol) in config.sandbox.volumes.iter().enumerate() {
             if let Some(sy) = vis(vy, vol_row_h) {
                 draw_text_at(
-                    buf, font_system, swash_cache,
-                    area_x + pad, sy + (4.0 * sf) as usize, clip_h,
-                    &vol.label, label_metrics,
-                    theme::SETTINGS_BODY_TEXT, Family::Monospace,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    area_x + pad,
+                    sy + (4.0 * sf) as usize,
+                    clip_h,
+                    &vol.label,
+                    label_metrics,
+                    theme::SETTINGS_BODY_TEXT,
+                    Family::Monospace,
                 );
 
                 let del_bx = area_x + area_w - pad - full_btn;
                 let del_by = sy + (vol_row_h - full_btn) / 2;
-                let is_hovered = sb.hovered_hit == Some(super::SandboxSettingsHit::DeleteVolume(vi));
-                let del_bg = if is_hovered { theme::BG_HOVER } else { theme::BG_ELEVATED };
-                super::super::fill_rounded_rect(buf, del_bx, del_by, full_btn, full_btn, btn_r, del_bg);
-                let del_color = if is_hovered { theme::ERROR } else { theme::FG_MUTED };
-                icon_renderer.draw(buf, Icon::Trash, del_bx + btn_pad, del_by + btn_pad, btn_icon as u32, del_color);
+                let is_hovered =
+                    sb.hovered_hit == Some(super::SandboxSettingsHit::DeleteVolume(vi));
+                let del_bg = if is_hovered {
+                    theme::BG_HOVER
+                } else {
+                    theme::BG_ELEVATED
+                };
+                super::super::fill_rounded_rect(
+                    buf, del_bx, del_by, full_btn, full_btn, btn_r, del_bg,
+                );
+                let del_color = if is_hovered {
+                    theme::ERROR
+                } else {
+                    theme::FG_MUTED
+                };
+                icon_renderer.draw(
+                    buf,
+                    Icon::Trash,
+                    del_bx + btn_pad,
+                    del_by + btn_pad,
+                    btn_icon as u32,
+                    del_color,
+                );
 
                 let mapping = format!("{} → {}", vol.guest_path, vol.host_path);
                 draw_text_at(
-                    buf, font_system, swash_cache,
-                    area_x + pad, sy + (24.0 * sf) as usize, clip_h,
-                    &mapping, small_metrics,
-                    theme::FG_MUTED, Family::Monospace,
+                    buf,
+                    font_system,
+                    swash_cache,
+                    area_x + pad,
+                    sy + (24.0 * sf) as usize,
+                    clip_h,
+                    &mapping,
+                    small_metrics,
+                    theme::FG_MUTED,
+                    Family::Monospace,
                 );
             }
             vy += vol_row_h as i32;
@@ -618,7 +887,15 @@ pub fn draw_settings_sandbox(
         let track_space = viewport as usize - thumb_h;
         let thumb_y = area_y + (track_space as f32 * scroll_ratio) as usize;
         let r = track_w / 2;
-        super::super::fill_rounded_rect(buf, track_x, thumb_y, track_w, thumb_h, r, theme::FG_MUTED);
+        super::super::fill_rounded_rect(
+            buf,
+            track_x,
+            thumb_y,
+            track_w,
+            thumb_h,
+            r,
+            theme::FG_MUTED,
+        );
     }
 }
 
@@ -633,7 +910,9 @@ fn draw_slider(
     min: u32,
     max: u32,
 ) {
-    if max <= min { return; }
+    if max <= min {
+        return;
+    }
 
     let track_h = (SLIDER_HEIGHT * sf).max(2.0) as usize;
     let track_r = track_h / 2;
@@ -646,7 +925,15 @@ fn draw_slider(
     let ratio = ((value.saturating_sub(min)) as f32) / ((max - min) as f32);
     let fill_w = (w as f32 * ratio.clamp(0.0, 1.0)) as usize;
     if fill_w > 0 {
-        super::super::fill_rounded_rect(buf, x, track_y, fill_w, track_h, track_r, SLIDER_FILL_COLOR);
+        super::super::fill_rounded_rect(
+            buf,
+            x,
+            track_y,
+            fill_w,
+            track_h,
+            track_r,
+            SLIDER_FILL_COLOR,
+        );
     }
 
     let thumb_cx = x as f32 + fill_w as f32;
@@ -680,27 +967,45 @@ fn draw_image_row(
 
     let name_x = x + icon_sz as usize + (8.0 * sf) as usize;
     draw_text_at(
-        buf, font_system, swash_cache,
-        name_x, y + (row_h as f32 / 2.0 - 9.0 * sf) as usize, clip_h,
-        name, label_metrics,
-        theme::SETTINGS_BODY_TEXT, Family::Monospace,
+        buf,
+        font_system,
+        swash_cache,
+        name_x,
+        y + (row_h as f32 / 2.0 - 9.0 * sf) as usize,
+        clip_h,
+        name,
+        label_metrics,
+        theme::SETTINGS_BODY_TEXT,
+        Family::Monospace,
     );
 
     let val_x = x + area_w / 2;
     draw_text_at(
-        buf, font_system, swash_cache,
-        val_x, y + (row_h as f32 / 2.0 - 9.0 * sf) as usize, clip_h,
-        oci_ref, desc_metrics,
-        theme::FG_MUTED, Family::Monospace,
+        buf,
+        font_system,
+        swash_cache,
+        val_x,
+        y + (row_h as f32 / 2.0 - 9.0 * sf) as usize,
+        clip_h,
+        oci_ref,
+        desc_metrics,
+        theme::FG_MUTED,
+        Family::Monospace,
     );
 
     if let Some(pulled) = last_pulled {
         let tag_text = format!("pulled: {}", pulled);
         draw_text_at(
-            buf, font_system, swash_cache,
-            name_x, y + (row_h as f32 / 2.0 + 5.0 * sf) as usize, clip_h,
-            &tag_text, small_metrics,
-            theme::FG_MUTED, Family::Monospace,
+            buf,
+            font_system,
+            swash_cache,
+            name_x,
+            y + (row_h as f32 / 2.0 + 5.0 * sf) as usize,
+            clip_h,
+            &tag_text,
+            small_metrics,
+            theme::FG_MUTED,
+            Family::Monospace,
         );
     }
 }

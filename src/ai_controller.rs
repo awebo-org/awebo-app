@@ -3,7 +3,6 @@
 ///
 /// Groups AI-related state (`AiState` + write cursor) into a single
 /// struct extracted from the main `App` god object.
-
 use std::sync::atomic::Ordering;
 
 use crate::ai;
