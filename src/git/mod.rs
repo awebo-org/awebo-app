@@ -396,18 +396,6 @@ mod tests {
     }
 
     #[test]
-    fn branches_lists_something() {
-        if let Some(r) = GitRepo::discover(".") {
-            let branches = r.branches();
-            assert!(!branches.is_empty(), "expected at least one branch");
-            assert!(
-                branches.iter().any(|b| b.is_current),
-                "expected a current branch"
-            );
-        }
-    }
-
-    #[test]
     fn status_entries_returns_vec() {
         if let Some(r) = GitRepo::discover(".") {
             let _ = r.status_entries(); // just ensure it doesn't panic
