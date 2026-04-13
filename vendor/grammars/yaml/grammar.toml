@@ -1,0 +1,4 @@
+id = "yaml"
+name = "YAML"
+extensions = ["yml", "yaml"]
+parser_fn = "tree_sitter_yaml"

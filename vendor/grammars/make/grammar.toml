@@ -1,0 +1,4 @@
+id = "make"
+name = "Make"
+extensions = ["makefile", "Makefile", "mk"]
+parser_fn = "tree_sitter_make"

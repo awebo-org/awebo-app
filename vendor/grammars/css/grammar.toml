@@ -1,0 +1,4 @@
+id = "css"
+name = "CSS"
+extensions = ["css", "scss", "less"]
+parser_fn = "tree_sitter_css"

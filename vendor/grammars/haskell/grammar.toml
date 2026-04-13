@@ -1,0 +1,4 @@
+id = "haskell"
+name = "Haskell"
+extensions = ["hs", "lhs"]
+parser_fn = "tree_sitter_haskell"

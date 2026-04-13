@@ -1,0 +1,4 @@
+id = "cmake"
+name = "CMake"
+extensions = ["cmake", "CMakeLists.txt"]
+parser_fn = "tree_sitter_cmake"

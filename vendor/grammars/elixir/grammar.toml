@@ -1,0 +1,4 @@
+id = "elixir"
+name = "Elixir"
+extensions = ["ex", "exs"]
+parser_fn = "tree_sitter_elixir"

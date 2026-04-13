@@ -1,0 +1,4 @@
+id = "java"
+name = "Java"
+extensions = ["java"]
+parser_fn = "tree_sitter_java"

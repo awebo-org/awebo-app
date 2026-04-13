@@ -1,0 +1,4 @@
+id = "dockerfile"
+name = "Dockerfile"
+extensions = ["dockerfile", "Dockerfile"]
+parser_fn = "tree_sitter_dockerfile"

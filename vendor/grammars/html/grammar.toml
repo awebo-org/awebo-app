@@ -1,0 +1,4 @@
+id = "html"
+name = "HTML"
+extensions = ["html", "htm"]
+parser_fn = "tree_sitter_html"

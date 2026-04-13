@@ -1,0 +1,4 @@
+id = "erlang"
+name = "Erlang"
+extensions = ["erl", "hrl"]
+parser_fn = "tree_sitter_erlang"

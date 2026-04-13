@@ -1,0 +1,4 @@
+id = "tsx"
+name = "TSX"
+extensions = ["tsx"]
+parser_fn = "tree_sitter_tsx"

@@ -1,0 +1,4 @@
+id = "ruby"
+name = "Ruby"
+extensions = ["rb", "rake", "gemspec"]
+parser_fn = "tree_sitter_ruby"

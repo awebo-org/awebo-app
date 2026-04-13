@@ -1,0 +1,4 @@
+id = "python"
+name = "Python"
+extensions = ["py", "pyi", "pyw"]
+parser_fn = "tree_sitter_python"

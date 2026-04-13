@@ -1,0 +1,4 @@
+id = "bash"
+name = "Bash"
+extensions = ["sh", "bash", "zsh", "fish"]
+parser_fn = "tree_sitter_bash"

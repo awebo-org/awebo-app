@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffffff" stroke="none">
+  <!-- Left eyebrow -->
+  <path d="M3.5 8.5 C4.5 4.5, 8 3.5, 10.5 6.5" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <!-- Right eyebrow -->
+  <path d="M13.5 6.5 C16 3.5, 19.5 4.5, 20.5 8.5" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <!-- Left eye -->
+  <ellipse cx="7.5" cy="13" rx="1.8" ry="2.6"/>
+  <!-- Right eye -->
+  <ellipse cx="16" cy="12.5" rx="2" ry="2.8"/>
+  <!-- Beak -->
+  <path d="M10.5 17 Q12 15, 14 17 Q12.5 18.5, 10.5 17Z"/>
+</svg>

@@ -1,0 +1,4 @@
+id = "json"
+name = "JSON"
+extensions = ["json", "jsonc"]
+parser_fn = "tree_sitter_json"

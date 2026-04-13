@@ -1,0 +1,4 @@
+id = "go"
+name = "Go"
+extensions = ["go"]
+parser_fn = "tree_sitter_go"

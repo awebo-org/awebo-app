@@ -1,0 +1,4 @@
+id = "c"
+name = "C"
+extensions = ["c", "h"]
+parser_fn = "tree_sitter_c"

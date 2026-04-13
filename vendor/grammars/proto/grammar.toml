@@ -1,0 +1,4 @@
+id = "proto"
+name = "Protobuf"
+extensions = ["proto"]
+parser_fn = "tree_sitter_proto"

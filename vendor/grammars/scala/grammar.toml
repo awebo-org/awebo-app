@@ -1,0 +1,4 @@
+id = "scala"
+name = "Scala"
+extensions = ["scala", "sc"]
+parser_fn = "tree_sitter_scala"

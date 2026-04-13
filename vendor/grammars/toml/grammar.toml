@@ -1,0 +1,4 @@
+id = "toml"
+name = "TOML"
+extensions = ["toml"]
+parser_fn = "tree_sitter_toml"

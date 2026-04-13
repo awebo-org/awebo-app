@@ -1,0 +1,4 @@
+id = "lua"
+name = "Lua"
+extensions = ["lua"]
+parser_fn = "tree_sitter_lua"

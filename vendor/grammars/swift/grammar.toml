@@ -1,0 +1,4 @@
+id = "swift"
+name = "Swift"
+extensions = ["swift"]
+parser_fn = "tree_sitter_swift"

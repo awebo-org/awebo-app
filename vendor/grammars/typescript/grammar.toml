@@ -1,0 +1,4 @@
+id = "typescript"
+name = "TypeScript"
+extensions = ["ts"]
+parser_fn = "tree_sitter_typescript"

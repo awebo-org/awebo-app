@@ -1,0 +1,4 @@
+id = "zig"
+name = "Zig"
+extensions = ["zig"]
+parser_fn = "tree_sitter_zig"

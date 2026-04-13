@@ -1,0 +1,4 @@
+id = "r"
+name = "R"
+extensions = ["r", "R", "rmd"]
+parser_fn = "tree_sitter_r"

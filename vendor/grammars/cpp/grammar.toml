@@ -1,0 +1,4 @@
+id = "cpp"
+name = "C++"
+extensions = ["cpp", "hpp", "cc", "hh", "cxx", "hxx"]
+parser_fn = "tree_sitter_cpp"

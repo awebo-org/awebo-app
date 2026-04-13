@@ -1,0 +1,4 @@
+id = "csharp"
+name = "C#"
+extensions = ["cs"]
+parser_fn = "tree_sitter_c_sharp"
