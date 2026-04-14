@@ -2,3 +2,5 @@ target
 target/*
 *.log
 .DS_Store
+skills-lock.json
+.agents

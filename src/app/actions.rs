@@ -438,10 +438,13 @@ impl super::App {
                     let staged = entry.staged;
                     let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
-                        match repo.diff_for_file(&path, staged) {
-                            Ok(diff_text) => {
-                                let abs = std::path::PathBuf::from(&cwd).join(&path);
-                                self.open_diff_in_editor(&abs, &diff_text);
+                        let workdir = repo
+                            .workdir_path()
+                            .unwrap_or_else(|| std::path::PathBuf::from(&cwd));
+                        match repo.diff_for_file_hunks(&path, staged) {
+                            Ok(hunks) => {
+                                let abs = workdir.join(&path);
+                                self.open_diff_in_editor(&abs, &hunks);
                             }
                             Err(e) => {
                                 log::warn!("git diff failed: {e}");
@@ -470,14 +473,26 @@ impl super::App {
             }
             AppAction::GitOpenFile { path } => {
                 let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
-                let abs = std::path::Path::new(&cwd).join(&path);
+                let abs = if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
+                    repo.workdir_path()
+                        .unwrap_or_else(|| std::path::PathBuf::from(&cwd))
+                        .join(&path)
+                } else {
+                    std::path::PathBuf::from(&cwd).join(&path)
+                };
                 if abs.exists() && !abs.is_dir() {
                     self.open_file_in_editor(&abs);
                 }
             }
             AppAction::GitRevealInFinder { path } => {
                 let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
-                let abs = std::path::Path::new(&cwd).join(&path);
+                let abs = if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
+                    repo.workdir_path()
+                        .unwrap_or_else(|| std::path::PathBuf::from(&cwd))
+                        .join(&path)
+                } else {
+                    std::path::PathBuf::from(&cwd).join(&path)
+                };
                 #[cfg(target_os = "macos")]
                 {
                     let _ = std::process::Command::new("open")

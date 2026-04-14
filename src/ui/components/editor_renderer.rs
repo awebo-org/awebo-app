@@ -1,4 +1,4 @@
-//! Editor rendering: text, hex, and image viewers.
+//! Editor rendering: text, hex, image, and side-by-side diff viewers.
 
 use cosmic_text::{Buffer, Family, FontSystem, Metrics, SwashCache};
 
@@ -7,7 +7,7 @@ use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::draw_text_at_buffered;
 use crate::renderer::theme;
 use crate::ui::editor::{
-    DiffLineKind, EditorMode, EditorState, GUTTER_PAD_RIGHT, HEX_FONT_SIZE, HEX_LINE_HEIGHT,
+    DiffRowKind, EditorMode, EditorState, GUTTER_PAD_RIGHT, HEX_FONT_SIZE, HEX_LINE_HEIGHT,
     HEX_PAD_X, HEX_PAD_Y, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TEXT_PAD_X, TEXT_PAD_Y,
 };
 
@@ -23,6 +23,11 @@ const DIFF_ADDED_BG: (u8, u8, u8) = (30, 60, 30);
 const DIFF_REMOVED_BG: (u8, u8, u8) = (60, 25, 25);
 const DIFF_ADDED_GUTTER: (u8, u8, u8) = (50, 160, 60);
 const DIFF_REMOVED_GUTTER: (u8, u8, u8) = (200, 60, 60);
+const DIFF_EMPTY_BG: (u8, u8, u8) = (16, 16, 20);
+const DIFF_SEPARATOR_BG: (u8, u8, u8) = (20, 20, 25);
+
+const BREADCRUMB_SEPARATOR: &str = " › ";
+const INFO_BAR_HEIGHT: f32 = 24.0;
 
 const HEX_ADDR_COLOR: (u8, u8, u8) = theme::FG_MUTED;
 const HEX_BYTE_COLOR: (u8, u8, u8) = theme::FG_PRIMARY;
@@ -72,19 +77,23 @@ pub fn draw(
 
     buf.fill_rect(vp.x, vp.y, vp.w, vp.h, theme::BG);
 
-    match state.mode {
-        EditorMode::Text => draw_text_mode(
-            buf,
-            font_system,
-            swash_cache,
-            glyph_atlas,
-            state,
-            &vp,
-            sf,
-            cursor_visible,
-        ),
-        EditorMode::Hex => draw_hex_mode(buf, font_system, swash_cache, state, &vp, sf),
-        EditorMode::Image => draw_image_mode(buf, state, &vp, sf),
+    if state.has_diff_view() {
+        draw_diff_mode(buf, font_system, swash_cache, glyph_atlas, state, &vp, sf);
+    } else {
+        match state.mode {
+            EditorMode::Text => draw_text_mode(
+                buf,
+                font_system,
+                swash_cache,
+                glyph_atlas,
+                state,
+                &vp,
+                sf,
+                cursor_visible,
+            ),
+            EditorMode::Hex => draw_hex_mode(buf, font_system, swash_cache, state, &vp, sf),
+            EditorMode::Image => draw_image_mode(buf, state, &vp, sf),
+        }
     }
 
     draw_scrollbar(buf, state, &vp, sf, scrollbar_state);
@@ -115,11 +124,12 @@ pub fn hit_test_cursor(
     let divider_w = (1.0 * sf).max(1.0) as usize;
     let code_x = x_start + gutter_w + divider_w + pad_x;
     let char_w = (TEXT_FONT_SIZE * sf * 0.6) as usize;
+    let info_bar_h = (INFO_BAR_HEIGHT * sf) as usize + (1.0 * sf).max(1.0) as usize;
 
     let click_in_gutter = phys_x < code_x && phys_x >= x_start;
 
     let scroll = state.scroll_offset.max(0.0) as usize;
-    let y_in_content = (phys_y + scroll).saturating_sub(y_start + pad_y);
+    let y_in_content = (phys_y + scroll).saturating_sub(y_start + info_bar_h + pad_y);
     let line = (y_in_content / line_h).min(state.lines.len().saturating_sub(1));
 
     if click_in_gutter {
@@ -339,6 +349,9 @@ fn draw_text_mode(
         return;
     }
 
+    draw_breadcrumb_bar(buf, font_system, swash_cache, state, vp, sf);
+    let info_bar_h = (INFO_BAR_HEIGHT * sf) as usize + (1.0 * sf).max(1.0) as usize;
+
     let font_size = TEXT_FONT_SIZE * sf;
     let line_height = TEXT_LINE_HEIGHT * sf;
     let pad_y = (TEXT_PAD_Y * sf) as usize;
@@ -351,13 +364,25 @@ fn draw_text_mode(
     let scroll_x = state.scroll_x().max(0.0) as usize;
     let divider_w = (1.0 * sf).max(1.0) as usize;
 
-    buf.fill_rect(vp.x, vp.y, gutter_w, vp.h, GUTTER_BG);
+    buf.fill_rect(
+        vp.x,
+        vp.y + info_bar_h,
+        gutter_w,
+        vp.h.saturating_sub(info_bar_h),
+        GUTTER_BG,
+    );
 
     let divider_x = vp.x + gutter_w;
-    buf.fill_rect(divider_x, vp.y, divider_w, vp.h, theme::BORDER);
+    buf.fill_rect(
+        divider_x,
+        vp.y + info_bar_h,
+        divider_w,
+        vp.h.saturating_sub(info_bar_h),
+        theme::BORDER,
+    );
 
-    let content_top = vp.y;
-    let content_h = vp.h;
+    let content_top = vp.y + info_bar_h;
+    let content_h = vp.h.saturating_sub(info_bar_h);
 
     let first_line = scroll_y / line_h.max(1);
     let last_line = ((scroll_y + content_h) / line_h.max(1) + 1).min(state.lines.len());
@@ -384,27 +409,6 @@ fn draw_text_mode(
                 line_h,
                 CURRENT_LINE_BG,
             );
-        }
-
-        let diff_kind = state.diff_lines.get(idx).copied();
-        if let Some(kind) = diff_kind {
-            let content_area_x = vp.x + gutter_w + divider_w;
-            let content_area_w = vp.w.saturating_sub(gutter_w + divider_w);
-            match kind {
-                DiffLineKind::Added => {
-                    buf.fill_rect(content_area_x, y_px, content_area_w, line_h, DIFF_ADDED_BG);
-                }
-                DiffLineKind::Removed => {
-                    buf.fill_rect(
-                        content_area_x,
-                        y_px,
-                        content_area_w,
-                        line_h,
-                        DIFF_REMOVED_BG,
-                    );
-                }
-                DiffLineKind::Context => {}
-            }
         }
 
         if let Some((sl, sc, el, ec)) = sel
@@ -451,18 +455,6 @@ fn draw_text_mode(
             line_height,
             gutter_color,
         );
-
-        if let Some(kind) = diff_kind {
-            let stripe_w = (2.0 * sf).max(1.0) as usize;
-            let stripe_color = match kind {
-                DiffLineKind::Added => Some(DIFF_ADDED_GUTTER),
-                DiffLineKind::Removed => Some(DIFF_REMOVED_GUTTER),
-                DiffLineKind::Context => None,
-            };
-            if let Some(color) = stripe_color {
-                buf.fill_rect(vp.x, y_px, stripe_w, line_h, color);
-            }
-        }
 
         let line = &state.lines[idx];
         if !line.is_empty() {
@@ -682,8 +674,9 @@ fn gutter_width(line_count: usize, sf: f32) -> usize {
     pad_left + digits * char_w.max(1) + pad
 }
 
-/// Thin info bar showing file path — drawn at the top of the editor area.
-fn draw_file_info_bar(
+/// Breadcrumb bar showing path segments — drawn at the top of the editor area.
+/// Renders like VS Code: `src › ui › components › editor_renderer.rs`
+fn draw_breadcrumb_bar(
     buf: &mut PixelBuffer,
     font_system: &mut FontSystem,
     swash_cache: &mut SwashCache,
@@ -691,39 +684,325 @@ fn draw_file_info_bar(
     vp: &Viewport,
     sf: f32,
 ) {
-    let bar_h = (24.0 * sf) as usize;
+    let bar_h = (INFO_BAR_HEIGHT * sf) as usize;
     buf.fill_rect(vp.x, vp.y, vp.w, bar_h, theme::BG_SURFACE);
 
     let border_h = (1.0 * sf).max(1.0) as usize;
     buf.fill_rect(vp.x, vp.y + bar_h, vp.w, border_h, theme::BORDER);
 
     let pad_x = (8.0 * sf) as usize;
-    let metrics = Metrics::new(11.0 * sf, 24.0 * sf);
-    let path_str = state.path.to_string_lossy();
+    let metrics = Metrics::new(11.0 * sf, INFO_BAR_HEIGHT * sf);
+    let char_w = (11.0 * sf * 0.58) as usize;
 
-    let mode_label = match state.mode {
-        EditorMode::Text => format!("{} — {} lines", path_str, state.lines.len()),
-        EditorMode::Hex => format!("{} — {} bytes", path_str, state.raw_bytes.len()),
-        EditorMode::Image => format!(
-            "{} — {}×{}",
-            path_str, state.image_width, state.image_height
-        ),
+    let components: Vec<&str> = state
+        .path
+        .components()
+        .filter_map(|c| c.as_os_str().to_str())
+        .collect();
+
+    let start_idx = if components.len() > 6 {
+        components.len() - 6
+    } else {
+        0
+    };
+    let visible = &components[start_idx..];
+
+    let mut x = vp.x + pad_x;
+    let mut info_buf = Buffer::new(font_system, metrics);
+    let clip_x = vp.x + vp.w;
+
+    for (i, segment) in visible.iter().enumerate() {
+        if x >= clip_x {
+            break;
+        }
+        let is_last = i == visible.len() - 1;
+        let color = if is_last {
+            theme::FG_BRIGHT
+        } else {
+            theme::FG_SECONDARY
+        };
+
+        draw_text_at_buffered(
+            buf,
+            font_system,
+            swash_cache,
+            &mut info_buf,
+            x,
+            vp.y,
+            vp.y + bar_h,
+            segment,
+            metrics,
+            color,
+            Family::SansSerif,
+        );
+        x += segment.len() * char_w;
+
+        if !is_last && x < clip_x {
+            draw_text_at_buffered(
+                buf,
+                font_system,
+                swash_cache,
+                &mut info_buf,
+                x,
+                vp.y,
+                vp.y + bar_h,
+                BREADCRUMB_SEPARATOR,
+                metrics,
+                theme::FG_MUTED,
+                Family::SansSerif,
+            );
+            x += BREADCRUMB_SEPARATOR.len() * char_w;
+        }
+    }
+}
+
+/// Compute gutter width for a given maximum line number.
+fn gutter_width_for_num(max_num: usize, sf: f32) -> usize {
+    let digits = if max_num == 0 {
+        1
+    } else {
+        (max_num as f64).log10().floor() as usize + 1
+    };
+    let char_w = (TEXT_FONT_SIZE * sf * 0.6) as usize;
+    let pad = (GUTTER_PAD_RIGHT * sf) as usize;
+    let pad_left = (8.0 * sf) as usize;
+    pad_left + digits * char_w.max(1) + pad
+}
+
+fn draw_diff_mode(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    glyph_atlas: &mut GlyphAtlas,
+    state: &EditorState,
+    vp: &Viewport,
+    sf: f32,
+) {
+    let rows = match state.diff_view.as_ref() {
+        Some(r) => r,
+        None => return,
     };
 
-    let mut info_buf = Buffer::new(font_system, metrics);
-    draw_text_at_buffered(
-        buf,
-        font_system,
-        swash_cache,
-        &mut info_buf,
-        vp.x + pad_x,
-        vp.y,
-        vp.y + bar_h,
-        &mode_label,
-        metrics,
-        theme::FG_SECONDARY,
-        Family::SansSerif,
+    draw_breadcrumb_bar(buf, font_system, swash_cache, state, vp, sf);
+    let info_bar_h = (INFO_BAR_HEIGHT * sf) as usize + (1.0 * sf).max(1.0) as usize;
+
+    let line_h = (TEXT_LINE_HEIGHT * sf) as usize;
+    if line_h == 0 {
+        return;
+    }
+    let font_size = TEXT_FONT_SIZE * sf;
+    let line_height = TEXT_LINE_HEIGHT * sf;
+    let pad_y = (TEXT_PAD_Y * sf) as usize;
+    let pad_x = (TEXT_PAD_X * sf) as usize;
+    let char_w = (font_size * 0.6) as usize;
+    let gutter_pad = (GUTTER_PAD_RIGHT * sf) as usize;
+
+    let center_div_w = (1.0 * sf).max(1.0) as usize;
+    let half_w = (vp.w.saturating_sub(center_div_w)) / 2;
+    let left_x = vp.x;
+    let right_x = vp.x + half_w + center_div_w;
+
+    buf.fill_rect(
+        vp.x + half_w,
+        vp.y + info_bar_h,
+        center_div_w,
+        vp.h.saturating_sub(info_bar_h),
+        theme::BORDER,
     );
+
+    let max_num = rows
+        .iter()
+        .flat_map(|r| [r.left_num, r.right_num].into_iter().flatten())
+        .max()
+        .unwrap_or(0);
+    let side_gutter_w = gutter_width_for_num(max_num, sf);
+
+    let scroll = state.scroll_offset.max(0.0) as usize;
+    let first_row = scroll / line_h.max(1);
+    let visible_count = vp.h.saturating_sub(info_bar_h) / line_h.max(1) + 2;
+    let last_row = (first_row + visible_count).min(rows.len());
+
+    let clip_bottom = vp.y + vp.h;
+
+    for (i, row) in rows
+        .iter()
+        .enumerate()
+        .skip(first_row)
+        .take(last_row - first_row)
+    {
+        let y_logical = info_bar_h + pad_y + i * line_h;
+        let y_px = vp.y + y_logical.saturating_sub(scroll);
+
+        if y_px + line_h <= vp.y + info_bar_h || y_px >= clip_bottom {
+            continue;
+        }
+
+        if row.kind == DiffRowKind::Separator {
+            buf.fill_rect(left_x, y_px, half_w, line_h, DIFF_SEPARATOR_BG);
+            buf.fill_rect(right_x, y_px, half_w, line_h, DIFF_SEPARATOR_BG);
+            let dot_y = y_px + line_h / 2;
+            let dot_h = (1.0 * sf).max(1.0) as usize;
+            buf.fill_rect(left_x, dot_y, half_w, dot_h, theme::BORDER);
+            buf.fill_rect(right_x, dot_y, half_w, dot_h, theme::BORDER);
+            continue;
+        }
+
+        let left_changed = matches!(row.kind, DiffRowKind::Removed | DiffRowKind::Modified);
+        let right_changed = matches!(row.kind, DiffRowKind::Added | DiffRowKind::Modified);
+
+        draw_diff_side(
+            buf,
+            glyph_atlas,
+            font_system,
+            swash_cache,
+            left_x,
+            y_px,
+            half_w,
+            line_h,
+            side_gutter_w,
+            gutter_pad,
+            pad_x,
+            char_w,
+            row.left_num,
+            row.left_text.as_deref(),
+            left_changed,
+            true,
+            font_size,
+            line_height,
+            sf,
+            clip_bottom,
+        );
+
+        draw_diff_side(
+            buf,
+            glyph_atlas,
+            font_system,
+            swash_cache,
+            right_x,
+            y_px,
+            half_w,
+            line_h,
+            side_gutter_w,
+            gutter_pad,
+            pad_x,
+            char_w,
+            row.right_num,
+            row.right_text.as_deref(),
+            right_changed,
+            false,
+            font_size,
+            line_height,
+            sf,
+            clip_bottom,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_diff_side(
+    buf: &mut PixelBuffer,
+    glyph_atlas: &mut GlyphAtlas,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    x: usize,
+    y: usize,
+    width: usize,
+    line_h: usize,
+    gutter_w: usize,
+    gutter_pad: usize,
+    pad_x: usize,
+    char_w: usize,
+    line_num: Option<usize>,
+    text: Option<&str>,
+    is_changed: bool,
+    is_left: bool,
+    font_size: f32,
+    line_height: f32,
+    sf: f32,
+    clip_bottom: usize,
+) {
+    let div_w = (1.0 * sf).max(1.0) as usize;
+
+    buf.fill_rect(x, y, gutter_w, line_h, GUTTER_BG);
+    buf.fill_rect(x + gutter_w, y, div_w, line_h, theme::BORDER);
+
+    let content_x = x + gutter_w + div_w;
+    let content_w = width.saturating_sub(gutter_w + div_w);
+
+    if text.is_none() {
+        buf.fill_rect(content_x, y, content_w, line_h, DIFF_EMPTY_BG);
+        return;
+    }
+
+    if is_changed {
+        let bg = if is_left {
+            DIFF_REMOVED_BG
+        } else {
+            DIFF_ADDED_BG
+        };
+        buf.fill_rect(content_x, y, content_w, line_h, bg);
+        let stripe_w = (2.0 * sf).max(1.0) as usize;
+        let stripe_color = if is_left {
+            DIFF_REMOVED_GUTTER
+        } else {
+            DIFF_ADDED_GUTTER
+        };
+        buf.fill_rect(x, y, stripe_w, line_h, stripe_color);
+    }
+
+    if let Some(num) = line_num {
+        let num_str = format!("{}", num);
+        let num_text_w = num_str.len() * char_w.max(1);
+        let gutter_x = x + gutter_w.saturating_sub(num_text_w + gutter_pad);
+        blit_str_atlas(
+            buf,
+            glyph_atlas,
+            font_system,
+            swash_cache,
+            gutter_x,
+            y,
+            y,
+            (y + line_h).min(clip_bottom),
+            x,
+            x + gutter_w,
+            &num_str,
+            font_size,
+            line_height,
+            GUTTER_TEXT,
+        );
+    }
+
+    if let Some(text) = text {
+        let code_x = content_x + pad_x;
+        let clip_right = x + width;
+        for (ci, ch) in text.chars().enumerate() {
+            let px = code_x + ci * char_w;
+            if px >= clip_right {
+                break;
+            }
+            if let Some(glyph) = glyph_atlas.get_or_rasterize(
+                ch,
+                font_size,
+                line_height,
+                false,
+                false,
+                font_system,
+                swash_cache,
+            ) {
+                blit_glyph(
+                    buf,
+                    glyph,
+                    px,
+                    y,
+                    LINE_TEXT,
+                    y,
+                    (y + line_h).min(clip_bottom),
+                    code_x,
+                    clip_right,
+                );
+            }
+        }
+    }
 }
 
 fn draw_hex_mode(
@@ -747,8 +1026,8 @@ fn draw_hex_mode(
     let bytes_per_row = 16usize;
     let total_rows = state.raw_bytes.len().div_ceil(bytes_per_row);
 
-    draw_file_info_bar(buf, font_system, swash_cache, state, vp, sf);
-    let info_bar_h = (24.0 * sf) as usize + (1.0 * sf).max(1.0) as usize;
+    draw_breadcrumb_bar(buf, font_system, swash_cache, state, vp, sf);
+    let info_bar_h = (INFO_BAR_HEIGHT * sf) as usize + (1.0 * sf).max(1.0) as usize;
 
     let first_row = scroll / line_h.max(1);
     let last_row = ((scroll + vp.h) / line_h.max(1) + 1).min(total_rows);
@@ -846,7 +1125,7 @@ fn draw_hex_mode(
 }
 
 fn draw_image_mode(buf: &mut PixelBuffer, state: &EditorState, vp: &Viewport, sf: f32) {
-    let info_bar_h = (24.0 * sf) as usize + (1.0 * sf).max(1.0) as usize;
+    let info_bar_h = (INFO_BAR_HEIGHT * sf) as usize + (1.0 * sf).max(1.0) as usize;
 
     if state.image_width == 0 || state.image_height == 0 || state.image_rgba.is_empty() {
         return;

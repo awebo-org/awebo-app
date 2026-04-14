@@ -27,15 +27,24 @@ pub enum CursorMove {
     PageDown(usize),
 }
 
-/// Per-line diff highlighting kind for git diff view.
+/// Kind of row in a side-by-side diff view.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiffLineKind {
-    /// Line is unchanged.
+pub enum DiffRowKind {
     Context,
-    /// Line was added.
     Added,
-    /// Line was removed.
     Removed,
+    Modified,
+    Separator,
+}
+
+/// A single row in the side-by-side diff view.
+#[derive(Debug, Clone)]
+pub struct DiffRow {
+    pub left_num: Option<usize>,
+    pub left_text: Option<String>,
+    pub right_num: Option<usize>,
+    pub right_text: Option<String>,
+    pub kind: DiffRowKind,
 }
 
 pub struct EditorState {
@@ -75,8 +84,8 @@ pub struct EditorState {
     highlight_cache: Vec<Token>,
     highlight_dirty: bool,
 
-    /// Optional per-line diff markers for git diff view.
-    pub diff_lines: Vec<DiffLineKind>,
+    /// Side-by-side diff rows — when present, the renderer draws split diff mode.
+    pub diff_view: Option<Vec<DiffRow>>,
 }
 
 impl EditorState {
@@ -94,6 +103,10 @@ impl EditorState {
     }
 
     pub fn content_height(&self, sf: f32) -> f32 {
+        if let Some(ref rows) = self.diff_view {
+            let line_h = TEXT_LINE_HEIGHT * sf;
+            return rows.len() as f32 * line_h + TEXT_PAD_Y * sf * 2.0;
+        }
         match self.mode {
             EditorMode::Text => {
                 let line_h = TEXT_LINE_HEIGHT * sf;
@@ -175,6 +188,11 @@ impl EditorState {
     pub fn has_syntax(&self) -> bool {
         self.syntax_config_idx.is_some()
     }
+
+    /// Query: whether this editor is showing a side-by-side diff.
+    pub fn has_diff_view(&self) -> bool {
+        self.diff_view.is_some()
+    }
 }
 
 impl EditorState {
@@ -200,7 +218,7 @@ impl EditorState {
             syntax_config_idx,
             highlight_cache: Vec::new(),
             highlight_dirty: true,
-            diff_lines: Vec::new(),
+            diff_view: None,
         };
 
         match mode {
@@ -223,15 +241,15 @@ impl EditorState {
         Ok(state)
     }
 
-    /// Open a file in diff view: load the file and apply per-line diff markers
-    /// from a unified diff patch string (lines prefixed with `+`, `-`, ` `).
+    /// Open a file in diff view: load the file and build side-by-side diff rows
+    /// from structured hunk data.
     pub fn open_diff(
         path: &Path,
-        diff_text: &str,
+        hunks: &[crate::git::DiffHunkData],
         syntax: Option<&mut SyntaxRegistry>,
     ) -> Result<Self, std::io::Error> {
         let mut state = Self::open(path, syntax)?;
-        state.diff_lines = parse_diff_markers(diff_text, state.lines.len());
+        state.diff_view = Some(build_diff_rows(hunks));
         Ok(state)
     }
 
@@ -841,38 +859,108 @@ fn detect_mode(path: &Path) -> EditorMode {
     EditorMode::Hex
 }
 
-/// Parse a git diff patch string into per-line markers for a file of `file_len` lines.
-/// Diff lines are prefixed with `+` (added), `-` (removed), or ` ` (context).
-pub fn parse_diff_markers(diff_text: &str, file_len: usize) -> Vec<DiffLineKind> {
-    let mut diff_kinds = Vec::new();
-    for raw_line in diff_text.lines() {
-        match raw_line.chars().next() {
-            Some('+') => diff_kinds.push(DiffLineKind::Added),
-            Some('-') => diff_kinds.push(DiffLineKind::Removed),
-            _ => diff_kinds.push(DiffLineKind::Context),
+/// Build side-by-side diff rows from structured hunk data.
+/// Pairs consecutive removed/added blocks into Modified rows for true
+/// side-by-side presentation.
+pub fn build_diff_rows(hunks: &[crate::git::DiffHunkData]) -> Vec<DiffRow> {
+    let mut rows = Vec::new();
+
+    for (i, hunk) in hunks.iter().enumerate() {
+        if i > 0 {
+            rows.push(DiffRow {
+                left_num: None,
+                left_text: None,
+                right_num: None,
+                right_text: None,
+                kind: DiffRowKind::Separator,
+            });
+        }
+
+        let mut old_num = hunk.old_start;
+        let mut new_num = hunk.new_start;
+
+        let mut li = 0;
+        while li < hunk.lines.len() {
+            match hunk.lines[li].origin {
+                ' ' => {
+                    rows.push(DiffRow {
+                        left_num: Some(old_num),
+                        left_text: Some(hunk.lines[li].content.clone()),
+                        right_num: Some(new_num),
+                        right_text: Some(hunk.lines[li].content.clone()),
+                        kind: DiffRowKind::Context,
+                    });
+                    old_num += 1;
+                    new_num += 1;
+                    li += 1;
+                }
+                '-' => {
+                    let mut removed = Vec::new();
+                    while li < hunk.lines.len() && hunk.lines[li].origin == '-' {
+                        removed.push(&hunk.lines[li]);
+                        li += 1;
+                    }
+                    let mut added = Vec::new();
+                    while li < hunk.lines.len() && hunk.lines[li].origin == '+' {
+                        added.push(&hunk.lines[li]);
+                        li += 1;
+                    }
+
+                    let max = removed.len().max(added.len());
+                    for j in 0..max {
+                        let has_left = j < removed.len();
+                        let has_right = j < added.len();
+
+                        let kind = match (has_left, has_right) {
+                            (true, true) => DiffRowKind::Modified,
+                            (true, false) => DiffRowKind::Removed,
+                            (false, true) => DiffRowKind::Added,
+                            (false, false) => unreachable!(),
+                        };
+
+                        let left_n = if has_left {
+                            let n = old_num;
+                            old_num += 1;
+                            Some(n)
+                        } else {
+                            None
+                        };
+                        let right_n = if has_right {
+                            let n = new_num;
+                            new_num += 1;
+                            Some(n)
+                        } else {
+                            None
+                        };
+
+                        rows.push(DiffRow {
+                            left_num: left_n,
+                            left_text: removed.get(j).map(|l| l.content.clone()),
+                            right_num: right_n,
+                            right_text: added.get(j).map(|l| l.content.clone()),
+                            kind,
+                        });
+                    }
+                }
+                '+' => {
+                    rows.push(DiffRow {
+                        left_num: None,
+                        left_text: None,
+                        right_num: Some(new_num),
+                        right_text: Some(hunk.lines[li].content.clone()),
+                        kind: DiffRowKind::Added,
+                    });
+                    new_num += 1;
+                    li += 1;
+                }
+                _ => {
+                    li += 1;
+                }
+            }
         }
     }
-    let mut markers = vec![DiffLineKind::Context; file_len];
-    let mut file_idx: usize = 0;
-    for kind in &diff_kinds {
-        match kind {
-            DiffLineKind::Added => {
-                if file_idx < markers.len() {
-                    markers[file_idx] = DiffLineKind::Added;
-                }
-                file_idx += 1;
-            }
-            DiffLineKind::Removed => {
-                if file_idx < markers.len() && markers[file_idx] == DiffLineKind::Context {
-                    markers[file_idx] = DiffLineKind::Removed;
-                }
-            }
-            DiffLineKind::Context => {
-                file_idx += 1;
-            }
-        }
-    }
-    markers
+
+    rows
 }
 
 #[cfg(test)]
@@ -896,7 +984,7 @@ impl EditorState {
             syntax_config_idx: None,
             highlight_cache: Vec::new(),
             highlight_dirty: false,
-            diff_lines: Vec::new(),
+            diff_view: None,
         }
     }
 
@@ -919,7 +1007,7 @@ impl EditorState {
             syntax_config_idx: None,
             highlight_cache: Vec::new(),
             highlight_dirty: false,
-            diff_lines: Vec::new(),
+            diff_view: None,
         }
     }
 }
@@ -947,7 +1035,7 @@ mod tests {
             syntax_config_idx: None,
             highlight_cache: Vec::new(),
             highlight_dirty: false,
-            diff_lines: Vec::new(),
+            diff_view: None,
         }
     }
 
@@ -1190,5 +1278,120 @@ mod tests {
         s.delete_to_line_start();
         assert_eq!(s.lines[0], " world");
         assert_eq!(s.cursor_col(), 0);
+    }
+
+    #[test]
+    fn build_diff_rows_context_only() {
+        use crate::git::{DiffHunkData, DiffLineDatum};
+        let hunks = vec![DiffHunkData {
+            old_start: 1,
+            new_start: 1,
+            lines: vec![
+                DiffLineDatum {
+                    origin: ' ',
+                    content: "same".into(),
+                },
+                DiffLineDatum {
+                    origin: ' ',
+                    content: "also same".into(),
+                },
+            ],
+        }];
+        let rows = build_diff_rows(&hunks);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].kind, DiffRowKind::Context);
+        assert_eq!(rows[0].left_num, Some(1));
+        assert_eq!(rows[0].right_num, Some(1));
+    }
+
+    #[test]
+    fn build_diff_rows_added_removed() {
+        use crate::git::{DiffHunkData, DiffLineDatum};
+        let hunks = vec![DiffHunkData {
+            old_start: 1,
+            new_start: 1,
+            lines: vec![
+                DiffLineDatum {
+                    origin: ' ',
+                    content: "ctx".into(),
+                },
+                DiffLineDatum {
+                    origin: '-',
+                    content: "old".into(),
+                },
+                DiffLineDatum {
+                    origin: '+',
+                    content: "new".into(),
+                },
+                DiffLineDatum {
+                    origin: ' ',
+                    content: "ctx2".into(),
+                },
+            ],
+        }];
+        let rows = build_diff_rows(&hunks);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].kind, DiffRowKind::Context);
+        assert_eq!(rows[1].kind, DiffRowKind::Modified);
+        assert_eq!(rows[1].left_text.as_deref(), Some("old"));
+        assert_eq!(rows[1].right_text.as_deref(), Some("new"));
+        assert_eq!(rows[2].kind, DiffRowKind::Context);
+    }
+
+    #[test]
+    fn build_diff_rows_unbalanced() {
+        use crate::git::{DiffHunkData, DiffLineDatum};
+        let hunks = vec![DiffHunkData {
+            old_start: 5,
+            new_start: 5,
+            lines: vec![
+                DiffLineDatum {
+                    origin: '-',
+                    content: "a".into(),
+                },
+                DiffLineDatum {
+                    origin: '-',
+                    content: "b".into(),
+                },
+                DiffLineDatum {
+                    origin: '+',
+                    content: "x".into(),
+                },
+            ],
+        }];
+        let rows = build_diff_rows(&hunks);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].kind, DiffRowKind::Modified);
+        assert_eq!(rows[0].left_num, Some(5));
+        assert_eq!(rows[0].right_num, Some(5));
+        assert_eq!(rows[1].kind, DiffRowKind::Removed);
+        assert_eq!(rows[1].left_num, Some(6));
+        assert!(rows[1].right_num.is_none());
+    }
+
+    #[test]
+    fn build_diff_rows_separator_between_hunks() {
+        use crate::git::{DiffHunkData, DiffLineDatum};
+        let hunks = vec![
+            DiffHunkData {
+                old_start: 1,
+                new_start: 1,
+                lines: vec![DiffLineDatum {
+                    origin: ' ',
+                    content: "a".into(),
+                }],
+            },
+            DiffHunkData {
+                old_start: 50,
+                new_start: 50,
+                lines: vec![DiffLineDatum {
+                    origin: ' ',
+                    content: "b".into(),
+                }],
+            },
+        ];
+        let rows = build_diff_rows(&hunks);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[1].kind, DiffRowKind::Separator);
     }
 }

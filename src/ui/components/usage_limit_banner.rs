@@ -150,7 +150,7 @@ pub fn draw(
         title_text_x,
         title_y,
         buf.height,
-        "Daily limit reached",
+        "Limit reached",
         title_m,
         TITLE_COLOR,
         Family::SansSerif,

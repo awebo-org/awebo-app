@@ -1437,6 +1437,16 @@ impl super::super::App {
             return;
         }
 
+        let git_w = if self.overlay.git_panel_open {
+            self.panel_layout.right_physical_width(sf)
+        } else {
+            0
+        };
+        let right_edge = (renderer.width as usize).saturating_sub(git_w);
+        if phys_x >= right_edge {
+            return;
+        }
+
         let content_h = (renderer.height as usize).saturating_sub(bar_h);
         let shift = self.modifiers.shift_key();
 
@@ -1974,6 +1984,8 @@ impl super::super::App {
                                         self.git_panel.commit_input_focused = false;
                                     }
                                     self.dispatch(action, event_loop);
+                                    self.request_redraw();
+                                    return;
                                 } else {
                                     self.git_panel.commit_input_focused = false;
                                 }
@@ -2804,7 +2816,8 @@ impl super::super::App {
                             || self.settings_state.sandbox.hovered_hit.is_some()
                             || self.settings_state.about_hovered.is_some());
 
-                    let banner_interactive = self.hint_banner.dismiss_hovered;
+                    let banner_interactive = self.hint_banner.dismiss_hovered
+                        || self.usage_limit_banner.hovered.is_some();
                     let git_panel_interactive = self.overlay.git_panel_open
                         && crate::ui::components::git_panel::wants_pointer(&self.git_panel);
                     let right_resize_active =
@@ -2817,10 +2830,18 @@ impl super::super::App {
                         && !panel_resize_active
                         && !right_resize_active
                         && !tab_bar_interactive
-                        && self
-                            .renderer
-                            .as_ref()
-                            .is_some_and(|r| self.cursor_pos.1 > r.tab_bar_height as f64);
+                        && !git_panel_interactive
+                        && self.renderer.as_ref().is_some_and(|r| {
+                            let below_bar = self.cursor_pos.1 > r.tab_bar_height as f64;
+                            let sf = r.scale_factor as f32;
+                            let git_w = if self.overlay.git_panel_open {
+                                self.panel_layout.right_physical_width(sf) as f64
+                            } else {
+                                0.0
+                            };
+                            let right_edge = r.width as f64 - git_w;
+                            below_bar && self.cursor_pos.0 < right_edge
+                        });
 
                     if panel_resize_active || right_resize_active {
                         window.set_cursor(winit::window::CursorIcon::ColResize);
@@ -3343,7 +3364,13 @@ impl super::super::App {
                 let block_pad_inner = (10.0 * sf) as usize;
                 let left_pad = pad + x_offset + block_pad_inner;
                 let right_pad = pad + block_pad_inner;
-                let content_w = (r.width as usize).saturating_sub(left_pad + right_pad);
+                let git_panel_w = if self.overlay.git_panel_open {
+                    self.panel_layout.right_physical_width(sf)
+                } else {
+                    0
+                };
+                let content_w =
+                    (r.width as usize).saturating_sub(left_pad + right_pad + git_panel_w);
                 let char_w_px = r.block_char_width as usize;
                 if char_w_px > 0 {
                     content_w / char_w_px
@@ -3388,8 +3415,13 @@ impl super::super::App {
             return false;
         }
         let scroll = bl.scroll_offset.max(0.0) as usize;
+        let git_panel_w = if self.overlay.git_panel_open {
+            self.panel_layout.right_physical_width(sf)
+        } else {
+            0
+        };
         let geom = crate::ui::components::block_renderer::scrollbar_geometry(
-            renderer.width as usize,
+            (renderer.width as usize).saturating_sub(git_panel_w),
             bar_h,
             available_h,
             total_h,
@@ -3426,8 +3458,13 @@ impl super::super::App {
         if total_h <= available_h {
             return;
         }
+        let git_panel_w = if self.overlay.git_panel_open {
+            self.panel_layout.right_physical_width(sf)
+        } else {
+            0
+        };
         let geom = crate::ui::components::block_renderer::scrollbar_geometry(
-            renderer.width as usize,
+            (renderer.width as usize).saturating_sub(git_panel_w),
             bar_h,
             available_h,
             total_h,
@@ -3461,8 +3498,15 @@ impl super::super::App {
         let sf = renderer.scale_factor as f32;
         let bar_h = renderer.tab_bar_height as usize;
         let x_off = self.side_panel_x_offset();
+        let git_w = if self.overlay.git_panel_open {
+            self.panel_layout.right_physical_width(sf)
+        } else {
+            0
+        };
         let content_h = (renderer.height as usize).saturating_sub(bar_h);
-        let content_w = (renderer.width as usize).saturating_sub(x_off);
+        let content_w = (renderer.width as usize)
+            .saturating_sub(x_off)
+            .saturating_sub(git_w);
 
         if let Some(state) = self.active_editor_state() {
             crate::ui::components::editor_renderer::scrollbar_hit_test(
@@ -3489,8 +3533,15 @@ impl super::super::App {
         let sf = renderer.scale_factor as f32;
         let bar_h = renderer.tab_bar_height as usize;
         let x_off = self.side_panel_x_offset();
+        let git_w = if self.overlay.git_panel_open {
+            self.panel_layout.right_physical_width(sf)
+        } else {
+            0
+        };
         let content_h = (renderer.height as usize).saturating_sub(bar_h);
-        let content_w = (renderer.width as usize).saturating_sub(x_off);
+        let content_w = (renderer.width as usize)
+            .saturating_sub(x_off)
+            .saturating_sub(git_w);
 
         match self.editor_scrollbar_dragging {
             crate::ui::components::editor_renderer::ScrollbarHit::Vertical => {

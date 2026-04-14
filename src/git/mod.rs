@@ -29,6 +29,21 @@ pub struct BranchEntry {
     pub is_remote: bool,
 }
 
+/// A single line from a git diff hunk.
+#[derive(Debug, Clone)]
+pub struct DiffLineDatum {
+    pub origin: char,
+    pub content: String,
+}
+
+/// A diff hunk with line-level detail, ready for side-by-side presentation.
+#[derive(Debug, Clone)]
+pub struct DiffHunkData {
+    pub old_start: usize,
+    pub new_start: usize,
+    pub lines: Vec<DiffLineDatum>,
+}
+
 /// Wrapper around `git2::Repository`.
 pub struct GitRepo {
     repo: git2::Repository,
@@ -50,6 +65,11 @@ impl GitRepo {
             .ok()
             .and_then(|h| h.shorthand().map(String::from))
             .unwrap_or_else(|| "HEAD".into())
+    }
+
+    /// Repository working directory (the root checkout directory).
+    pub fn workdir_path(&self) -> Option<std::path::PathBuf> {
+        self.repo.workdir().map(|p| p.to_path_buf())
     }
 
     /// All files with changes (index or working tree).
@@ -262,36 +282,6 @@ impl GitRepo {
             .map_err(|e| e.message().to_string())
     }
 
-    /// Get a unified diff string for a specific file.
-    pub fn diff_for_file(&self, path: &str, staged: bool) -> Result<String, String> {
-        let mut opts = git2::DiffOptions::new();
-        opts.pathspec(path);
-
-        let diff = if staged {
-            let head_tree = self.repo.head().ok().and_then(|h| h.peel_to_tree().ok());
-            self.repo
-                .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))
-        } else {
-            self.repo.diff_index_to_workdir(None, Some(&mut opts))
-        }
-        .map_err(|e| e.message().to_string())?;
-
-        let mut output = String::new();
-        diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-            let origin = line.origin();
-            if origin == '+' || origin == '-' || origin == ' ' {
-                output.push(origin);
-            }
-            if let Ok(content) = std::str::from_utf8(line.content()) {
-                output.push_str(content);
-            }
-            true
-        })
-        .map_err(|e| e.message().to_string())?;
-
-        Ok(output)
-    }
-
     /// Full diff of all staged changes (for AI commit message generation).
     /// High-level summary of staged changes: file names with insertions/deletions stats.
     pub fn staged_diff_summary(&self) -> String {
@@ -349,6 +339,55 @@ impl GitRepo {
             Ok(stats) => (stats.insertions(), stats.deletions()),
             Err(_) => (0, 0),
         }
+    }
+
+    /// Get structured hunk-level diff data for a file, suitable for
+    /// side-by-side presentation with 4 lines of context per hunk.
+    pub fn diff_for_file_hunks(
+        &self,
+        path: &str,
+        staged: bool,
+    ) -> Result<Vec<DiffHunkData>, String> {
+        let mut opts = git2::DiffOptions::new();
+        opts.pathspec(path).context_lines(4);
+
+        let diff = if staged {
+            let head_tree = self.repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+            self.repo
+                .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))
+        } else {
+            self.repo.diff_index_to_workdir(None, Some(&mut opts))
+        }
+        .map_err(|e| e.message().to_string())?;
+
+        let mut hunks: Vec<DiffHunkData> = Vec::new();
+
+        diff.print(git2::DiffFormat::Patch, |_delta, hunk, line| {
+            let origin = line.origin();
+            if origin == 'H' {
+                if let Some(h) = hunk {
+                    hunks.push(DiffHunkData {
+                        old_start: h.old_start() as usize,
+                        new_start: h.new_start() as usize,
+                        lines: Vec::new(),
+                    });
+                }
+                return true;
+            }
+            if matches!(origin, '+' | '-' | ' ')
+                && let Some(current_hunk) = hunks.last_mut()
+                && let Ok(content) = std::str::from_utf8(line.content())
+            {
+                current_hunk.lines.push(DiffLineDatum {
+                    origin,
+                    content: content.trim_end_matches('\n').to_string(),
+                });
+            }
+            true
+        })
+        .map_err(|e| e.message().to_string())?;
+
+        Ok(hunks)
     }
 }
 

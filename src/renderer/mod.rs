@@ -574,6 +574,7 @@ impl Renderer {
                         &mut self.block_height_cache,
                         scrollbar_hovered,
                         has_overlay,
+                        git_panel_w,
                     );
                     if !block_glyphs.is_empty() {
                         glyph_scissor = Some((

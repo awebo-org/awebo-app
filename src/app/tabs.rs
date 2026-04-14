@@ -595,8 +595,12 @@ impl super::App {
         }
     }
 
-    /// Open a file in the editor with git diff highlighting.
-    pub(crate) fn open_diff_in_editor(&mut self, path: &std::path::Path, diff_text: &str) {
+    /// Open a file in the editor with side-by-side git diff view.
+    pub(crate) fn open_diff_in_editor(
+        &mut self,
+        path: &std::path::Path,
+        hunks: &[crate::git::DiffHunkData],
+    ) {
         use crate::ui::editor::EditorState;
 
         if let Some(idx) = self.tab_mgr.find_editor(path) {
@@ -604,9 +608,7 @@ impl super::App {
             if let Some(tab) = self.tab_mgr.active_tab_mut()
                 && let Some(editor) = tab.editor_state_mut()
             {
-                let diff_markers =
-                    crate::ui::editor::parse_diff_markers(diff_text, editor.lines.len());
-                editor.diff_lines = diff_markers;
+                editor.diff_view = Some(crate::ui::editor::build_diff_rows(hunks));
             }
             if let Some(r) = self.renderer.as_mut() {
                 r.invalidate_grid_cache();
@@ -620,7 +622,7 @@ impl super::App {
             return;
         }
 
-        match EditorState::open_diff(path, diff_text, Some(&mut self.syntax)) {
+        match EditorState::open_diff(path, hunks, Some(&mut self.syntax)) {
             Ok(mut state) => {
                 state.refresh_highlights(&self.syntax);
                 self.tab_mgr.push(Tab::new_editor(state));
@@ -984,12 +986,7 @@ impl super::App {
     ) {
         self.usage_limit_banner.show();
         self.toast_mgr.push(
-            format!(
-                "{} — daily limit reached ({}/{})",
-                feature.label(),
-                used,
-                limit
-            ),
+            format!("{} — limit reached ({}/{})", feature.label(), used, limit),
             crate::ui::components::toast::ToastLevel::Warning,
         );
     }

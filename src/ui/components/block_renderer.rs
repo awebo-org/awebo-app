@@ -621,14 +621,16 @@ pub fn draw(
     height_cache: &mut crate::renderer::BlockHeightCache,
     scrollbar_hovered: bool,
     overlay_active: bool,
+    right_inset: usize,
 ) -> Vec<CellGlyph> {
+    let content_area_w = buf.width.saturating_sub(right_inset);
     if blocks.blocks.is_empty() {
         let available_h = y_end.saturating_sub(y_start);
         if available_h > 0 {
             buf.fill_rect(
                 x_offset,
                 y_start,
-                buf.width.saturating_sub(x_offset),
+                content_area_w.saturating_sub(x_offset),
                 available_h,
                 crate::renderer::theme::BG,
             );
@@ -644,9 +646,7 @@ pub fn draw(
     let block_pad = (BLOCK_PAD_X * sf) as usize;
     let right_pad = pad;
     let pad = pad + x_offset;
-    let content_width = buf
-        .width
-        .saturating_sub(pad + block_pad + right_pad + block_pad);
+    let content_width = content_area_w.saturating_sub(pad + block_pad + right_pad + block_pad);
     let max_chars = if char_w > 0.0 {
         (content_width as f32 / char_w).floor() as usize
     } else {
@@ -737,7 +737,7 @@ pub fn draw(
         || sel_gen != height_cache.last_selection_gen
         || link_gen != height_cache.last_link_gen
         || scrollbar_hovered != height_cache.last_scrollbar_hovered
-        || buf.width != height_cache.last_buf_width
+        || content_area_w != height_cache.last_buf_width
         || available_h != height_cache.last_available_h
         || any_pending != height_cache.last_any_pending
         || any_pending
@@ -753,7 +753,7 @@ pub fn draw(
     height_cache.last_selection_gen = sel_gen;
     height_cache.last_link_gen = link_gen;
     height_cache.last_scrollbar_hovered = scrollbar_hovered;
-    height_cache.last_buf_width = buf.width;
+    height_cache.last_buf_width = content_area_w;
     height_cache.last_available_h = available_h;
     height_cache.last_any_pending = any_pending;
     height_cache.last_overlay_active = overlay_active;
@@ -761,7 +761,7 @@ pub fn draw(
     buf.fill_rect(
         x_offset,
         y_start,
-        buf.width.saturating_sub(x_offset),
+        content_area_w.saturating_sub(x_offset),
         available_h,
         crate::renderer::theme::BG,
     );
@@ -864,7 +864,7 @@ pub fn draw(
             buf.fill_rect(
                 pad,
                 bg_y,
-                buf.width.saturating_sub(pad + right_pad),
+                content_area_w.saturating_sub(pad + right_pad),
                 bg_h,
                 AGENT_BG,
             );
@@ -880,7 +880,7 @@ pub fn draw(
             buf.fill_rect(
                 pad,
                 bg_y,
-                buf.width.saturating_sub(pad + right_pad),
+                content_area_w.saturating_sub(pad + right_pad),
                 bg_h,
                 ERROR_BG,
             );
@@ -895,7 +895,7 @@ pub fn draw(
             buf.fill_rect(
                 x_offset,
                 bg_y,
-                buf.width.saturating_sub(x_offset),
+                content_area_w.saturating_sub(x_offset),
                 bg_bottom.saturating_sub(bg_y),
                 SELECTED_BG,
             );
@@ -1367,7 +1367,7 @@ pub fn draw(
                 buf.fill_rect(
                     pad,
                     sep_y,
-                    buf.width.saturating_sub(pad + right_pad),
+                    content_area_w.saturating_sub(pad + right_pad),
                     (1.0 * sf).max(1.0) as usize,
                     SEPARATOR_COLOR,
                 );
@@ -1378,7 +1378,7 @@ pub fn draw(
     }
 
     if total_h > available_h {
-        let geom = scrollbar_geometry(buf.width, y_start, available_h, total_h, scroll, sf);
+        let geom = scrollbar_geometry(content_area_w, y_start, available_h, total_h, scroll, sf);
         let sc: Rgb = if scrollbar_hovered {
             (255, 255, 255)
         } else {

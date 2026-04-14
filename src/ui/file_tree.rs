@@ -65,7 +65,7 @@ impl TreeNode {
             for entry in entries.flatten() {
                 let child_path = entry.path();
                 let child_name = entry.file_name().to_string_lossy().to_string();
-                if child_name.starts_with('.') {
+                if child_name == ".git" {
                     continue;
                 }
                 let is_dir = child_path.is_dir();
@@ -103,7 +103,7 @@ impl TreeNode {
             for entry in entries.flatten() {
                 let child_path = entry.path();
                 let child_name = entry.file_name().to_string_lossy().to_string();
-                if child_name.starts_with('.') {
+                if child_name == ".git" {
                     continue;
                 }
                 if let Some(existing) = old.remove(&child_path) {
@@ -464,14 +464,21 @@ mod tests {
     }
 
     #[test]
-    fn hidden_files_excluded() {
+    fn dotfiles_visible_except_git() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join(".hidden"), "").unwrap();
+        fs::write(dir.path().join(".gitignore"), "").unwrap();
+        fs::write(dir.path().join(".dockerignore"), "").unwrap();
         fs::write(dir.path().join("visible.txt"), "").unwrap();
+        fs::create_dir(dir.path().join(".git")).unwrap();
+        fs::create_dir(dir.path().join(".config")).unwrap();
 
         let node = TreeNode::from_dir(dir.path()).unwrap();
-        assert_eq!(node.children.len(), 1);
-        assert_eq!(node.children[0].name, "visible.txt");
+        let names: Vec<&str> = node.children.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&".gitignore"));
+        assert!(names.contains(&".dockerignore"));
+        assert!(names.contains(&".config"));
+        assert!(names.contains(&"visible.txt"));
+        assert!(!names.contains(&".git"));
     }
 
     #[test]
