@@ -546,6 +546,10 @@ impl super::App {
             return;
         }
 
+        if self.tab_mgr.len() == 1 && !crate::dialog::confirm_quit() {
+            return;
+        }
+
         self.overlay.dismiss_confirm_close();
 
         if let Some(terminal) = self.tab_mgr.get(idx).and_then(|t| t.terminal()) {

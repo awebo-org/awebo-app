@@ -7,6 +7,7 @@ mod app;
 mod blocks;
 mod commands;
 mod config;
+mod dialog;
 mod git;
 mod license;
 mod menu;
