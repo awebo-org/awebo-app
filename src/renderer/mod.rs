@@ -457,22 +457,24 @@ impl Renderer {
                 &mut self.icon_renderer,
                 &mut self.avatar_renderer,
                 settings_state,
-                bar_h,
-                content_x_offset,
                 sf,
                 is_pro,
             );
 
             if settings_state.font_picker_open {
-                let sidebar_w = (200.0 * sf) as usize;
-                let content_w = content_right_edge.saturating_sub(content_x_offset + sidebar_w);
+                let (spx, spy, spw, _) =
+                    crate::ui::components::overlay::settings_panel_rect(w, h, sf);
+                let sidebar_w = (180.0 * sf) as usize;
+                let border_w = (1.0_f32 * sf).max(1.0) as usize;
+                let content_x = spx + sidebar_w + border_w;
+                let content_w = spw.saturating_sub(sidebar_w + border_w);
                 crate::ui::components::overlay::draw_font_picker(
                     &mut self.pixel_buf,
                     &mut self.font_system,
                     &mut self.swash_cache,
                     settings_state,
-                    bar_h,
-                    content_x_offset + sidebar_w,
+                    spy,
+                    content_x,
                     content_w,
                     sf,
                 );

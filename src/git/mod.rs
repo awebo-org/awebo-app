@@ -72,6 +72,11 @@ impl GitRepo {
         self.repo.workdir().map(|p| p.to_path_buf())
     }
 
+    /// Check whether a path is ignored by .gitignore rules.
+    pub fn is_ignored(&self, path: &std::path::Path) -> bool {
+        self.repo.is_path_ignored(path).unwrap_or(false)
+    }
+
     /// All files with changes (index or working tree).
     pub fn status_entries(&self) -> Vec<StatusEntry> {
         let mut opts = git2::StatusOptions::new();

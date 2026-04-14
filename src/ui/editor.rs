@@ -86,6 +86,9 @@ pub struct EditorState {
 
     /// Side-by-side diff rows — when present, the renderer draws split diff mode.
     pub diff_view: Option<Vec<DiffRow>>,
+
+    /// Fraction (0.0–1.0) controlling the left/right split in diff mode.
+    pub diff_split_frac: f32,
 }
 
 impl EditorState {
@@ -219,6 +222,7 @@ impl EditorState {
             highlight_cache: Vec::new(),
             highlight_dirty: true,
             diff_view: None,
+            diff_split_frac: 0.5,
         };
 
         match mode {
@@ -985,6 +989,7 @@ impl EditorState {
             highlight_cache: Vec::new(),
             highlight_dirty: false,
             diff_view: None,
+            diff_split_frac: 0.5,
         }
     }
 
@@ -1008,6 +1013,7 @@ impl EditorState {
             highlight_cache: Vec::new(),
             highlight_dirty: false,
             diff_view: None,
+            diff_split_frac: 0.5,
         }
     }
 }
@@ -1036,6 +1042,7 @@ mod tests {
             highlight_cache: Vec::new(),
             highlight_dirty: false,
             diff_view: None,
+            diff_split_frac: 0.5,
         }
     }
 

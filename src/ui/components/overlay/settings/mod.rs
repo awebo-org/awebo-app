@@ -10,7 +10,7 @@ use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::draw_text_at;
 use crate::renderer::theme;
 
-use super::fill_rounded_rect;
+use super::{draw_border_rounded, fill_rounded_rect};
 
 pub use ai_models::{AiModelsHit, settings_ai_models_hit_test};
 pub use font_picker::{detect_monospace_fonts, draw_font_picker, font_picker_hit_test};
@@ -177,10 +177,25 @@ impl Default for SettingsState {
 
 pub mod ai_models;
 
-const SIDEBAR_LOGICAL_WIDTH: f32 = 200.0;
+const PANEL_W: f32 = 680.0;
+const PANEL_MAX_H: f32 = 520.0;
+const PANEL_CORNER_R: f32 = 10.0;
+const SIDEBAR_LOGICAL_WIDTH: f32 = 180.0;
 const ITEM_LOGICAL_HEIGHT: f32 = 36.0;
 const SIDEBAR_TOP_PAD: f32 = 16.0;
-const SIDEBAR_ITEM_PAD: f32 = 16.0;
+const SIDEBAR_ITEM_PAD: f32 = 12.0;
+const PANEL_BG: crate::renderer::pixel_buffer::Rgb = theme::BG_SURFACE;
+const PANEL_BORDER: crate::renderer::pixel_buffer::Rgb = theme::BORDER;
+
+/// Compute the centered settings panel rect (px, py, pw, ph) in physical pixels.
+pub fn settings_panel_rect(buf_w: usize, buf_h: usize, sf: f32) -> (usize, usize, usize, usize) {
+    let pw = (PANEL_W * sf) as usize;
+    let max_ph = (PANEL_MAX_H * sf) as usize;
+    let ph = max_ph.min(buf_h * 80 / 100);
+    let px = buf_w.saturating_sub(pw) / 2;
+    let py = buf_h.saturating_sub(ph) / 2;
+    (px, py, pw, ph)
+}
 
 pub fn draw_settings(
     buf: &mut PixelBuffer,
@@ -189,34 +204,30 @@ pub fn draw_settings(
     icon_renderer: &mut crate::renderer::icons::IconRenderer,
     avatar_renderer: &mut crate::renderer::icons::AvatarRenderer,
     state: &SettingsState,
-    y_offset: usize,
-    x_offset: usize,
     sf: f32,
     is_pro: bool,
 ) {
-    let w = buf.width;
-    let h = buf.height;
-    let content_h = h.saturating_sub(y_offset);
+    buf.dim(0.45);
+
+    let (px, py, pw, ph) = settings_panel_rect(buf.width, buf.height, sf);
+    let corner = (PANEL_CORNER_R * sf) as usize;
+    let border_w = (1.0_f32 * sf).max(1.0) as usize;
+
+    fill_rounded_rect(buf, px, py, pw, ph, corner, PANEL_BG);
+    draw_border_rounded(buf, px, py, pw, ph, border_w, corner, PANEL_BORDER);
 
     let sidebar_w = (SIDEBAR_LOGICAL_WIDTH * sf) as usize;
     let item_h = (ITEM_LOGICAL_HEIGHT * sf) as usize;
     let top_pad = (SIDEBAR_TOP_PAD * sf) as usize;
     let item_pad_x = (SIDEBAR_ITEM_PAD * sf) as usize;
-    let border_w = (1.0 * sf).max(1.0) as usize;
 
+    let divider_x = px + sidebar_w;
     buf.fill_rect(
-        x_offset,
-        y_offset,
-        sidebar_w,
-        content_h,
-        theme::SETTINGS_SIDEBAR_BG,
-    );
-    buf.fill_rect(
-        x_offset + sidebar_w.saturating_sub(border_w),
-        y_offset,
+        divider_x,
+        py + corner,
         border_w,
-        content_h,
-        theme::SETTINGS_DIVIDER,
+        ph.saturating_sub(corner * 2),
+        PANEL_BORDER,
     );
 
     let label_metrics = Metrics::new(13.0 * sf, 18.0 * sf);
@@ -224,12 +235,12 @@ pub fn draw_settings(
     let corner_r = (4.0 * sf) as usize;
 
     for (i, cat) in categories.iter().enumerate() {
-        let iy = y_offset + top_pad + i * item_h;
+        let iy = py + top_pad + i * item_h;
         let is_active = *cat == state.active;
         let is_hovered = state.hovered == Some(i);
 
         if is_active {
-            let rect_x = x_offset + item_pad_x / 2;
+            let rect_x = px + item_pad_x / 2;
             let rect_w = sidebar_w - item_pad_x;
             fill_rounded_rect(
                 buf,
@@ -241,7 +252,7 @@ pub fn draw_settings(
                 theme::SETTINGS_SIDEBAR_ACTIVE_BG,
             );
         } else if is_hovered {
-            let rect_x = x_offset + item_pad_x / 2;
+            let rect_x = px + item_pad_x / 2;
             let rect_w = sidebar_w - item_pad_x;
             fill_rounded_rect(
                 buf,
@@ -265,9 +276,9 @@ pub fn draw_settings(
             buf,
             font_system,
             swash_cache,
-            x_offset + item_pad_x + (4.0 * sf) as usize,
+            px + item_pad_x + (4.0 * sf) as usize,
             text_y,
-            h,
+            py + ph,
             cat.label(),
             label_metrics,
             text_color,
@@ -275,17 +286,10 @@ pub fn draw_settings(
         );
     }
 
-    let content_x = x_offset + sidebar_w;
-    let content_w = w.saturating_sub(x_offset + sidebar_w);
-    buf.fill_rect(
-        content_x,
-        y_offset,
-        content_w,
-        content_h,
-        theme::SETTINGS_CONTENT_BG,
-    );
-
-    let body_y = y_offset + (16.0 * sf) as usize;
+    let content_x = px + sidebar_w + border_w;
+    let content_w = pw.saturating_sub(sidebar_w + border_w);
+    let body_y = py + (16.0 * sf) as usize;
+    let clip_h = py + ph;
 
     match state.active {
         SettingsCategory::AiModels => {
@@ -298,7 +302,7 @@ pub fn draw_settings(
                 content_x,
                 body_y,
                 content_w,
-                h,
+                clip_h,
                 sf,
             );
         }
@@ -312,7 +316,7 @@ pub fn draw_settings(
                 content_x,
                 body_y,
                 content_w,
-                h,
+                clip_h,
                 sf,
             );
         }
@@ -325,7 +329,7 @@ pub fn draw_settings(
                 content_x,
                 body_y,
                 content_w,
-                h,
+                clip_h,
                 sf,
                 state.about_hovered,
                 is_pro,
@@ -338,19 +342,24 @@ pub fn draw_settings(
 pub fn settings_sidebar_hit_test(
     phys_x: f64,
     phys_y: f64,
-    y_offset: usize,
-    x_offset: usize,
+    buf_w: usize,
+    buf_h: usize,
     sf: f32,
 ) -> Option<usize> {
+    let (px, py, _pw, ph) = settings_panel_rect(buf_w, buf_h, sf);
     let sidebar_w = (SIDEBAR_LOGICAL_WIDTH * sf) as f64;
-    let x_off = x_offset as f64;
-    if phys_x < x_off || phys_x >= x_off + sidebar_w || phys_y < y_offset as f64 {
+
+    if phys_x < px as f64
+        || phys_x >= px as f64 + sidebar_w
+        || phys_y < py as f64
+        || phys_y >= (py + ph) as f64
+    {
         return None;
     }
 
     let item_h = (ITEM_LOGICAL_HEIGHT * sf) as f64;
     let top_pad = (SIDEBAR_TOP_PAD * sf) as f64;
-    let rel_y = phys_y - y_offset as f64 - top_pad;
+    let rel_y = phys_y - py as f64 - top_pad;
 
     if rel_y < 0.0 {
         return None;
@@ -359,6 +368,21 @@ pub fn settings_sidebar_hit_test(
     let idx = (rel_y / item_h) as usize;
     let count = SettingsCategory::all().len();
     if idx < count { Some(idx) } else { None }
+}
+
+/// Check whether a click is inside the settings panel area.
+pub fn settings_panel_contains(
+    phys_x: f64,
+    phys_y: f64,
+    buf_w: usize,
+    buf_h: usize,
+    sf: f32,
+) -> bool {
+    let (px, py, pw, ph) = settings_panel_rect(buf_w, buf_h, sf);
+    phys_x >= px as f64
+        && phys_x < (px + pw) as f64
+        && phys_y >= py as f64
+        && phys_y < (py + ph) as f64
 }
 
 #[cfg(test)]
@@ -387,12 +411,39 @@ mod tests {
 
     #[test]
     fn settings_sidebar_hit_test_outside() {
-        assert!(settings_sidebar_hit_test(500.0, 100.0, 42, 0, 1.0).is_none());
+        assert!(settings_sidebar_hit_test(0.0, 0.0, 1000, 800, 1.0).is_none());
     }
 
     #[test]
     fn settings_sidebar_hit_test_first_item() {
-        let result = settings_sidebar_hit_test(100.0, 70.0, 42, 0, 1.0);
+        let (px, py, _, _) = settings_panel_rect(1000, 800, 1.0);
+        let result = settings_sidebar_hit_test(px as f64 + 50.0, py as f64 + 20.0, 1000, 800, 1.0);
         assert_eq!(result, Some(0));
+    }
+
+    #[test]
+    fn settings_panel_rect_centered() {
+        let (px, py, pw, ph) = settings_panel_rect(1000, 800, 1.0);
+        assert!(pw > 0);
+        assert!(ph > 0);
+        assert_eq!(px, (1000 - pw) / 2);
+        assert_eq!(py, (800 - ph) / 2);
+    }
+
+    #[test]
+    fn settings_panel_contains_inside() {
+        let (px, py, pw, ph) = settings_panel_rect(1000, 800, 1.0);
+        assert!(settings_panel_contains(
+            (px + pw / 2) as f64,
+            (py + ph / 2) as f64,
+            1000,
+            800,
+            1.0
+        ));
+    }
+
+    #[test]
+    fn settings_panel_contains_outside() {
+        assert!(!settings_panel_contains(0.0, 0.0, 1000, 800, 1.0));
     }
 }

@@ -85,6 +85,8 @@ pub(crate) struct App {
     editor_scrollbar: crate::ui::components::editor_renderer::ScrollbarHit,
     editor_scrollbar_dragging: crate::ui::components::editor_renderer::ScrollbarHit,
     editor_selecting: bool,
+    diff_split_dragging: bool,
+    diff_split_hovered: bool,
     mouse_forwarding: bool,
     is_fullscreen: bool,
     syntax: crate::ui::syntax::SyntaxRegistry,
@@ -94,6 +96,7 @@ pub(crate) struct App {
     sandbox_mgr: crate::sandbox::manager::SandboxManager,
     toast_mgr: crate::ui::components::toast::ToastManager,
     git_poll_at: Instant,
+    file_tree_poll_at: Instant,
     usage_tracker: crate::usage::UsageTracker,
     license_mgr: crate::license::LicenseManager,
     usage_limit_banner: crate::ui::components::usage_limit_banner::UsageLimitBannerState,
@@ -180,6 +183,8 @@ impl App {
             editor_scrollbar: crate::ui::components::editor_renderer::ScrollbarHit::None,
             editor_scrollbar_dragging: crate::ui::components::editor_renderer::ScrollbarHit::None,
             editor_selecting: false,
+            diff_split_dragging: false,
+            diff_split_hovered: false,
             mouse_forwarding: false,
             is_fullscreen: false,
             syntax: {
@@ -193,6 +198,7 @@ impl App {
             sandbox_mgr: crate::sandbox::manager::SandboxManager::new(),
             toast_mgr: crate::ui::components::toast::ToastManager::new(),
             git_poll_at: Instant::now(),
+            file_tree_poll_at: Instant::now(),
             usage_tracker: {
                 let lm = crate::license::LicenseManager::load();
                 let pro = lm.is_pro();
@@ -1271,6 +1277,12 @@ impl ApplicationHandler<TerminalEvent> for App {
             self.pending_redraw = true;
         }
 
+        if self.overlay.sidebar_open && now >= self.file_tree_poll_at {
+            self.file_tree_poll_at = now + std::time::Duration::from_secs(2);
+            self.refresh_file_tree();
+            self.pending_redraw = true;
+        }
+
         if self.pending_redraw {
             self.pending_redraw = false;
             self.request_redraw();
@@ -1279,6 +1291,9 @@ impl ApplicationHandler<TerminalEvent> for App {
         let mut next_wake = self.cursor_blink_at + std::time::Duration::from_millis(500);
         if self.overlay.git_panel_open && self.git_poll_at < next_wake {
             next_wake = self.git_poll_at;
+        }
+        if self.overlay.sidebar_open && self.file_tree_poll_at < next_wake {
+            next_wake = self.file_tree_poll_at;
         }
         event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
     }

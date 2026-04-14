@@ -27,7 +27,8 @@ pub use palette::{PaletteState, draw_palette};
 pub use settings::{
     AiModelsHit, InputType, SandboxSettingsState, SettingsCategory, SettingsState,
     detect_monospace_fonts, draw_font_picker, draw_settings, font_picker_hit_test,
-    settings_ai_models_hit_test, settings_sidebar_hit_test,
+    settings_ai_models_hit_test, settings_panel_contains, settings_panel_rect,
+    settings_sidebar_hit_test,
 };
 pub use shell_picker::{
     SandboxImageInfo, ShellInfo, ShellPickerChoice, ShellPickerState, draw_shell_picker,

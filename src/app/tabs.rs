@@ -686,7 +686,10 @@ impl super::App {
                 }
             }
             "rename" => {
-                log::info!("Rename requested for {:?}", path);
+                if let Some(idx) = self.file_tree.index_for_path(path) {
+                    self.file_tree.begin_rename(idx);
+                    self.pending_redraw = true;
+                }
             }
             "open" => {
                 if !path.is_dir() {
@@ -747,7 +750,7 @@ impl super::App {
     }
 
     /// Reload the file tree at a specific directory (after add/delete).
-    fn reload_file_tree_at(&mut self, dir: &std::path::Path) {
+    pub(crate) fn reload_file_tree_at(&mut self, dir: &std::path::Path) {
         if let Some(root) = &self.file_tree.root {
             let root_path = root.path.clone();
             if dir.starts_with(&root_path) {
@@ -757,6 +760,20 @@ impl super::App {
                 self.file_tree.rebuild_cache();
             }
         }
+    }
+
+    pub(crate) fn refresh_file_tree(&mut self) {
+        let expanded: Vec<std::path::PathBuf> = self.file_tree.expanded.iter().cloned().collect();
+        for dir in &expanded {
+            if let Some(root) = &mut self.file_tree.root {
+                crate::ui::file_tree::load_children_at(root, dir);
+            }
+        }
+        self.file_tree.rebuild_cache();
+        let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
+        self.file_tree
+            .update_git_ignored(std::path::Path::new(&cwd));
+        self.file_tree.rebuild_cache();
     }
 
     /// Open a live terminal tab pre-populated with the history of a past session.

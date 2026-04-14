@@ -798,12 +798,14 @@ fn draw_diff_mode(
     let gutter_pad = (GUTTER_PAD_RIGHT * sf) as usize;
 
     let center_div_w = (1.0 * sf).max(1.0) as usize;
-    let half_w = (vp.w.saturating_sub(center_div_w)) / 2;
+    let usable = vp.w.saturating_sub(center_div_w);
+    let left_w = (usable as f32 * state.diff_split_frac).round() as usize;
+    let right_w = usable.saturating_sub(left_w);
     let left_x = vp.x;
-    let right_x = vp.x + half_w + center_div_w;
+    let right_x = vp.x + left_w + center_div_w;
 
     buf.fill_rect(
-        vp.x + half_w,
+        vp.x + left_w,
         vp.y + info_bar_h,
         center_div_w,
         vp.h.saturating_sub(info_bar_h),
@@ -838,12 +840,12 @@ fn draw_diff_mode(
         }
 
         if row.kind == DiffRowKind::Separator {
-            buf.fill_rect(left_x, y_px, half_w, line_h, DIFF_SEPARATOR_BG);
-            buf.fill_rect(right_x, y_px, half_w, line_h, DIFF_SEPARATOR_BG);
+            buf.fill_rect(left_x, y_px, left_w, line_h, DIFF_SEPARATOR_BG);
+            buf.fill_rect(right_x, y_px, right_w, line_h, DIFF_SEPARATOR_BG);
             let dot_y = y_px + line_h / 2;
             let dot_h = (1.0 * sf).max(1.0) as usize;
-            buf.fill_rect(left_x, dot_y, half_w, dot_h, theme::BORDER);
-            buf.fill_rect(right_x, dot_y, half_w, dot_h, theme::BORDER);
+            buf.fill_rect(left_x, dot_y, left_w, dot_h, theme::BORDER);
+            buf.fill_rect(right_x, dot_y, right_w, dot_h, theme::BORDER);
             continue;
         }
 
@@ -857,7 +859,7 @@ fn draw_diff_mode(
             swash_cache,
             left_x,
             y_px,
-            half_w,
+            left_w,
             line_h,
             side_gutter_w,
             gutter_pad,
@@ -880,7 +882,7 @@ fn draw_diff_mode(
             swash_cache,
             right_x,
             y_px,
-            half_w,
+            right_w,
             line_h,
             side_gutter_w,
             gutter_pad,
@@ -896,6 +898,14 @@ fn draw_diff_mode(
             clip_bottom,
         );
     }
+}
+
+/// Return the physical X coordinate of the centre divider in diff mode.
+pub fn diff_divider_x(vp_x: usize, vp_w: usize, frac: f32, sf: f32) -> usize {
+    let center_div_w = (1.0_f32 * sf).max(1.0) as usize;
+    let usable = vp_w.saturating_sub(center_div_w);
+    let left_w = (usable as f32 * frac).round() as usize;
+    vp_x + left_w
 }
 
 #[allow(clippy::too_many_arguments)]

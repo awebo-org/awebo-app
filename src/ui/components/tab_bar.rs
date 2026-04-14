@@ -791,10 +791,11 @@ fn draw_user_avatar(
 }
 
 const USER_MENU_W: f32 = 180.0;
-const USER_MENU_ITEM_H: f32 = 32.0;
-const USER_MENU_LABEL_H: f32 = 26.0;
+const USER_MENU_ITEM_H: f32 = 28.0;
+const USER_MENU_LABEL_H: f32 = 24.0;
 const USER_MENU_SEP_H: f32 = 9.0;
-const USER_MENU_PAD_X: f32 = 12.0;
+const USER_MENU_PAD_X: f32 = 14.0;
+const USER_MENU_PAD_Y: f32 = 6.0;
 const USER_MENU_GAP: f32 = 2.0;
 
 fn user_menu_item_count(is_pro: bool) -> usize {
@@ -808,12 +809,13 @@ fn user_menu_rect(buf_width: f64, bar_h: f64, sf: f64, is_pro: bool) -> (f64, f6
     let label_h = USER_MENU_LABEL_H as f64 * sf;
     let sep_h = USER_MENU_SEP_H as f64 * sf;
     let item_h = USER_MENU_ITEM_H as f64 * sf;
+    let pad_y = USER_MENU_PAD_Y as f64 * sf;
     let items = user_menu_item_count(is_pro) as f64;
 
     let menu_x =
         (buf_width - margin - icon_size / 2.0 - menu_w / 2.0).min(buf_width - menu_w - margin);
     let menu_y = bar_h + USER_MENU_GAP as f64 * sf;
-    let menu_h = items * item_h + sep_h + label_h;
+    let menu_h = items * item_h + sep_h + label_h + pad_y * 2.0;
     (menu_x, menu_y, menu_w, menu_h)
 }
 
@@ -833,8 +835,9 @@ fn user_menu_item_at(
     }
 
     let item_h = USER_MENU_ITEM_H as f64 * sf;
+    let pad_y = USER_MENU_PAD_Y as f64 * sf;
     let items = user_menu_item_count(is_pro);
-    let rel_y = phys_y - menu_y;
+    let rel_y = phys_y - menu_y - pad_y;
 
     for i in 0..items {
         let iy = i as f64 * item_h;
@@ -864,32 +867,14 @@ pub fn draw_user_menu(
     let label_h = (USER_MENU_LABEL_H * sf) as usize;
     let sep_h = (USER_MENU_SEP_H * sf) as usize;
     let pad_x = (USER_MENU_PAD_X * sf) as usize;
+    let pad_y = (USER_MENU_PAD_Y * sf) as usize;
     let border_w = (1.0_f32 * sf).max(1.0) as usize;
-    let corner_r = (6.0 * sf) as usize;
-    let inner_r = corner_r.saturating_sub(1);
     let items = user_menu_item_count(is_pro);
 
-    super::overlay::fill_rounded_rect(
-        buf,
-        menu_x,
-        menu_y,
-        menu_w,
-        menu_h,
-        corner_r,
-        theme::BG_ELEVATED,
-    );
-    super::overlay::draw_border_rounded(
-        buf,
-        menu_x,
-        menu_y,
-        menu_w,
-        menu_h,
-        border_w,
-        corner_r,
-        theme::BORDER,
-    );
+    buf.fill_rect(menu_x, menu_y, menu_w, menu_h, theme::SHELL_PICKER_BG);
+    super::overlay::draw_border(buf, menu_x, menu_y, menu_w, menu_h, border_w, theme::BORDER);
 
-    let text_metrics = Metrics::new(13.0 * sf, 18.0 * sf);
+    let text_metrics = Metrics::new(12.0 * sf, 17.0 * sf);
 
     let labels: Vec<(&str, bool)> = if is_pro {
         vec![("Settings", false), ("Local Models", false)]
@@ -902,36 +887,19 @@ pub fn draw_user_menu(
     };
 
     for (i, (label, bold)) in labels.iter().enumerate() {
-        let iy = menu_y + i * item_h;
+        let iy = menu_y + pad_y + i * item_h;
 
         if hovered == Some(i) {
-            let inner_x = menu_x + border_w;
-            let inner_w = menu_w.saturating_sub(border_w * 2);
-            if i == 0 {
-                let h = item_h.saturating_sub(border_w);
-                if items == 1 {
-                    super::overlay::fill_rounded_rect(
-                        buf,
-                        inner_x,
-                        iy + border_w,
-                        inner_w,
-                        h,
-                        inner_r,
-                        theme::BG_HOVER,
-                    );
-                } else {
-                    buf.fill_rect(inner_x, iy + border_w, inner_w, h, theme::BG_HOVER);
-                }
-            } else {
-                buf.fill_rect(inner_x, iy, inner_w, item_h, theme::BG_HOVER);
-            }
+            buf.fill_rect(
+                menu_x + border_w,
+                iy,
+                menu_w.saturating_sub(border_w * 2),
+                item_h,
+                theme::BG_HOVER,
+            );
         }
 
-        let text_y = if i == 0 {
-            menu_y + ((item_h as f32 - 18.0 * sf) / 2.0) as usize
-        } else {
-            iy + ((item_h as f32 - 18.0 * sf) / 2.0) as usize
-        };
+        let text_y = iy + ((item_h as f32 - 17.0 * sf) / 2.0) as usize;
         let color = if hovered == Some(i) {
             theme::FG_BRIGHT
         } else {
@@ -967,7 +935,7 @@ pub fn draw_user_menu(
         }
     }
 
-    let sep_y = menu_y + items * item_h + sep_h / 2;
+    let sep_y = menu_y + pad_y + items * item_h + sep_h / 2;
     buf.fill_rect(
         menu_x + pad_x,
         sep_y,
@@ -976,14 +944,14 @@ pub fn draw_user_menu(
         theme::BORDER,
     );
 
-    let label_metrics = Metrics::new(11.0 * sf, 15.0 * sf);
+    let label_metrics = Metrics::new(10.0 * sf, 14.0 * sf);
     let version_label = if is_pro {
         concat!("Awebo Pro v", env!("CARGO_PKG_VERSION"))
     } else {
         concat!("Awebo v", env!("CARGO_PKG_VERSION"))
     };
-    let label_y_start = menu_y + items * item_h + sep_h;
-    let label_y = label_y_start + ((label_h as f32 - 15.0 * sf) / 2.0) as usize;
+    let label_y_start = menu_y + pad_y + items * item_h + sep_h;
+    let label_y = label_y_start + ((label_h as f32 - 14.0 * sf) / 2.0) as usize;
     draw_text_at(
         buf,
         font_system,

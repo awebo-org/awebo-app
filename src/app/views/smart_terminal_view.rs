@@ -41,6 +41,78 @@ impl super::super::App {
                 return;
             }
 
+            if self.file_tree.renaming_idx.is_some() {
+                match logical_key.as_ref() {
+                    Key::Named(NamedKey::Escape) => {
+                        self.file_tree.cancel_rename();
+                    }
+                    Key::Named(NamedKey::Enter) => {
+                        if let Some((old, new)) = self.file_tree.commit_rename() {
+                            if let Err(e) = std::fs::rename(&old, &new) {
+                                log::error!("Rename failed: {}", e);
+                            } else if let Some(parent) = new.parent() {
+                                self.reload_file_tree_at(parent);
+                            }
+                        }
+                    }
+                    Key::Named(NamedKey::Backspace) => {
+                        let cur = self.file_tree.rename_cursor;
+                        if cur > 0 {
+                            let byte_pos = self
+                                .file_tree
+                                .rename_text
+                                .char_indices()
+                                .nth(cur - 1)
+                                .map(|(i, _)| i);
+                            if let Some(pos) = byte_pos {
+                                let next = self.file_tree.rename_text[pos..]
+                                    .chars()
+                                    .next()
+                                    .map(|c| c.len_utf8())
+                                    .unwrap_or(0);
+                                self.file_tree.rename_text.drain(pos..pos + next);
+                                self.file_tree.rename_cursor -= 1;
+                            }
+                        }
+                    }
+                    Key::Named(NamedKey::ArrowLeft) => {
+                        if self.file_tree.rename_cursor > 0 {
+                            self.file_tree.rename_cursor -= 1;
+                        }
+                    }
+                    Key::Named(NamedKey::ArrowRight) => {
+                        let len = self.file_tree.rename_text.chars().count();
+                        if self.file_tree.rename_cursor < len {
+                            self.file_tree.rename_cursor += 1;
+                        }
+                    }
+                    Key::Named(NamedKey::Home) => {
+                        self.file_tree.rename_cursor = 0;
+                    }
+                    Key::Named(NamedKey::End) => {
+                        self.file_tree.rename_cursor = self.file_tree.rename_text.chars().count();
+                    }
+                    _ => {
+                        if let Some(txt) = text {
+                            let s = txt.as_str();
+                            if !s.is_empty() && !ctrl && !super_key {
+                                let byte_pos = self
+                                    .file_tree
+                                    .rename_text
+                                    .char_indices()
+                                    .nth(self.file_tree.rename_cursor)
+                                    .map(|(i, _)| i)
+                                    .unwrap_or(self.file_tree.rename_text.len());
+                                self.file_tree.rename_text.insert_str(byte_pos, s);
+                                self.file_tree.rename_cursor += s.chars().count();
+                            }
+                        }
+                    }
+                }
+                self.request_redraw();
+                return;
+            }
+
             if self.overlay.pro_panel_open {
                 match logical_key.as_ref() {
                     Key::Named(NamedKey::Escape) => {
@@ -1964,6 +2036,10 @@ impl super::super::App {
                             if self.overlay.sidebar_open
                                 && let Some(action) = self.side_panel_action()
                             {
+                                if self.file_tree.renaming_idx.is_some() {
+                                    self.file_tree.cancel_rename();
+                                    self.request_redraw();
+                                }
                                 self.dispatch(action, event_loop);
                             }
 
@@ -1998,7 +2074,10 @@ impl super::super::App {
                             } else if self.is_models_active() {
                                 self.handle_models_click();
                             } else if self.is_editor_active() {
-                                if self.editor_scrollbar
+                                if self.diff_split_hovered {
+                                    self.diff_split_dragging = true;
+                                    self.request_redraw();
+                                } else if self.editor_scrollbar
                                     != crate::ui::components::editor_renderer::ScrollbarHit::None
                                 {
                                     self.editor_scrollbar_dragging = self.editor_scrollbar;
@@ -2139,6 +2218,11 @@ impl super::super::App {
                 {
                     self.editor_scrollbar_dragging =
                         crate::ui::components::editor_renderer::ScrollbarHit::None;
+                    self.request_redraw();
+                }
+
+                if self.diff_split_dragging {
+                    self.diff_split_dragging = false;
                     self.request_redraw();
                 }
 
@@ -2475,6 +2559,31 @@ impl super::super::App {
                     self.request_redraw();
                 }
 
+                if self.diff_split_dragging {
+                    if let Some(renderer) = &self.renderer {
+                        let sf = renderer.scale_factor as f32;
+                        let x_off = self.side_panel_x_offset();
+                        let git_w = if self.overlay.git_panel_open {
+                            self.panel_layout.right_physical_width(sf)
+                        } else {
+                            0
+                        };
+                        let content_w = (renderer.width as usize)
+                            .saturating_sub(x_off)
+                            .saturating_sub(git_w);
+                        let center_div_w = (1.0_f32 * sf).max(1.0) as usize;
+                        let usable = content_w.saturating_sub(center_div_w);
+                        if usable > 0 {
+                            let rel = (position.x as usize).saturating_sub(x_off);
+                            let frac = (rel as f32 / usable as f32).clamp(0.15, 0.85);
+                            if let Some(ed) = self.active_editor_state_mut() {
+                                ed.diff_split_frac = frac;
+                            }
+                        }
+                    }
+                    self.request_redraw();
+                }
+
                 if self.overlay.sidebar_open {
                     if let Some(renderer) = &self.renderer {
                         let prev = self.panel_layout.left_resize.hovered;
@@ -2781,6 +2890,12 @@ impl super::super::App {
                     if self.editor_scrollbar != prev {
                         self.request_redraw();
                     }
+
+                    let prev_split = self.diff_split_hovered;
+                    self.diff_split_hovered = self.diff_divider_hit_test(position.x, position.y);
+                    if self.diff_split_hovered != prev_split {
+                        self.request_redraw();
+                    }
                 } else if self.editor_scrollbar
                     != crate::ui::components::editor_renderer::ScrollbarHit::None
                 {
@@ -2831,6 +2946,10 @@ impl super::super::App {
                         && !right_resize_active
                         && !tab_bar_interactive
                         && !git_panel_interactive
+                        && !self.usage_limit_banner.is_visible()
+                        && !self.is_settings_active()
+                        && !self.diff_split_hovered
+                        && !self.diff_split_dragging
                         && self.renderer.as_ref().is_some_and(|r| {
                             let below_bar = self.cursor_pos.1 > r.tab_bar_height as f64;
                             let sf = r.scale_factor as f32;
@@ -2843,7 +2962,11 @@ impl super::super::App {
                             below_bar && self.cursor_pos.0 < right_edge
                         });
 
-                    if panel_resize_active || right_resize_active {
+                    if panel_resize_active
+                        || right_resize_active
+                        || self.diff_split_hovered
+                        || self.diff_split_dragging
+                    {
                         window.set_cursor(winit::window::CursorIcon::ColResize);
                     } else if editor_text_area {
                         window.set_cursor(winit::window::CursorIcon::Text);
@@ -2898,10 +3021,14 @@ impl super::super::App {
                         (self.settings_state.sandbox.scroll_offset - dy).max(0.0);
                     if let Some(renderer) = &self.renderer {
                         let sf = renderer.scale_factor as f32;
-                        let content_h =
-                            renderer.height.saturating_sub(renderer.tab_bar_height) as f32;
+                        let bw = renderer.width as usize;
+                        let bh = renderer.height as usize;
+                        let (_, py, _, ph) =
+                            crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
+                        let body_y = py + (16.0 * sf) as usize;
+                        let viewport_h = (py + ph).saturating_sub(body_y) as f32;
                         let total = crate::ui::components::overlay::settings::sandbox_settings::sandbox_settings_content_height(sf);
-                        let max = (total - content_h).max(0.0);
+                        let max = (total - viewport_h).max(0.0);
                         self.settings_state.sandbox.scroll_offset =
                             self.settings_state.sandbox.scroll_offset.min(max);
                     }
@@ -3524,6 +3651,39 @@ impl super::super::App {
         }
     }
 
+    fn diff_divider_hit_test(&self, mx: f64, my: f64) -> bool {
+        let renderer = match &self.renderer {
+            Some(r) => r,
+            None => return false,
+        };
+        let state = match self.active_editor_state() {
+            Some(s) if s.has_diff_view() => s,
+            _ => return false,
+        };
+        let sf = renderer.scale_factor as f32;
+        let bar_h = renderer.tab_bar_height as usize;
+        let x_off = self.side_panel_x_offset();
+        let git_w = if self.overlay.git_panel_open {
+            self.panel_layout.right_physical_width(sf)
+        } else {
+            0
+        };
+        let content_w = (renderer.width as usize)
+            .saturating_sub(x_off)
+            .saturating_sub(git_w);
+
+        let div_x = crate::ui::components::editor_renderer::diff_divider_x(
+            x_off,
+            content_w,
+            state.diff_split_frac,
+            sf,
+        );
+        let grab_zone = (4.0 * sf).max(3.0) as usize;
+        let px = mx as usize;
+        let py = my as usize;
+        px.abs_diff(div_x) <= grab_zone && py > bar_h
+    }
+
     /// Update editor scroll during scrollbar drag.
     fn update_editor_scrollbar_drag(&mut self, mx: f64, my: f64) {
         let renderer = match &self.renderer {
@@ -3647,55 +3807,101 @@ impl super::super::App {
 
     /// Paste text from the system clipboard.
     pub(crate) fn perform_paste(&mut self) {
-        if self.is_editor_active() {
-            let paste_text = arboard::Clipboard::new()
-                .ok()
-                .and_then(|mut cb| cb.get_text().ok());
-            if let Some(txt) = paste_text {
-                let sf = self
-                    .renderer
-                    .as_ref()
-                    .map_or(1.0, |r| r.scale_factor as f32);
-                let vh = self.renderer.as_ref().map_or(600, |r| r.height as usize);
-                if let Some(ed) = self.active_editor_state_mut() {
-                    ed.insert_str(&txt);
-                    ed.ensure_cursor_visible(sf, vh);
-                }
+        let paste_text = match arboard::Clipboard::new().and_then(|mut cb| cb.get_text()) {
+            Ok(t) if !t.is_empty() => t,
+            _ => return,
+        };
+
+        if self.overlay.pro_panel_open {
+            let cleaned: String = paste_text.chars().filter(|c| !c.is_control()).collect();
+            if !cleaned.is_empty() {
+                let cur = self.overlay.pro_license_cursor;
+                let byte_pos = self
+                    .overlay
+                    .pro_license_input
+                    .char_indices()
+                    .nth(cur)
+                    .map(|(i, _)| i)
+                    .unwrap_or(self.overlay.pro_license_input.len());
+                self.overlay
+                    .pro_license_input
+                    .insert_str(byte_pos, &cleaned);
+                self.overlay.pro_license_cursor += cleaned.chars().count();
             }
             self.request_redraw();
             return;
         }
 
-        if let Ok(mut clipboard) = arboard::Clipboard::new()
-            && let Ok(text) = clipboard.get_text()
-            && !text.is_empty()
-        {
-            let use_smart = self.settings_state.input_type == InputType::Smart
-                && self
-                    .active_terminal()
-                    .map(|t| !t.is_app_controlled())
-                    .unwrap_or(false);
-            if use_smart {
-                self.smart_input
-                    .text
-                    .insert_str(self.smart_input.cursor, &text);
-                self.smart_input.cursor += text.len();
-                self.smart_input.update_slash_menu();
-                let cwd = self.active_terminal().and_then(|t| t.cwd());
-                self.smart_input.update_suggestion(cwd.as_deref());
-            } else if self.is_sandbox_active() {
-                let mut data = Vec::new();
-                data.extend_from_slice(b"\x1b[200~");
-                data.extend_from_slice(text.as_bytes());
-                data.extend_from_slice(b"\x1b[201~");
-                self.send_input_to_active(&data);
-            } else if let Some(terminal) = self.active_terminal() {
-                let mut data = Vec::new();
-                data.extend_from_slice(b"\x1b[200~");
-                data.extend_from_slice(text.as_bytes());
-                data.extend_from_slice(b"\x1b[201~");
-                terminal.input(Cow::Owned(data));
+        if self.file_tree.renaming_idx.is_some() {
+            let cleaned: String = paste_text
+                .chars()
+                .filter(|c| !c.is_control() && *c != '/')
+                .collect();
+            if !cleaned.is_empty() {
+                let cur = self.file_tree.rename_cursor;
+                let byte_pos = self
+                    .file_tree
+                    .rename_text
+                    .char_indices()
+                    .nth(cur)
+                    .map(|(i, _)| i)
+                    .unwrap_or(self.file_tree.rename_text.len());
+                self.file_tree.rename_text.insert_str(byte_pos, &cleaned);
+                self.file_tree.rename_cursor += cleaned.chars().count();
             }
+            self.request_redraw();
+            return;
+        }
+
+        if self.overlay.palette_open {
+            let cleaned: String = paste_text.chars().filter(|c| !c.is_control()).collect();
+            if !cleaned.is_empty() {
+                self.overlay.palette_query.push_str(&cleaned);
+                self.overlay.palette_selected = 0;
+            }
+            self.request_redraw();
+            return;
+        }
+
+        if self.is_editor_active() {
+            let sf = self
+                .renderer
+                .as_ref()
+                .map_or(1.0, |r| r.scale_factor as f32);
+            let vh = self.renderer.as_ref().map_or(600, |r| r.height as usize);
+            if let Some(ed) = self.active_editor_state_mut() {
+                ed.insert_str(&paste_text);
+                ed.ensure_cursor_visible(sf, vh);
+            }
+            self.request_redraw();
+            return;
+        }
+
+        let use_smart = self.settings_state.input_type == InputType::Smart
+            && self
+                .active_terminal()
+                .map(|t| !t.is_app_controlled())
+                .unwrap_or(false);
+        if use_smart {
+            self.smart_input
+                .text
+                .insert_str(self.smart_input.cursor, &paste_text);
+            self.smart_input.cursor += paste_text.len();
+            self.smart_input.update_slash_menu();
+            let cwd = self.active_terminal().and_then(|t| t.cwd());
+            self.smart_input.update_suggestion(cwd.as_deref());
+        } else if self.is_sandbox_active() {
+            let mut data = Vec::new();
+            data.extend_from_slice(b"\x1b[200~");
+            data.extend_from_slice(paste_text.as_bytes());
+            data.extend_from_slice(b"\x1b[201~");
+            self.send_input_to_active(&data);
+        } else if let Some(terminal) = self.active_terminal() {
+            let mut data = Vec::new();
+            data.extend_from_slice(b"\x1b[200~");
+            data.extend_from_slice(paste_text.as_bytes());
+            data.extend_from_slice(b"\x1b[201~");
+            terminal.input(Cow::Owned(data));
         }
     }
 

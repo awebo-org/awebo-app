@@ -65,6 +65,21 @@ impl super::super::App {
         self.panel_layout.left_physical_width(sf)
     }
 
+    /// Compute settings panel content area coordinates.
+    fn settings_content_coords(&self) -> Option<(usize, usize, usize, usize, f32)> {
+        let renderer = self.renderer.as_ref()?;
+        let sf = renderer.scale_factor as f32;
+        let bw = renderer.width as usize;
+        let bh = renderer.height as usize;
+        let (px, py, pw, _ph) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
+        let sidebar_w = (180.0 * sf) as usize;
+        let border_w = (1.0_f32 * sf).max(1.0) as usize;
+        let content_x = px + sidebar_w + border_w;
+        let content_w = pw.saturating_sub(sidebar_w + border_w);
+        let body_y = py + (16.0 * sf) as usize;
+        Some((content_x, content_w, body_y, bw.max(bh), sf))
+    }
+
     /// Handle settings hover on CursorMoved (main window).
     pub(crate) fn update_settings_hover(&mut self) {
         if !self.is_settings_active() {
@@ -75,29 +90,31 @@ impl super::super::App {
             None => return,
         };
         let sf = renderer.scale_factor as f32;
-        let bar_h = renderer.tab_bar_height as usize;
-        let x_off = self.side_panel_x_offset();
+        let bw = renderer.width as usize;
+        let bh = renderer.height as usize;
 
         let prev = self.settings_state.hovered;
         self.settings_state.hovered = crate::ui::components::overlay::settings_sidebar_hit_test(
             self.cursor_pos.0,
             self.cursor_pos.1,
-            bar_h,
-            x_off,
+            bw,
+            bh,
             sf,
         );
+
+        let (content_x, content_w, body_y, _, _) = match self.settings_content_coords() {
+            Some(c) => c,
+            None => return,
+        };
 
         let prev_btn = self.settings_state.hovered_btn;
         if self.settings_state.active == crate::ui::components::overlay::SettingsCategory::AiModels
         {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_x);
             self.settings_state.hovered_btn =
                 crate::ui::components::overlay::settings::ai_models::settings_ai_models_hit_test(
                     self.cursor_pos.0,
                     self.cursor_pos.1,
-                    bar_h,
+                    body_y,
                     content_x,
                     content_w,
                     sf,
@@ -108,10 +125,6 @@ impl super::super::App {
 
         let prev_sandbox_hit = self.settings_state.sandbox.hovered_hit.clone();
         if self.settings_state.active == crate::ui::components::overlay::SettingsCategory::Sandbox {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_x);
-            let body_y = bar_h + (16.0 * sf) as usize;
             self.settings_state.sandbox.hovered_hit =
                 crate::ui::components::overlay::settings::sandbox_settings::sandbox_settings_hit_test(
                     self.cursor_pos.0,
@@ -128,10 +141,6 @@ impl super::super::App {
 
         let prev_about = self.settings_state.about_hovered;
         if self.settings_state.active == crate::ui::components::overlay::SettingsCategory::About {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_x);
-            let body_y = bar_h + (16.0 * sf) as usize;
             self.settings_state.about_hovered =
                 crate::ui::components::overlay::settings::about::about_hit_test(
                     self.cursor_pos.0 as usize,
@@ -147,16 +156,14 @@ impl super::super::App {
         }
 
         if self.settings_state.font_picker_open {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_area_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_area_x);
             let prev_fp = self.settings_state.font_picker_hovered;
+            let (_, py, _, _) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
             self.settings_state.font_picker_hovered =
                 crate::ui::components::overlay::font_picker_hit_test(
                     self.cursor_pos.0,
                     self.cursor_pos.1,
-                    bar_h,
-                    content_area_x,
+                    py,
+                    content_x,
                     content_w,
                     sf,
                     self.settings_state.font_options.len(),
@@ -185,19 +192,34 @@ impl super::super::App {
             None => return,
         };
         let sf = renderer.scale_factor as f32;
-        let bar_h = renderer.tab_bar_height as usize;
-        let x_off = self.side_panel_x_offset();
+        let bw = renderer.width as usize;
+        let bh = renderer.height as usize;
+
+        // Click outside panel closes settings
+        if !crate::ui::components::overlay::settings_panel_contains(
+            self.cursor_pos.0,
+            self.cursor_pos.1,
+            bw,
+            bh,
+            sf,
+        ) {
+            self.close_settings_view();
+            return;
+        }
+
+        let (content_x, content_w, body_y, _, _) = match self.settings_content_coords() {
+            Some(c) => c,
+            None => return,
+        };
 
         if self.settings_state.font_picker_open {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_area_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_area_x);
+            let (_, py, _, _) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
             let font_count = self.settings_state.font_options.len();
             if let Some(idx) = crate::ui::components::overlay::font_picker_hit_test(
                 self.cursor_pos.0,
                 self.cursor_pos.1,
-                bar_h,
-                content_area_x,
+                py,
+                content_x,
                 content_w,
                 sf,
                 font_count,
@@ -216,8 +238,8 @@ impl super::super::App {
         } else if let Some(idx) = crate::ui::components::overlay::settings_sidebar_hit_test(
             self.cursor_pos.0,
             self.cursor_pos.1,
-            bar_h,
-            x_off,
+            bw,
+            bh,
             sf,
         ) {
             if let Some(&cat) = SettingsCategory::all().get(idx) {
@@ -226,13 +248,10 @@ impl super::super::App {
                 self.settings_state.font_picker_hovered = None;
             }
         } else if self.settings_state.active == SettingsCategory::AiModels {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_x);
             if let Some(hit) = crate::ui::components::overlay::settings_ai_models_hit_test(
                 self.cursor_pos.0,
                 self.cursor_pos.1,
-                bar_h,
+                body_y,
                 content_x,
                 content_w,
                 sf,
@@ -240,12 +259,9 @@ impl super::super::App {
                 self.handle_ai_models_hit(hit);
             }
         } else if self.settings_state.active == SettingsCategory::Sandbox {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_x);
             let scroll = self.settings_state.sandbox.scroll_offset;
-            let body_y = bar_h + (16.0 * sf) as usize;
-            let viewport_h = (renderer.height as usize).saturating_sub(body_y) as f32;
+            let (_, py, _, ph) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
+            let viewport_h = (py + ph).saturating_sub(body_y) as f32;
 
             if crate::ui::components::overlay::settings::sandbox_settings::scrollbar_thumb_hit_test(
                 self.cursor_pos.0,
@@ -291,10 +307,6 @@ impl super::super::App {
                 self.settings_state.sandbox.add_image_focused = false;
             }
         } else if self.settings_state.active == SettingsCategory::About {
-            let sidebar_w = (200.0 * sf) as usize;
-            let content_x = x_off + sidebar_w;
-            let content_w = (renderer.width as usize).saturating_sub(content_x);
-            let body_y = bar_h + (16.0 * sf) as usize;
             use crate::ui::components::overlay::settings::about::AboutHit;
             let hit = crate::ui::components::overlay::settings::about::about_hit_test(
                 self.cursor_pos.0 as usize,
@@ -383,14 +395,15 @@ impl super::super::App {
     /// Handle mouse move for sandbox slider / scrollbar drag.
     pub(crate) fn handle_settings_mouse_move(&mut self) {
         if self.settings_state.sandbox.dragging_scrollbar {
-            let renderer = match &self.renderer {
-                Some(r) => r,
+            let (_, _, body_y, _, sf) = match self.settings_content_coords() {
+                Some(c) => c,
                 None => return,
             };
-            let sf = renderer.scale_factor as f32;
-            let bar_h = renderer.tab_bar_height as usize;
-            let body_y = bar_h + (16.0 * sf) as usize;
-            let viewport_h = (renderer.height as usize).saturating_sub(body_y) as f32;
+            let renderer = self.renderer.as_ref().unwrap();
+            let bw = renderer.width as usize;
+            let bh = renderer.height as usize;
+            let (_, py, _, ph) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
+            let viewport_h = (py + ph).saturating_sub(body_y) as f32;
             let total_content =
                 crate::ui::components::overlay::settings::sandbox_settings::sandbox_settings_content_height(sf);
             if total_content <= viewport_h {
@@ -419,16 +432,12 @@ impl super::super::App {
             Some(s) => s,
             None => return,
         };
-        let renderer = match &self.renderer {
-            Some(r) => r,
+        let (content_x, content_w, _, _, _) = match self.settings_content_coords() {
+            Some(c) => c,
             None => return,
         };
-        let sf = renderer.scale_factor as f32;
-        let x_off = self.side_panel_x_offset();
-        let sidebar_w = (200.0 * sf) as usize;
-        let content_x = x_off + sidebar_w;
-        let content_w = (renderer.width as usize).saturating_sub(content_x);
 
+        let sf = self.renderer.as_ref().unwrap().scale_factor as f32;
         let pad = (24.0 * sf) as usize;
         let track_x = content_x + pad;
         let track_w = content_w.saturating_sub(pad * 2);

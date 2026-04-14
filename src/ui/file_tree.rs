@@ -138,6 +138,7 @@ pub struct FlatRow {
     pub path: PathBuf,
     pub is_dir: bool,
     pub depth: usize,
+    pub git_ignored: bool,
 }
 
 /// Tracks expanded directories, cached flat list, and hover state.
@@ -152,6 +153,14 @@ pub struct FileTreeState {
     pub scrollbar_dragging: bool,
     pub scrollbar_drag_start_y: f64,
     pub scrollbar_drag_start_scroll: f32,
+    /// Index of the row currently being renamed inline (None = no rename active).
+    pub renaming_idx: Option<usize>,
+    /// Text content of the inline rename input.
+    pub rename_text: String,
+    /// Cursor position (byte offset) within `rename_text`.
+    pub rename_cursor: usize,
+    /// Paths ignored by .gitignore.
+    git_ignored: HashSet<PathBuf>,
     /// Cached flattened rows — rebuilt only on structural change.
     flat_cache: Vec<FlatRow>,
 }
@@ -167,6 +176,10 @@ impl Default for FileTreeState {
             scrollbar_dragging: false,
             scrollbar_drag_start_y: 0.0,
             scrollbar_drag_start_scroll: 0.0,
+            renaming_idx: None,
+            rename_text: String::new(),
+            rename_cursor: 0,
+            git_ignored: HashSet::new(),
             flat_cache: Vec::new(),
         }
     }
@@ -183,6 +196,8 @@ impl FileTreeState {
         if let Some(root) = &self.root {
             self.expanded.insert(root.path.clone());
         }
+        self.rebuild_flat_cache();
+        self.update_git_ignored(cwd);
         self.rebuild_flat_cache();
     }
 
@@ -208,13 +223,77 @@ impl FileTreeState {
     fn rebuild_flat_cache(&mut self) {
         self.flat_cache.clear();
         if let Some(root) = &self.root {
-            flatten_into(root, &self.expanded, 0, &mut self.flat_cache);
+            flatten_into(
+                root,
+                &self.expanded,
+                &self.git_ignored,
+                0,
+                &mut self.flat_cache,
+            );
         }
     }
 
     /// Public wrapper to rebuild the flat cache after external modifications.
     pub fn rebuild_cache(&mut self) {
         self.rebuild_flat_cache();
+    }
+
+    /// Scan git repo and update the set of ignored paths.
+    pub fn update_git_ignored(&mut self, cwd: &Path) {
+        self.git_ignored.clear();
+        let repo = match crate::git::GitRepo::discover(&cwd.to_string_lossy()) {
+            Some(r) => r,
+            None => return,
+        };
+        let workdir = match repo.workdir_path() {
+            Some(w) => w,
+            None => return,
+        };
+        for row in &self.flat_cache {
+            if let Ok(rel) = row.path.strip_prefix(&workdir)
+                && repo.is_ignored(rel)
+            {
+                self.git_ignored.insert(row.path.clone());
+            }
+        }
+    }
+
+    /// Start inline rename for the given flat index.
+    pub fn begin_rename(&mut self, idx: usize) {
+        if let Some(row) = self.flat_cache.get(idx) {
+            self.rename_text = row.name.clone();
+            self.rename_cursor = self.rename_text.len();
+            self.renaming_idx = Some(idx);
+        }
+    }
+
+    /// Cancel inline rename without applying.
+    pub fn cancel_rename(&mut self) {
+        self.renaming_idx = None;
+        self.rename_text.clear();
+        self.rename_cursor = 0;
+    }
+
+    /// Commit the inline rename. Returns `Some((old_path, new_path))` on success.
+    pub fn commit_rename(&mut self) -> Option<(PathBuf, PathBuf)> {
+        let idx = self.renaming_idx.take()?;
+        let row = self.flat_cache.get(idx)?;
+        let old_path = row.path.clone();
+        let new_name = self.rename_text.trim();
+        if new_name.is_empty() || new_name == row.name || new_name.contains('/') {
+            self.rename_text.clear();
+            self.rename_cursor = 0;
+            return None;
+        }
+        let new_path = old_path.parent()?.join(new_name);
+        self.rename_text.clear();
+        self.rename_cursor = 0;
+        Some((old_path, new_path))
+    }
+
+    /// Find the flat-cache index of a given path.
+    pub fn index_for_path(&self, path: &Path) -> Option<usize> {
+        self.flat_cache.iter().position(|r| r.path == path)
     }
 }
 
@@ -235,13 +314,14 @@ pub fn load_children_at(node: &mut TreeNode, target_path: &Path) {
 fn flatten_into(
     node: &TreeNode,
     expanded: &HashSet<PathBuf>,
+    ignored: &HashSet<PathBuf>,
     depth: usize,
     out: &mut Vec<FlatRow>,
 ) {
     if depth == 0 {
         if expanded.contains(&node.path) {
             for child in &node.children {
-                flatten_into(child, expanded, 1, out);
+                flatten_into(child, expanded, ignored, 1, out);
             }
         }
         return;
@@ -251,10 +331,11 @@ fn flatten_into(
         path: node.path.clone(),
         is_dir: node.is_dir,
         depth: depth - 1,
+        git_ignored: ignored.contains(&node.path),
     });
     if node.is_dir && expanded.contains(&node.path) {
         for child in &node.children {
-            flatten_into(child, expanded, depth + 1, out);
+            flatten_into(child, expanded, ignored, depth + 1, out);
         }
     }
 }
@@ -305,6 +386,9 @@ pub fn draw(
         let is_hovered = state.hovered_idx == Some(i);
         let is_active = !row.is_dir && active_path.is_some_and(|p| p == row.path);
 
+        let is_renaming = state.renaming_idx == Some(i);
+        let is_ignored = row.git_ignored;
+
         if is_active {
             buf.fill_rect(0, y, panel_w, item_h, theme::BG_SELECTION);
             let accent_w = (2.0 * sf).max(1.0) as usize;
@@ -323,7 +407,9 @@ pub fn draw(
             } else {
                 Icon::ChevronRight
             };
-            let chevron_color = if is_hovered || is_active {
+            let chevron_color = if is_ignored {
+                theme::FG_DIM
+            } else if is_hovered || is_active {
                 theme::FG_PRIMARY
             } else {
                 theme::FG_MUTED
@@ -334,7 +420,15 @@ pub fn draw(
 
         let icon_y = y + ((item_h as f32 - icon_sz as f32) / 2.0).max(0.0) as usize;
         if row.is_dir {
-            icon_renderer.draw(buf, Icon::Folder, x, icon_y, icon_sz, theme::FG_SECONDARY);
+            let folder_color = if is_ignored {
+                theme::FG_DIM
+            } else {
+                theme::FG_SECONDARY
+            };
+            icon_renderer.draw(buf, Icon::Folder, x, icon_y, icon_sz, folder_color);
+        } else if is_ignored {
+            let ft_icon = icon_for_filename(&row.name);
+            icon_renderer.draw(buf, ft_icon, x, icon_y, icon_sz, theme::FG_DIM);
         } else {
             let ft_icon = icon_for_filename(&row.name);
             icon_renderer.draw_colored(buf, ft_icon, x, icon_y, icon_sz);
@@ -342,35 +436,70 @@ pub fn draw(
         x += icon_sz as usize + icon_gap;
 
         let name_y = y + ((item_h as f32 - LINE_HEIGHT * sf) / 2.0).max(0.0) as usize;
-        let max_name_px = panel_w.saturating_sub(x + pad_x);
-        let max_chars = (max_name_px as f32 / (7.0 * sf)).max(1.0) as usize;
-        let needs_truncation = row.name.len() > max_chars && max_chars > 3;
-        let truncated;
-        let display_name: &str = if needs_truncation {
-            truncated = format!("{}…", &row.name[..max_chars.saturating_sub(1)]);
-            &truncated
-        } else {
-            &row.name
-        };
 
-        let name_color = if is_active || is_hovered {
-            theme::FG_BRIGHT
+        if is_renaming {
+            let input_w = panel_w.saturating_sub(x + pad_x);
+            let input_h = item_h;
+            buf.fill_rect(x, y, input_w, input_h, theme::BG_SURFACE);
+            let border_w = (1.0 * sf).max(1.0) as usize;
+            buf.fill_rect(x, y, input_w, border_w, theme::PRIMARY);
+            buf.fill_rect(x, y + input_h - border_w, input_w, border_w, theme::PRIMARY);
+            buf.fill_rect(x, y, border_w, input_h, theme::PRIMARY);
+            buf.fill_rect(x + input_w - border_w, y, border_w, input_h, theme::PRIMARY);
+
+            let text_x = x + (4.0 * sf) as usize;
+            draw_text_at_buffered(
+                buf,
+                font_system,
+                swash_cache,
+                &mut text_buf,
+                text_x,
+                name_y,
+                buf.height,
+                &state.rename_text,
+                metrics,
+                theme::FG_BRIGHT,
+                Family::SansSerif,
+            );
+
+            let char_w = (FONT_SIZE * sf * 0.6) as usize;
+            let cursor_x = text_x + state.rename_cursor.min(state.rename_text.len()) * char_w;
+            let cursor_h = (LINE_HEIGHT * sf) as usize;
+            let cursor_w = (1.0 * sf).max(1.0) as usize;
+            buf.fill_rect(cursor_x, name_y, cursor_w, cursor_h, theme::FG_BRIGHT);
         } else {
-            theme::FG_PRIMARY
-        };
-        draw_text_at_buffered(
-            buf,
-            font_system,
-            swash_cache,
-            &mut text_buf,
-            x,
-            name_y,
-            buf.height,
-            display_name,
-            metrics,
-            name_color,
-            Family::SansSerif,
-        );
+            let max_name_px = panel_w.saturating_sub(x + pad_x);
+            let max_chars = (max_name_px as f32 / (7.0 * sf)).max(1.0) as usize;
+            let needs_truncation = row.name.len() > max_chars && max_chars > 3;
+            let truncated;
+            let display_name: &str = if needs_truncation {
+                truncated = format!("{}…", &row.name[..max_chars.saturating_sub(1)]);
+                &truncated
+            } else {
+                &row.name
+            };
+
+            let name_color = if is_ignored {
+                theme::FG_DIM
+            } else if is_active || is_hovered {
+                theme::FG_BRIGHT
+            } else {
+                theme::FG_PRIMARY
+            };
+            draw_text_at_buffered(
+                buf,
+                font_system,
+                swash_cache,
+                &mut text_buf,
+                x,
+                name_y,
+                buf.height,
+                display_name,
+                metrics,
+                name_color,
+                Family::SansSerif,
+            );
+        }
     }
 }
 
