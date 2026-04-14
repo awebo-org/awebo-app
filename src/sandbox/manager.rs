@@ -43,7 +43,7 @@ impl std::error::Error for SandboxError {}
 /// OCI refs may embed credentials as `user:token@registry/image:tag`.
 /// This replaces the userinfo portion with `***` to avoid leaking secrets
 /// in toast messages or logs.
-fn sanitize_oci_ref(oci_ref: &str) -> String {
+pub(crate) fn sanitize_oci_ref(oci_ref: &str) -> String {
     // OCI digests use `@sha256:...` — those must not be stripped.
     if let Some(at) = oci_ref.find('@') {
         let prefix = &oci_ref[..at];

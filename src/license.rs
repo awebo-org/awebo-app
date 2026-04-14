@@ -226,25 +226,26 @@ pub fn machine_id() -> String {
 fn derive_key(salt: &[u8]) -> [u8; 32] {
     let mid = machine_id();
     let input = format!("{mid}-{}", hex_encode(salt));
-    let hash = Sha256::digest(input.as_bytes());
-    let mut key = [0u8; 32];
-    key.copy_from_slice(&hash);
-    key
+    Sha256::digest(input.as_bytes()).into()
+}
+
+fn generate_random_bytes<const N: usize>() -> [u8; N] {
+    let mut buf = [0u8; N];
+    chacha20poly1305::aead::rand_core::RngCore::fill_bytes(&mut OsRng, &mut buf);
+    buf
 }
 
 fn save_encrypted_license(data: &LicenseData) -> Result<(), ActivationError> {
     let json =
         serde_json::to_string(data).map_err(|e| ActivationError::StorageError(e.to_string()))?;
 
-    let mut salt = [0u8; SALT_LEN];
-    chacha20poly1305::aead::rand_core::RngCore::fill_bytes(&mut OsRng, &mut salt);
+    let salt = generate_random_bytes::<SALT_LEN>();
 
     let key = derive_key(&salt);
     let cipher = ChaCha20Poly1305::new_from_slice(&key)
         .map_err(|e| ActivationError::StorageError(e.to_string()))?;
 
-    let mut nonce_bytes = [0u8; NONCE_LEN];
-    chacha20poly1305::aead::rand_core::RngCore::fill_bytes(&mut OsRng, &mut nonce_bytes);
+    let nonce_bytes = generate_random_bytes::<NONCE_LEN>();
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher

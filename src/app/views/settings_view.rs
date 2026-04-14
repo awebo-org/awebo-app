@@ -479,8 +479,9 @@ impl super::super::App {
                 let images = crate::sandbox::images::IMAGES;
                 if let Some(img) = images.get(idx) {
                     let oci = img.oci_ref.to_string();
+                    let display = crate::sandbox::manager::sanitize_oci_ref(&oci);
                     self.toast_mgr.push(
-                        format!("Removing trusted image: {}", oci),
+                        format!("Removing trusted image: {}", display),
                         crate::ui::components::toast::ToastLevel::Info,
                     );
                     self.sandbox_mgr.remove_image(oci, self.proxy.clone());
@@ -490,8 +491,9 @@ impl super::super::App {
                 let images = crate::sandbox::images::IMAGES;
                 if let Some(img) = images.get(idx) {
                     let oci = img.oci_ref.to_string();
+                    let display = crate::sandbox::manager::sanitize_oci_ref(&oci);
                     self.toast_mgr.push(
-                        format!("Pulling latest: {}", oci),
+                        format!("Pulling latest: {}", display),
                         crate::ui::components::toast::ToastLevel::Info,
                     );
                     self.sandbox_mgr.pull_image(oci, self.proxy.clone());
