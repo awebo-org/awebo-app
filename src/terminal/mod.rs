@@ -51,6 +51,12 @@ pub enum TerminalEvent {
     Toast(String),
     /// A toast with a specific severity level.
     ToastLevel(String, crate::ui::components::toast::ToastLevel),
+    /// A newer release was found during a background update check.
+    UpdateAvailable(crate::updater::ReleaseInfo),
+    /// A release asset was successfully downloaded to the given path.
+    UpdateDownloaded(std::path::PathBuf),
+    /// A background update check or download failed.
+    UpdateFailed(String),
 }
 
 impl JsonEventProxy {

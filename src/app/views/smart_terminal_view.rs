@@ -1692,6 +1692,7 @@ impl super::super::App {
                                 r.width as f64,
                                 r.scale_factor,
                                 self.is_fullscreen,
+                                self.overlay.update_badge_w,
                             ),
                             crate::ui::components::tab_bar::TabBarHit::ShellPicker
                         )
@@ -1730,15 +1731,39 @@ impl super::super::App {
                         Some(1) => {
                             self.dispatch(crate::app::actions::AppAction::OpenModels, event_loop);
                         }
-                        Some(2) => {
-                            if !self.license_mgr.is_pro() {
-                                self.dispatch(
-                                    crate::app::actions::AppAction::OpenProPanel,
-                                    event_loop,
-                                );
-                            }
+                        Some(2) if !self.license_mgr.is_pro() => {
+                            self.dispatch(crate::app::actions::AppAction::OpenProPanel, event_loop);
                         }
                         _ => {}
+                    }
+                    self.request_redraw();
+                    return;
+                }
+
+                if self.overlay.update_dropdown_open
+                    && let Some(renderer) = &self.renderer
+                {
+                    let item = crate::ui::components::tab_bar::update_dropdown_hit_test(
+                        self.cursor_pos.0,
+                        self.cursor_pos.1,
+                        renderer.tab_bar_height as f64,
+                        renderer.width as f64,
+                        renderer.scale_factor,
+                        self.overlay.update_badge_w.unwrap_or(0.0),
+                    );
+                    self.overlay.close_update_dropdown();
+                    if item == Some(0) && !self.overlay.update_downloading {
+                        if self.overlay.update_downloaded.is_some() {
+                            self.dispatch(
+                                crate::app::actions::AppAction::InstallUpdate,
+                                event_loop,
+                            );
+                        } else {
+                            self.dispatch(
+                                crate::app::actions::AppAction::DownloadUpdate,
+                                event_loop,
+                            );
+                        }
                     }
                     self.request_redraw();
                     return;
@@ -1753,6 +1778,7 @@ impl super::super::App {
                         renderer.width as f64,
                         renderer.scale_factor,
                         self.is_fullscreen,
+                        self.overlay.update_badge_w,
                     );
                     use crate::app::actions::AppAction;
                     match hit {
@@ -1778,6 +1804,9 @@ impl super::super::App {
                         }
                         TabBarHit::Settings => {
                             self.dispatch(AppAction::ToggleUserMenu, event_loop);
+                        }
+                        TabBarHit::UpdateBadge => {
+                            self.dispatch(AppAction::ToggleUpdateDropdown, event_loop);
                         }
                         TabBarHit::EmptyBar => {
                             let now = Instant::now();
@@ -2061,6 +2090,7 @@ impl super::super::App {
                         renderer.width as f64,
                         renderer.scale_factor,
                         self.is_fullscreen,
+                        self.overlay.update_badge_w,
                     );
                     if let crate::ui::components::tab_bar::TabBarHit::Tab(idx) = hit {
                         self.open_tab_context_menu(
@@ -2320,7 +2350,44 @@ impl super::super::App {
                 let prev_sidebar = self.overlay.sidebar_hovered;
                 let prev_git_panel = self.overlay.git_panel_hovered;
                 let prev_user_menu = self.overlay.user_menu_hovered;
+                let prev_update_badge = self.overlay.update_badge_hovered;
+                let prev_update_dd = self.overlay.update_dropdown_hovered;
                 let panel_changed = self.update_hover();
+
+                if let Some(renderer) = &self.renderer {
+                    let bar_h = renderer.tab_bar_height as f64;
+                    let buf_w = renderer.width as f64;
+                    let sf = renderer.scale_factor;
+
+                    if let Some(bw) = self.overlay.update_badge_w {
+                        self.overlay.update_badge_hovered =
+                            crate::ui::components::tab_bar::is_update_badge_hovered(
+                                self.cursor_pos.0,
+                                self.cursor_pos.1,
+                                bar_h,
+                                buf_w,
+                                sf,
+                                bw,
+                            );
+                        if self.overlay.update_dropdown_open {
+                            self.overlay.update_dropdown_hovered =
+                                crate::ui::components::tab_bar::update_dropdown_hit_test(
+                                    self.cursor_pos.0,
+                                    self.cursor_pos.1,
+                                    bar_h,
+                                    buf_w,
+                                    sf,
+                                    bw,
+                                );
+                        } else {
+                            self.overlay.update_dropdown_hovered = None;
+                        }
+                    } else {
+                        self.overlay.update_badge_hovered = false;
+                        self.overlay.update_dropdown_hovered = None;
+                    }
+                }
+
                 if panel_changed
                     || self.overlay.hovered_close != prev_close
                     || self.overlay.avatar_hovered != prev_avatar
@@ -2329,6 +2396,8 @@ impl super::super::App {
                     || self.overlay.sidebar_hovered != prev_sidebar
                     || self.overlay.git_panel_hovered != prev_git_panel
                     || self.overlay.user_menu_hovered != prev_user_menu
+                    || self.overlay.update_badge_hovered != prev_update_badge
+                    || self.overlay.update_dropdown_hovered != prev_update_dd
                 {
                     self.request_redraw();
                 }
@@ -2563,6 +2632,8 @@ impl super::super::App {
                         || self.overlay.new_tab_hovered
                         || self.overlay.shell_picker_btn_hovered
                         || self.overlay.sidebar_hovered
+                        || self.overlay.update_badge_hovered
+                        || self.overlay.update_dropdown_hovered.is_some()
                         || (self.overlay.user_menu_open
                             && self.overlay.user_menu_hovered.is_some());
                     let side_panel_interactive = self.overlay.sidebar_open

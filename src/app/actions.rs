@@ -183,6 +183,13 @@ pub enum AppAction {
     Copy,
     Paste,
     SelectAll,
+
+    /// Download the available update.
+    DownloadUpdate,
+    /// Install the downloaded update and relaunch.
+    InstallUpdate,
+    /// Toggle the update dropdown beneath the tab-bar badge.
+    ToggleUpdateDropdown,
 }
 
 impl super::App {
@@ -675,6 +682,36 @@ impl super::App {
             }
             AppAction::SelectAll => {
                 self.perform_select_all();
+            }
+
+            AppAction::DownloadUpdate => {
+                if let Some(info) = self.overlay.update_available.clone() {
+                    self.overlay.update_downloading = true;
+                    self.toast_mgr.push(
+                        format!("Downloading v{}…", info.version),
+                        crate::ui::components::toast::ToastLevel::Info,
+                    );
+                    crate::updater::spawn_update_download(info, self.proxy.clone());
+                }
+            }
+            AppAction::InstallUpdate => {
+                if let Some(path) = self.overlay.update_downloaded.take() {
+                    match crate::updater::stage_update(&path) {
+                        Ok(()) => {
+                            crate::updater::spawn_relaunch();
+                            event_loop.exit();
+                        }
+                        Err(e) => {
+                            self.toast_mgr.push(
+                                format!("Update failed: {e}"),
+                                crate::ui::components::toast::ToastLevel::Error,
+                            );
+                        }
+                    }
+                }
+            }
+            AppAction::ToggleUpdateDropdown => {
+                self.overlay.toggle_update_dropdown();
             }
         }
         self.request_redraw();

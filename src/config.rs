@@ -11,6 +11,7 @@ pub struct AppConfig {
     pub ai: AiConfig,
     pub general: GeneralConfig,
     pub sandbox: SandboxDefaultsConfig,
+    pub updates: UpdatesConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +127,25 @@ impl Default for SandboxDefaultsConfig {
             default_memory_mib: 512,
             volumes: Vec::new(),
             custom_images: Vec::new(),
+        }
+    }
+}
+
+/// Controls automatic update checking behaviour.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UpdatesConfig {
+    /// Whether to check for updates automatically on startup.
+    pub auto_check: bool,
+    /// A version string the user chose to skip (e.g. "0.2.0").
+    pub skipped_version: String,
+}
+
+impl Default for UpdatesConfig {
+    fn default() -> Self {
+        Self {
+            auto_check: true,
+            skipped_version: String::new(),
         }
     }
 }

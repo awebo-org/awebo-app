@@ -304,6 +304,9 @@ impl Renderer {
         user_menu_open: bool,
         user_menu_hovered: Option<usize>,
         is_pro: bool,
+        update_badge_w: Option<f32>,
+        update_badge_hovered: bool,
+        update_dropdown: Option<(&str, bool, Option<usize>)>,
         input_type: InputType,
         prompt_info: Option<&PromptInfo>,
         input_field: &InputFieldState,
@@ -387,6 +390,18 @@ impl Renderer {
                 git_panel_open,
                 is_fullscreen,
             );
+
+            if let Some(bw) = update_badge_w {
+                crate::ui::components::tab_bar::draw_update_badge(
+                    &mut self.pixel_buf,
+                    &mut self.font_system,
+                    &mut self.swash_cache,
+                    bar_h,
+                    sf,
+                    bw,
+                    update_badge_hovered,
+                );
+            }
         }
 
         let mut slash_pad = 0usize;
@@ -584,16 +599,14 @@ impl Renderer {
                     } else {
                         None
                     };
-                    if is_sandbox {
-                        if let Some(bg) = grid_bg {
-                            self.pixel_buf.fill_rect(
-                                content_x_offset,
-                                grid_y,
-                                content_right_edge.saturating_sub(content_x_offset),
-                                grid_h,
-                                bg,
-                            );
-                        }
+                    if is_sandbox && let Some(bg) = grid_bg {
+                        self.pixel_buf.fill_rect(
+                            content_x_offset,
+                            grid_y,
+                            content_right_edge.saturating_sub(content_x_offset),
+                            grid_h,
+                            bg,
+                        );
                     }
 
                     let sandbox_initializing =
@@ -625,16 +638,16 @@ impl Renderer {
                             grid_bg,
                             grid_h,
                         );
-                        if app_lpad > 0 {
-                            if let Some(bg) = grid_bg {
-                                self.pixel_buf.fill_rect(
-                                    content_x_offset,
-                                    grid_y,
-                                    app_lpad,
-                                    grid_h,
-                                    bg,
-                                );
-                            }
+                        if app_lpad > 0
+                            && let Some(bg) = grid_bg
+                        {
+                            self.pixel_buf.fill_rect(
+                                content_x_offset,
+                                grid_y,
+                                app_lpad,
+                                grid_h,
+                                bg,
+                            );
                         }
                         pending_cell_glyphs = Some(cell_glyphs);
                         glyph_scissor = Some((
@@ -816,6 +829,22 @@ impl Renderer {
                 sf,
                 user_menu_hovered,
                 is_pro,
+            );
+        }
+
+        if let Some((version, downloading, dd_hovered)) = update_dropdown
+            && let Some(bw) = update_badge_w
+        {
+            crate::ui::components::tab_bar::draw_update_dropdown(
+                &mut self.pixel_buf,
+                &mut self.font_system,
+                &mut self.swash_cache,
+                bar_h,
+                sf,
+                bw,
+                dd_hovered,
+                version,
+                downloading,
             );
         }
 

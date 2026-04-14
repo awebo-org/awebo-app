@@ -18,9 +18,11 @@ mod session;
 mod system_info;
 mod terminal;
 mod ui;
+mod updater;
 mod usage;
 
 #[tokio::main]
 async fn main() {
+    updater::apply_pending_update();
     app::run();
 }

@@ -950,18 +950,17 @@ impl super::App {
         if let Some(cwd) = self.active_terminal().and_then(|t| t.cwd()) {
             return Some(cwd);
         }
-        if let Some(tab) = self.tab_mgr.active_tab() {
-            if let Some(path) = tab.editor_path() {
-                if let Some(parent) = path.parent() {
-                    return Some(parent.to_string_lossy().into_owned());
-                }
-            }
+        if let Some(tab) = self.tab_mgr.active_tab()
+            && let Some(path) = tab.editor_path()
+            && let Some(parent) = path.parent()
+        {
+            return Some(parent.to_string_lossy().into_owned());
         }
         for i in 0..self.tab_mgr.len() {
-            if let Some(t) = self.tab_mgr.get(i) {
-                if let Some(cwd) = t.cwd() {
-                    return Some(cwd);
-                }
+            if let Some(t) = self.tab_mgr.get(i)
+                && let Some(cwd) = t.cwd()
+            {
+                return Some(cwd);
             }
         }
         None

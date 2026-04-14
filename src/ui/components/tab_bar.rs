@@ -4,7 +4,7 @@ use cosmic_text::{Family, FontSystem, Metrics, SwashCache};
 
 use crate::renderer::icons::{AvatarRenderer, Icon, IconRenderer};
 use crate::renderer::pixel_buffer::PixelBuffer;
-use crate::renderer::text::{draw_text_at, draw_text_at_bold};
+use crate::renderer::text::{draw_text_at, draw_text_at_bold, measure_text_width};
 use crate::renderer::theme;
 
 pub const TAB_BAR_LOGICAL_HEIGHT: f32 = 42.0;
@@ -20,6 +20,12 @@ const RIGHT_GAP: f32 = 6.0;
 const SIDEBAR_ICON_SIZE: f32 = 18.0;
 const SIDEBAR_ICON_LEFT_MARGIN: f32 = 8.0;
 const GIT_PANEL_ICON_SIZE: f32 = 15.0;
+
+const UPDATE_BADGE_LABEL: &str = "Update Awebo";
+const UPDATE_BADGE_PAD_X: f32 = 8.0;
+const UPDATE_BADGE_H: f32 = 22.0;
+const UPDATE_BADGE_FONT: f32 = 11.0;
+const UPDATE_BADGE_CORNER_R: f32 = 4.0;
 
 #[cfg(target_os = "macos")]
 const LEFT_PADDING_MACOS: f32 = 84.0;
@@ -50,6 +56,7 @@ pub enum TabBarHit {
     Settings,
     SidebarToggle,
     GitPanelToggle,
+    UpdateBadge,
     EmptyBar,
     None,
 }
@@ -150,6 +157,53 @@ fn tab_logical_width(tab_count: usize, buf_width_phys: f64, sf: f64, is_fullscre
         .min(TAB_MAX_WIDTH as f64)
 }
 
+/// Logical width of the "Update Awebo" badge (0 when hidden).
+pub fn update_badge_logical_width(font_system: &mut FontSystem, sf: f32) -> f32 {
+    let metrics = Metrics::new(UPDATE_BADGE_FONT * sf, (UPDATE_BADGE_FONT + 4.0) * sf);
+    let text_w = measure_text_width(font_system, UPDATE_BADGE_LABEL, metrics, Family::SansSerif);
+    text_w / sf + UPDATE_BADGE_PAD_X * 2.0 + RIGHT_GAP
+}
+
+/// Physical rect `(x, y, w, h)` of the update badge, placed left of the git icon.
+pub fn update_badge_rect(
+    buf_width_phys: f64,
+    bar_h_phys: f64,
+    sf: f64,
+    badge_w_logical: f32,
+) -> (f64, f64, f64, f64) {
+    let margin = RIGHT_MARGIN * sf as f32;
+    let avatar_size = AVATAR_ICON_SIZE * sf as f32;
+    let git_gap = RIGHT_GAP * sf as f32;
+    let git_size = GIT_PANEL_ICON_SIZE * sf as f32;
+
+    let avatar_x = buf_width_phys as f32 - margin - avatar_size;
+    let git_x = avatar_x - git_gap - git_size;
+
+    let badge_w = (badge_w_logical - RIGHT_GAP) * sf as f32;
+    let badge_h = UPDATE_BADGE_H * sf as f32;
+    let badge_x = git_x - git_gap - badge_w;
+    let badge_y = (bar_h_phys as f32 - badge_h) / 2.0;
+    (
+        badge_x as f64,
+        badge_y as f64,
+        badge_w as f64,
+        badge_h as f64,
+    )
+}
+
+/// Whether the given physical coordinate is inside the update badge.
+pub fn is_update_badge_hovered(
+    phys_x: f64,
+    phys_y: f64,
+    bar_h_phys: f64,
+    buf_width_phys: f64,
+    sf: f64,
+    badge_w_logical: f32,
+) -> bool {
+    let (bx, by, bw, bh) = update_badge_rect(buf_width_phys, bar_h_phys, sf, badge_w_logical);
+    phys_x >= bx && phys_x < bx + bw && phys_y >= by && phys_y < by + bh
+}
+
 pub fn hit_test(
     phys_x: f64,
     phys_y: f64,
@@ -158,6 +212,7 @@ pub fn hit_test(
     buf_width_phys: f64,
     sf: f64,
     is_fullscreen: bool,
+    update_badge_w: Option<f32>,
 ) -> TabBarHit {
     if phys_y > bar_h_phys {
         return TabBarHit::None;
@@ -176,6 +231,12 @@ pub fn hit_test(
     let git_x = avatar_x - git_gap - git_size;
     if phys_x >= git_x && phys_x < git_x + git_size {
         return TabBarHit::GitPanelToggle;
+    }
+
+    if let Some(bw) = update_badge_w
+        && is_update_badge_hovered(phys_x, phys_y, bar_h_phys, buf_width_phys, sf, bw)
+    {
+        return TabBarHit::UpdateBadge;
     }
 
     let traffic_pad = left_padding(is_fullscreen) as f64 * sf;
@@ -959,6 +1020,175 @@ pub fn user_menu_hovered(
     user_menu_item_at(phys_x, phys_y, bar_h, buf_width, sf, is_pro)
 }
 
+// ── Update badge (tab bar) + dropdown ────────────────────────────
+
+/// Draw the "Update Awebo" badge in the tab bar, left of the git icon.
+pub fn draw_update_badge(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    bar_h: usize,
+    sf: f32,
+    badge_w_logical: f32,
+    hovered: bool,
+) {
+    let (bx, by, bw, bh) =
+        update_badge_rect(buf.width as f64, bar_h as f64, sf as f64, badge_w_logical);
+    let bx = bx as usize;
+    let by = by as usize;
+    let bw = bw as usize;
+    let bh = bh as usize;
+    let r = (UPDATE_BADGE_CORNER_R * sf) as usize;
+    let border_w = (1.0_f32 * sf).max(1.0) as usize;
+
+    if hovered {
+        super::overlay::fill_rounded_rect(buf, bx, by, bw, bh, r, theme::TAB_ACTIVE_BG);
+    }
+
+    super::overlay::draw_border_rounded(buf, bx, by, bw, bh, border_w, r, theme::PRIMARY);
+
+    let metrics = Metrics::new(UPDATE_BADGE_FONT * sf, (UPDATE_BADGE_FONT + 4.0) * sf);
+    let pad_x = (UPDATE_BADGE_PAD_X * sf) as usize;
+    let text_y = by + ((bh as f32 - (UPDATE_BADGE_FONT + 4.0) * sf) / 2.0) as usize;
+    draw_text_at(
+        buf,
+        font_system,
+        swash_cache,
+        bx + pad_x,
+        text_y,
+        buf.height,
+        UPDATE_BADGE_LABEL,
+        metrics,
+        theme::PRIMARY,
+        Family::SansSerif,
+    );
+}
+
+const UPDATE_DD_W: f32 = 200.0;
+const UPDATE_DD_ITEM_H: f32 = 30.0;
+const UPDATE_DD_PAD_X: f32 = 12.0;
+const UPDATE_DD_GAP: f32 = 2.0;
+
+/// Physical rect `(x, y, w, h)` of the update dropdown.
+fn update_dropdown_rect(
+    buf_width_phys: f64,
+    bar_h_phys: f64,
+    sf: f64,
+    badge_w_logical: f32,
+) -> (f64, f64, f64, f64) {
+    let (bx, _by, bw, _bh) = update_badge_rect(buf_width_phys, bar_h_phys, sf, badge_w_logical);
+    let dd_w = UPDATE_DD_W as f64 * sf;
+    let dd_h = UPDATE_DD_ITEM_H as f64 * sf * 2.0;
+    let dd_x = (bx + bw / 2.0 - dd_w / 2.0).max(4.0 * sf);
+    let dd_y = bar_h_phys + UPDATE_DD_GAP as f64 * sf;
+    (dd_x, dd_y, dd_w, dd_h)
+}
+
+/// Draw the update dropdown (current version + install button).
+pub fn draw_update_dropdown(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    bar_h: usize,
+    sf: f32,
+    badge_w_logical: f32,
+    hovered: Option<usize>,
+    new_version: &str,
+    downloading: bool,
+) {
+    let (dx, dy, dw, dh) =
+        update_dropdown_rect(buf.width as f64, bar_h as f64, sf as f64, badge_w_logical);
+    let dx = dx as usize;
+    let dy = dy as usize;
+    let dw = dw as usize;
+    let dh = dh as usize;
+    let item_h = (UPDATE_DD_ITEM_H * sf) as usize;
+    let pad_x = (UPDATE_DD_PAD_X * sf) as usize;
+    let border_w = (1.0_f32 * sf).max(1.0) as usize;
+    let r = (6.0 * sf) as usize;
+
+    super::overlay::fill_rounded_rect(buf, dx, dy, dw, dh, r, theme::BG_ELEVATED);
+    super::overlay::draw_border_rounded(buf, dx, dy, dw, dh, border_w, r, theme::BORDER);
+
+    let text_metrics = Metrics::new(12.0 * sf, 16.0 * sf);
+    let label_metrics = Metrics::new(11.0 * sf, 15.0 * sf);
+
+    let current_label = concat!("Current version: v", env!("CARGO_PKG_VERSION"));
+    let label_y = dy + ((item_h as f32 - 15.0 * sf) / 2.0) as usize;
+    draw_text_at(
+        buf,
+        font_system,
+        swash_cache,
+        dx + pad_x,
+        label_y,
+        buf.height,
+        current_label,
+        label_metrics,
+        theme::FG_DIM,
+        Family::SansSerif,
+    );
+
+    let row1_y = dy + item_h;
+    if hovered == Some(0) {
+        let inner_x = dx + border_w;
+        let inner_w = dw.saturating_sub(border_w * 2);
+        let inner_r = r.saturating_sub(1);
+        super::overlay::fill_rounded_rect(
+            buf,
+            inner_x,
+            row1_y,
+            inner_w,
+            item_h.saturating_sub(border_w),
+            inner_r,
+            theme::BG_HOVER,
+        );
+    }
+
+    let install_label = if downloading {
+        "Downloading…".to_string()
+    } else {
+        format!("Install update v{new_version}")
+    };
+    let install_y = row1_y + ((item_h as f32 - 16.0 * sf) / 2.0) as usize;
+    let color = if downloading {
+        theme::FG_DIM
+    } else if hovered == Some(0) {
+        theme::FG_BRIGHT
+    } else {
+        theme::FG_PRIMARY
+    };
+    draw_text_at_bold(
+        buf,
+        font_system,
+        swash_cache,
+        dx + pad_x,
+        install_y,
+        buf.height,
+        &install_label,
+        text_metrics,
+        color,
+        Family::SansSerif,
+    );
+}
+
+/// Hit-test the update dropdown. Returns `Some(0)` for the install row.
+pub fn update_dropdown_hit_test(
+    phys_x: f64,
+    phys_y: f64,
+    bar_h: f64,
+    buf_width: f64,
+    sf: f64,
+    badge_w_logical: f32,
+) -> Option<usize> {
+    let (dx, dy, dw, dh) = update_dropdown_rect(buf_width, bar_h, sf, badge_w_logical);
+    if phys_x < dx || phys_x >= dx + dw || phys_y < dy || phys_y >= dy + dh {
+        return None;
+    }
+    let item_h = UPDATE_DD_ITEM_H as f64 * sf;
+    let rel_y = phys_y - dy;
+    if rel_y >= item_h { Some(0) } else { None }
+}
+
 pub fn draw_tooltip(
     buf: &mut PixelBuffer,
     font_system: &mut FontSystem,
@@ -1063,13 +1293,13 @@ mod tests {
 
     #[test]
     fn hit_test_below_bar_is_none() {
-        let result = hit_test(100.0, 50.0, 2, 42.0, 1200.0, 1.0, false);
+        let result = hit_test(100.0, 50.0, 2, 42.0, 1200.0, 1.0, false, None);
         assert_eq!(result, TabBarHit::None);
     }
 
     #[test]
     fn hit_test_gear_area() {
-        let result = hit_test(1200.0 - 20.0, 20.0, 2, 42.0, 1200.0, 1.0, false);
+        let result = hit_test(1200.0 - 20.0, 20.0, 2, 42.0, 1200.0, 1.0, false, None);
         assert_eq!(result, TabBarHit::Settings);
     }
 
@@ -1077,7 +1307,7 @@ mod tests {
     fn hit_test_first_tab() {
         let sidebar_w = sidebar_icon_logical_width();
         let x = left_padding(false) as f64 + sidebar_w + 30.0;
-        let result = hit_test(x, 20.0, 2, 42.0, 1200.0, 1.0, false);
+        let result = hit_test(x, 20.0, 2, 42.0, 1200.0, 1.0, false, None);
         assert_eq!(result, TabBarHit::Tab(0));
     }
 

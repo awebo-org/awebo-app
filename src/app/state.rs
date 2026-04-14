@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Instant;
 
 /// Groups all transient overlay/popup state (palette, pickers, hover, tooltips).
@@ -40,6 +41,22 @@ pub(crate) struct OverlayState {
     pub pro_license_cursor: usize,
     pub pro_license_focused: bool,
     pub pro_panel_hovered: Option<usize>,
+
+    /// Information about a newer release, if one has been detected.
+    pub update_available: Option<crate::updater::ReleaseInfo>,
+    /// Whether an update download is currently in progress.
+    pub update_downloading: bool,
+    /// Path to a fully downloaded update asset, ready for installation.
+    pub update_downloaded: Option<PathBuf>,
+
+    /// Whether the "Update Awebo" badge in the tab bar is hovered.
+    pub update_badge_hovered: bool,
+    /// Whether the update dropdown beneath the badge is open.
+    pub update_dropdown_open: bool,
+    /// Hovered item index inside the update dropdown (0 = install row).
+    pub update_dropdown_hovered: Option<usize>,
+    /// Cached logical width of the update badge (set during rendering).
+    pub update_badge_w: Option<f32>,
 }
 
 impl OverlayState {
@@ -103,12 +120,29 @@ impl OverlayState {
         self.close_model_picker();
         self.close_shell_picker();
         self.close_user_menu();
+        self.close_update_dropdown();
         self.dismiss_confirm_close();
         self.usage_panel_open = false;
         self.pro_panel_open = false;
         self.pro_license_input.clear();
         self.pro_license_cursor = 0;
         self.pro_license_focused = false;
+    }
+
+    /// Toggle the update dropdown beneath the badge.
+    pub fn toggle_update_dropdown(&mut self) {
+        self.update_dropdown_open = !self.update_dropdown_open;
+        self.update_dropdown_hovered = None;
+        if self.update_dropdown_open {
+            self.close_user_menu();
+            self.close_shell_picker();
+        }
+    }
+
+    /// Close the update dropdown.
+    pub fn close_update_dropdown(&mut self) {
+        self.update_dropdown_open = false;
+        self.update_dropdown_hovered = None;
     }
 
     /// Show the unsaved-file close confirmation dialog for the given tab index.
@@ -160,6 +194,13 @@ mod tests {
         assert!(!s.git_panel_hovered);
         assert!(s.confirm_close_tab.is_none());
         assert!(s.confirm_close_hovered.is_none());
+        assert!(s.update_available.is_none());
+        assert!(!s.update_downloading);
+        assert!(s.update_downloaded.is_none());
+        assert!(!s.update_badge_hovered);
+        assert!(!s.update_dropdown_open);
+        assert!(s.update_dropdown_hovered.is_none());
+        assert!(s.update_badge_w.is_none());
     }
 
     #[test]

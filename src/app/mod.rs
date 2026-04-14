@@ -625,6 +625,11 @@ impl ApplicationHandler<TerminalEvent> for App {
 
         self.create_tab(None);
         self.auto_load_model();
+
+        if self.config.updates.auto_check {
+            crate::updater::spawn_update_check(self.proxy.clone());
+        }
+
         self.request_redraw();
     }
 
@@ -841,8 +846,41 @@ impl ApplicationHandler<TerminalEvent> for App {
 
                 let sandbox_info = self.build_sandbox_info();
 
+                let update_visible = self.overlay.update_available.is_some()
+                    || self.overlay.update_downloading
+                    || self.overlay.update_downloaded.is_some();
+
+                let update_new_version: Option<String> = self
+                    .overlay
+                    .update_available
+                    .as_ref()
+                    .map(|info| info.version.to_string());
+                let update_downloading = self.overlay.update_downloading;
+                let update_dropdown_open = self.overlay.update_dropdown_open;
+                let update_dd_hovered = self.overlay.update_dropdown_hovered;
+                let update_badge_hovered_val = self.overlay.update_badge_hovered;
+
                 if let Some(renderer) = &mut self.renderer {
                     let frame_start = Instant::now();
+
+                    let update_badge_w: Option<f32> = if update_visible {
+                        Some(crate::ui::components::tab_bar::update_badge_logical_width(
+                            &mut renderer.font_system,
+                            renderer.scale_factor as f32,
+                        ))
+                    } else {
+                        None
+                    };
+                    self.overlay.update_badge_w = update_badge_w;
+
+                    let update_dropdown_data: Option<(&str, bool, Option<usize>)> =
+                        if update_dropdown_open {
+                            update_new_version
+                                .as_deref()
+                                .map(|v| (v, update_downloading, update_dd_hovered))
+                        } else {
+                            None
+                        };
 
                     let confirm_close_data: Option<(String, Option<usize>)> =
                         self.overlay.confirm_close_tab.and_then(|idx| {
@@ -881,6 +919,9 @@ impl ApplicationHandler<TerminalEvent> for App {
                         self.overlay.user_menu_open,
                         self.overlay.user_menu_hovered,
                         self.license_mgr.is_pro(),
+                        update_badge_w,
+                        update_badge_hovered_val,
+                        update_dropdown_data,
                         input_type,
                         prompt_info.as_ref(),
                         &self.smart_input,
@@ -1161,6 +1202,40 @@ impl ApplicationHandler<TerminalEvent> for App {
             }
             TerminalEvent::ToastLevel(msg, level) => {
                 self.toast_mgr.push(msg, level);
+                self.pending_redraw = true;
+            }
+            TerminalEvent::UpdateAvailable(info) => {
+                let version_label = format!("v{}", info.version);
+                self.overlay.update_available = Some(info);
+                self.toast_mgr.push(
+                    format!("Update available: {version_label}"),
+                    crate::ui::components::toast::ToastLevel::Info,
+                );
+                self.pending_redraw = true;
+            }
+            TerminalEvent::UpdateDownloaded(path) => {
+                self.overlay.update_downloading = false;
+                match crate::updater::stage_update(&path) {
+                    Ok(()) => {
+                        crate::updater::spawn_relaunch();
+                        event_loop.exit();
+                    }
+                    Err(e) => {
+                        self.overlay.update_downloaded = Some(path);
+                        self.toast_mgr.push(
+                            format!("Update staging failed: {e}"),
+                            crate::ui::components::toast::ToastLevel::Error,
+                        );
+                    }
+                }
+                self.pending_redraw = true;
+            }
+            TerminalEvent::UpdateFailed(msg) => {
+                self.overlay.update_downloading = false;
+                self.toast_mgr.push(
+                    format!("Update error: {msg}"),
+                    crate::ui::components::toast::ToastLevel::Error,
+                );
                 self.pending_redraw = true;
             }
         }
