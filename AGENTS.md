@@ -72,6 +72,8 @@ src/
 
 **Rendering model**: Awebo uses a custom pixel-based renderer, not a retained-mode GUI framework. Every frame, the `Renderer` composites UI elements into a `PixelBuffer` which is presented via wgpu (GPU) or softbuffer (CPU fallback). All drawing functions are stateless - they take a buffer reference and draw into it.
 
+**GPU overlay z-order**: When the GPU backend is active, terminal cell glyphs are rendered via a GPU shader that composites ON TOP of the pixel buffer contents after `begin_frame`. Any overlay, dropdown, or popup that must appear above terminal text **must** be included in the `has_overlay` flag (`renderer/mod.rs`). When `has_overlay` is true, glyphs fall back to CPU blitting (drawn into the pixel buffer before overlays), ensuring correct z-order. Forgetting to add a new overlay to `has_overlay` will cause it to render behind GPU-rendered terminal text.
+
 **Terminal**: PTY management wraps `alacritty_terminal`. The `Terminal` struct owns the PTY and provides query methods for grid state, cursor, colors, etc.
 
 ## Code Conventions
@@ -129,7 +131,7 @@ All jobs run on `macos-latest`. Permissions are locked down (top-level `permissi
 
 **Adding a new UI component**: Create a file in `src/ui/components/`, export a stateless `draw_*` function that takes `&mut PixelBuffer` and returns layout info. Wire it into the renderer's `render()` method.
 
-**Adding a new overlay/modal**: Add to `src/ui/components/overlay/`, register state in `OverlayState` (`src/app/state.rs`), handle input in `actions.rs`.
+**Adding a new overlay/modal**: Add to `src/ui/components/overlay/`, register state in `OverlayState` (`src/app/state.rs`), handle input in `actions.rs`. Add the new overlay to the `has_overlay` flag in `renderer/mod.rs` so GPU-rendered terminal text does not paint over it.
 
 **Adding a tree-sitter grammar**: Drop a directory into `vendor/grammars/` with `grammar.toml`, `parser.c`, `scanner.c` (optional), and `.scm` query files. The build script handles the rest.
 

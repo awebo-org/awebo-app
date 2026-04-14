@@ -1015,10 +1015,21 @@ impl ApplicationHandler<TerminalEvent> for App {
                         } else {
                             None
                         },
+                        self.overlay.cwd_badge_hovered,
+                        if self.overlay.cwd_dropdown_open {
+                            Some((
+                                self.overlay.cwd_dropdown_entries.as_slice(),
+                                self.overlay.cwd_dropdown_hovered,
+                                self.overlay.cwd_dropdown_scroll,
+                            ))
+                        } else {
+                            None
+                        },
                     );
                     if let Some(rects) = hit_rects {
                         self.overlay.ctx_bar_rect = rects.ctx_bar;
                         self.overlay.stop_button_rect = rects.stop_button;
+                        self.overlay.cwd_badge_rect = rects.cwd_badge;
                     }
                     let frame_ms = frame_start.elapsed().as_secs_f64() * 1000.0;
                     self.last_frame_ms = frame_ms;

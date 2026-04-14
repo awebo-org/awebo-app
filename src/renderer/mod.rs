@@ -355,6 +355,8 @@ impl Renderer {
             &crate::ui::components::usage_limit_banner::UsageLimitBannerState,
             &crate::usage::UsageTracker,
         )>,
+        cwd_badge_hovered: bool,
+        cwd_dropdown: Option<(&[String], Option<usize>, usize)>,
     ) -> Option<crate::ui::components::prompt_bar::PromptBarHitRects> {
         let w = self.width as usize;
         let h = self.height as usize;
@@ -366,6 +368,7 @@ impl Renderer {
         let mut prompt_hit_rects = crate::ui::components::prompt_bar::PromptBarHitRects {
             ctx_bar: None,
             stop_button: None,
+            cwd_badge: None,
         };
 
         self.pixel_buf.ensure_size(w, h, theme::BG);
@@ -449,7 +452,8 @@ impl Renderer {
             || input_field.slash_menu_open
             || context_menu.is_some()
             || pro_panel.is_some()
-            || usage_limit_banner.is_some();
+            || usage_limit_banner.is_some()
+            || cwd_dropdown.is_some();
 
         if let Some(settings_state) = settings {
             crate::ui::components::overlay::draw_settings(
@@ -706,6 +710,7 @@ impl Renderer {
                     model_name,
                     ai_thinking,
                     pending_line_text.as_deref(),
+                    cwd_badge_hovered,
                 );
             }
 
@@ -765,6 +770,22 @@ impl Renderer {
                 input_field,
                 slash_pad,
                 prompt_y,
+                sf,
+            );
+        }
+
+        if let Some((entries, hovered_idx, scroll)) = cwd_dropdown
+            && let Some((bx, by, _, _)) = prompt_hit_rects.cwd_badge
+        {
+            crate::ui::components::prompt_bar::cwd_dropdown::draw_cwd_dropdown(
+                &mut self.pixel_buf,
+                &mut self.font_system,
+                &mut self.swash_cache,
+                entries,
+                bx,
+                by,
+                scroll,
+                hovered_idx,
                 sf,
             );
         }

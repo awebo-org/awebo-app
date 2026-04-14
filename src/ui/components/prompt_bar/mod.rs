@@ -1,4 +1,5 @@
 pub mod badges;
+pub mod cwd_dropdown;
 
 use std::time::{Duration, Instant};
 
@@ -19,6 +20,7 @@ use super::overlay::fill_rounded_rect;
 pub struct PromptBarHitRects {
     pub ctx_bar: Option<(usize, usize, usize, usize)>,
     pub stop_button: Option<(usize, usize, usize, usize)>,
+    pub cwd_badge: Option<(usize, usize, usize, usize)>,
 }
 
 const SEGMENT_H_LOGICAL: f32 = 20.0;
@@ -365,6 +367,7 @@ pub fn draw(
     model_name: Option<&str>,
     ai_thinking: bool,
     pending_line_text: Option<&str>,
+    cwd_badge_hovered: bool,
 ) -> PromptBarHitRects {
     let has_pending = input.pending_command.is_some();
     let total_h = if has_pending {
@@ -408,6 +411,8 @@ pub fn draw(
     let icon_sz = (seg_h as f32 * 0.6).round() as u32;
     let icon_gap = (3.0 * sf) as usize;
 
+    let mut cwd_badge_rect: Option<(usize, usize, usize, usize)> = None;
+
     for seg in &info.segments {
         let text = &seg.text;
         let text_w = measure_text_width_bold(font_system, text, seg_metrics, Family::Monospace)
@@ -425,11 +430,29 @@ pub fn draw(
         };
         let seg_w = pad_x + icon_space + text_w + pad_x;
 
-        stroke_rounded_rect(buf, x, seg_y, seg_w, seg_h, radius, sf, BORDER_COLOR);
+        let is_cwd = matches!(seg.kind, SegmentKind::Cwd);
+        let hovered = is_cwd && cwd_badge_hovered;
+
+        if hovered {
+            fill_rounded_rect(buf, x, seg_y, seg_w, seg_h, radius, theme::BG_ELEVATED);
+        }
+
+        stroke_rounded_rect(
+            buf,
+            x,
+            seg_y,
+            seg_w,
+            seg_h,
+            radius,
+            sf,
+            if hovered { theme::FG_DIM } else { BORDER_COLOR },
+        );
+
+        let fg = if hovered { theme::FG_BRIGHT } else { seg.fg };
 
         if let Some(ic) = icon {
             let icon_y = seg_y + (seg_h.saturating_sub(icon_sz as usize)) / 2;
-            icon_renderer.draw(buf, ic, x + pad_x, icon_y, icon_sz, seg.fg);
+            icon_renderer.draw(buf, ic, x + pad_x, icon_y, icon_sz, fg);
         }
 
         let text_x = x + pad_x + icon_space;
@@ -443,9 +466,13 @@ pub fn draw(
             buf.height,
             text,
             seg_metrics,
-            seg.fg,
+            fg,
             Family::Monospace,
         );
+
+        if is_cwd {
+            cwd_badge_rect = Some((x, seg_y, seg_w, seg_h));
+        }
 
         x += seg_w + gap;
     }
@@ -782,6 +809,7 @@ pub fn draw(
     PromptBarHitRects {
         ctx_bar: None,
         stop_button: stop_button_rect,
+        cwd_badge: cwd_badge_rect,
     }
 }
 
@@ -1027,9 +1055,11 @@ mod tests {
         let rects = PromptBarHitRects {
             ctx_bar: None,
             stop_button: None,
+            cwd_badge: None,
         };
         assert!(rects.ctx_bar.is_none());
         assert!(rects.stop_button.is_none());
+        assert!(rects.cwd_badge.is_none());
     }
 
     #[test]

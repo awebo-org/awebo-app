@@ -57,6 +57,13 @@ pub(crate) struct OverlayState {
     pub update_dropdown_hovered: Option<usize>,
     /// Cached logical width of the update badge (set during rendering).
     pub update_badge_w: Option<f32>,
+
+    pub cwd_badge_rect: Option<(usize, usize, usize, usize)>,
+    pub cwd_badge_hovered: bool,
+    pub cwd_dropdown_open: bool,
+    pub cwd_dropdown_entries: Vec<String>,
+    pub cwd_dropdown_hovered: Option<usize>,
+    pub cwd_dropdown_scroll: usize,
 }
 
 impl OverlayState {
@@ -121,6 +128,7 @@ impl OverlayState {
         self.close_shell_picker();
         self.close_user_menu();
         self.close_update_dropdown();
+        self.close_cwd_dropdown();
         self.dismiss_confirm_close();
         self.usage_panel_open = false;
         self.pro_panel_open = false;
@@ -160,6 +168,20 @@ impl OverlayState {
     /// Whether the confirm-close dialog is currently shown.
     pub fn is_confirm_close_open(&self) -> bool {
         self.confirm_close_tab.is_some()
+    }
+
+    pub fn open_cwd_dropdown(&mut self, entries: Vec<String>) {
+        self.cwd_dropdown_open = true;
+        self.cwd_dropdown_entries = entries;
+        self.cwd_dropdown_hovered = None;
+        self.cwd_dropdown_scroll = 0;
+    }
+
+    pub fn close_cwd_dropdown(&mut self) {
+        self.cwd_dropdown_open = false;
+        self.cwd_dropdown_entries.clear();
+        self.cwd_dropdown_hovered = None;
+        self.cwd_dropdown_scroll = 0;
     }
 }
 
@@ -201,6 +223,12 @@ mod tests {
         assert!(!s.update_dropdown_open);
         assert!(s.update_dropdown_hovered.is_none());
         assert!(s.update_badge_w.is_none());
+        assert!(s.cwd_badge_rect.is_none());
+        assert!(!s.cwd_badge_hovered);
+        assert!(!s.cwd_dropdown_open);
+        assert!(s.cwd_dropdown_entries.is_empty());
+        assert!(s.cwd_dropdown_hovered.is_none());
+        assert_eq!(s.cwd_dropdown_scroll, 0);
     }
 
     #[test]

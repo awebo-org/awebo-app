@@ -226,6 +226,14 @@ impl super::super::App {
                 return;
             }
 
+            if self.overlay.cwd_dropdown_open {
+                if matches!(logical_key.as_ref(), Key::Named(NamedKey::Escape)) {
+                    self.overlay.close_cwd_dropdown();
+                    self.request_redraw();
+                }
+                return;
+            }
+
             if self.overlay.palette_open {
                 match logical_key.as_ref() {
                     Key::Named(NamedKey::Escape) => {
@@ -1742,6 +1750,83 @@ impl super::super::App {
                     }
                 }
 
+                if self.overlay.cwd_dropdown_open {
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
+                    if let Some((bx, by, _, _)) = self.overlay.cwd_badge_rect {
+                        if let Some(idx) = crate::ui::components::prompt_bar::cwd_dropdown::hit_test(
+                            self.cursor_pos.0,
+                            self.cursor_pos.1,
+                            bx,
+                            by,
+                            self.overlay.cwd_dropdown_entries.len(),
+                            self.overlay.cwd_dropdown_scroll,
+                            sf,
+                        ) {
+                            let dir_name = self.overlay.cwd_dropdown_entries[idx].clone();
+                            self.overlay.close_cwd_dropdown();
+                            let cwd = self.resolve_cwd().unwrap_or_else(|| "~".into());
+                            let target = std::path::Path::new(&cwd).join(&dir_name);
+                            let path_str = target.to_string_lossy().to_string();
+                            let cmd_text = format!("cd {}", shell_escape(&path_str));
+                            if let Some(crate::app::TabKind::Terminal {
+                                terminal,
+                                block_list,
+                                ..
+                            }) = self.tab_mgr.active_tab_mut().map(|t| &mut t.kind)
+                            {
+                                block_list.capture_output(terminal);
+                                let prompt_info = terminal.prompt_info();
+                                block_list.push_command(prompt_info, cmd_text.clone());
+                                let cmd = format!("{cmd_text}\n");
+                                terminal.input(std::borrow::Cow::Owned(cmd.into_bytes()));
+                                self.smart_input.pending_command = Some(cmd_text);
+                                self.smart_input.command_started = Some(std::time::Instant::now());
+                            }
+                            self.request_redraw();
+                            return;
+                        }
+
+                        let in_dropdown = crate::ui::components::prompt_bar::cwd_dropdown::contains(
+                            self.cursor_pos.0,
+                            self.cursor_pos.1,
+                            bx,
+                            by,
+                            self.overlay.cwd_dropdown_entries.len(),
+                            sf,
+                        );
+                        if !in_dropdown {
+                            self.overlay.close_cwd_dropdown();
+                            self.request_redraw();
+                        }
+                    } else {
+                        self.overlay.close_cwd_dropdown();
+                        self.request_redraw();
+                    }
+                }
+
+                if let Some((rx, ry, rw, rh)) = self.overlay.cwd_badge_rect {
+                    let cx = self.cursor_pos.0 as usize;
+                    let cy = self.cursor_pos.1 as usize;
+                    if cx >= rx && cx < rx + rw && cy >= ry && cy < ry + rh {
+                        if self.overlay.cwd_dropdown_open {
+                            self.overlay.close_cwd_dropdown();
+                        } else {
+                            let cwd = self.resolve_cwd().unwrap_or_else(|| "~".into());
+                            let entries =
+                                crate::ui::components::prompt_bar::cwd_dropdown::list_subdirectories(
+                                    &cwd,
+                                );
+                            self.overlay.open_cwd_dropdown(entries);
+                        }
+                        self.request_redraw();
+                        return;
+                    }
+                }
+
                 if self.usage_limit_banner.is_visible()
                     && let Some(renderer) = &self.renderer
                 {
@@ -2810,6 +2895,47 @@ impl super::super::App {
                 }
 
                 {
+                    let prev = self.overlay.cwd_badge_hovered;
+                    self.overlay.cwd_badge_hovered =
+                        if let Some((rx, ry, rw, rh)) = self.overlay.cwd_badge_rect {
+                            let cx = self.cursor_pos.0 as usize;
+                            let cy = self.cursor_pos.1 as usize;
+                            cx >= rx && cx < rx + rw && cy >= ry && cy < ry + rh
+                        } else {
+                            false
+                        };
+                    if self.overlay.cwd_badge_hovered != prev {
+                        self.request_redraw();
+                    }
+                }
+
+                if self.overlay.cwd_dropdown_open {
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
+                    let prev = self.overlay.cwd_dropdown_hovered;
+                    self.overlay.cwd_dropdown_hovered =
+                        if let Some((bx, by, _, _)) = self.overlay.cwd_badge_rect {
+                            crate::ui::components::prompt_bar::cwd_dropdown::hover_test(
+                                self.cursor_pos.0,
+                                self.cursor_pos.1,
+                                bx,
+                                by,
+                                self.overlay.cwd_dropdown_entries.len(),
+                                self.overlay.cwd_dropdown_scroll,
+                                sf,
+                            )
+                        } else {
+                            None
+                        };
+                    if self.overlay.cwd_dropdown_hovered != prev {
+                        self.request_redraw();
+                    }
+                }
+
+                {
                     let prev_link = self.hovered_link.take();
                     let is_smart = self.settings_state.input_type == InputType::Smart;
                     let is_app = self
@@ -2946,6 +3072,10 @@ impl super::super::App {
                     let shell_picker_interactive = self.overlay.shell_picker_open
                         && self.overlay.shell_picker_hovered.is_some();
 
+                    let cwd_interactive = self.overlay.cwd_badge_hovered
+                        || (self.overlay.cwd_dropdown_open
+                            && self.overlay.cwd_dropdown_hovered.is_some());
+
                     let editor_text_area = self.is_editor_active()
                         && !panel_resize_active
                         && !right_resize_active
@@ -2983,6 +3113,7 @@ impl super::super::App {
                         || banner_interactive
                         || git_panel_interactive
                         || shell_picker_interactive
+                        || cwd_interactive
                     {
                         window.set_cursor(winit::window::CursorIcon::Pointer);
                     } else {
