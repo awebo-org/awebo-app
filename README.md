@@ -1,17 +1,22 @@
 # Awebo
 
+[![CI](https://github.com/awebo-org/awebo-app/actions/workflows/ci.yml/badge.svg)](https://github.com/awebo-org/awebo-app/actions/workflows/ci.yml)
+[![Release](https://github.com/awebo-org/awebo-app/actions/workflows/release.yml/badge.svg)](https://github.com/awebo-org/awebo-app/actions/workflows/release.yml)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-2024_edition-orange.svg)](https://www.rust-lang.org)
+
 A GPU-accelerated terminal emulator with built-in AI, sandboxed environments, and git integration. Built with Rust.
 
 ## Features
 
-- **GPU-accelerated rendering** — wgpu backend with instanced glyph rendering; automatic CPU (softbuffer) fallback
-- **Built-in AI assistant** — local LLM inference via llama.cpp with GGUF model management and web search
-- **Sandboxed environments** — isolated terminal sessions powered by microsandbox with OCI image support
-- **Git integration** — built-in git panel with libgit2
-- **Syntax highlighting** — tree-sitter based highlighting in the editor and terminal views
-- **Tabs & split views** — multi-tab interface with side panels, file tree, and editor
-- **Customizable** — TOML configuration for appearance, AI, shell, and sandbox defaults
-- **Native feel** — system menus, clipboard, and macOS-native window integration
+- **GPU-accelerated rendering** - wgpu backend with instanced glyph rendering; automatic CPU (softbuffer) fallback
+- **Built-in AI assistant** - local LLM inference via llama.cpp with GGUF model management and web search
+- **Sandboxed environments** - isolated terminal sessions powered by microsandbox with OCI image support
+- **Git integration** - built-in git panel with libgit2
+- **Syntax highlighting** - tree-sitter based highlighting in the editor and terminal views
+- **Tabs & split views** - multi-tab interface with side panels, file tree, and editor
+- **Customizable** - TOML configuration for appearance, AI, shell, and sandbox defaults
+- **Native feel** - system menus, clipboard, and macOS-native window integration
 
 ## Requirements
 
@@ -43,15 +48,15 @@ git push origin v1.0.0
 ### Pre-release (alpha → beta → rc → stable)
 
 ```bash
-# Alpha — early testing, expect breaking changes
+# Alpha - early testing, expect breaking changes
 git tag v1.0.0-alpha.1
 git push origin v1.0.0-alpha.1
 
-# Beta — feature-complete, bug fixes only
+# Beta - feature-complete, bug fixes only
 git tag v1.0.0-beta.1
 git push origin v1.0.0-beta.1
 
-# Release candidate — final validation before stable
+# Release candidate - final validation before stable
 git tag v1.0.0-rc.1
 git push origin v1.0.0-rc.1
 
@@ -115,7 +120,7 @@ Awebo is licensed under the [Business Source License 1.1](LICENSE) (BSL 1.1).
 
 - **Personal use**: Free. Build it, use it, hack on it.
 - **Commercial / production use**: Requires a [commercial license](https://awebo.sh). This supports continued development.
-- **After 4 years**: Each version automatically converts to Apache 2.0 — a permissive open-source license with no commercial restrictions.
+- **After 4 years**: Each version automatically converts to Apache 2.0 - a permissive open-source license with no commercial restrictions.
 
 This model (used by Sentry, CockroachDB, HashiCorp, and others) balances open development with sustainable funding.
 
