@@ -837,6 +837,7 @@ impl super::App {
             None => return false,
         };
         let mut any = false;
+        let active_idx = self.tab_mgr.active_index();
         for i in 0..self.tab_mgr.len() {
             let tab = match self.tab_mgr.get(i) {
                 Some(t) => t,
@@ -849,18 +850,6 @@ impl super::App {
                 _ => continue,
             };
             if now_app != prev {
-                if !now_app
-                    && i == self.tab_mgr.active_index()
-                    && let Some(tab) = self.tab_mgr.get_mut(i)
-                    && let TabKind::Terminal {
-                        terminal,
-                        block_list,
-                        ..
-                    } = &mut tab.kind
-                {
-                    block_list.finish_app_block(terminal);
-                }
-
                 let ws = Self::compute_window_size(renderer, now_app);
                 log::info!(
                     "tab {} app_controlled {} -> {}: resize to {}x{} (cell {}x{})",
@@ -874,11 +863,17 @@ impl super::App {
                 );
                 if let Some(tab) = self.tab_mgr.get_mut(i)
                     && let TabKind::Terminal {
-                        terminal, is_alt, ..
+                        terminal,
+                        block_list,
+                        is_alt,
+                        ..
                     } = &mut tab.kind
                 {
                     terminal.resize(ws);
                     *is_alt = now_app;
+                    if !now_app && i == active_idx {
+                        block_list.finish_app_block(terminal);
+                    }
                 }
                 any = true;
             }

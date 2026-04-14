@@ -1031,7 +1031,11 @@ impl ApplicationHandler<TerminalEvent> for App {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: TerminalEvent) {
         match event {
             TerminalEvent::Wakeup => {
-                self.sync_app_state();
+                if self.sync_app_state()
+                    && let Some(r) = self.renderer.as_mut()
+                {
+                    r.invalidate_grid_cache();
+                }
 
                 let model_just_loaded = self.ai_ctrl.state.poll_model_events();
 
