@@ -84,6 +84,7 @@ pub(crate) struct App {
     scrollbar_drag_start_scroll: f32,
     editor_scrollbar: crate::ui::components::editor_renderer::ScrollbarHit,
     editor_scrollbar_dragging: crate::ui::components::editor_renderer::ScrollbarHit,
+    editor_selecting: bool,
     is_fullscreen: bool,
     syntax: crate::ui::syntax::SyntaxRegistry,
     context_menu: Option<crate::ui::components::context_menu::ContextMenuState>,
@@ -177,6 +178,7 @@ impl App {
             scrollbar_drag_start_scroll: 0.0,
             editor_scrollbar: crate::ui::components::editor_renderer::ScrollbarHit::None,
             editor_scrollbar_dragging: crate::ui::components::editor_renderer::ScrollbarHit::None,
+            editor_selecting: false,
             is_fullscreen: false,
             syntax: {
                 let mut reg = crate::ui::syntax::SyntaxRegistry::new();
@@ -1114,7 +1116,7 @@ impl ApplicationHandler<TerminalEvent> for App {
                     } else if menu_event.id == app_menu.paste_id {
                         Some(AppAction::Paste)
                     } else if menu_event.id == app_menu.cut_id {
-                        Some(AppAction::Copy)
+                        Some(AppAction::Cut)
                     } else if menu_event.id == app_menu.select_all_id {
                         Some(AppAction::SelectAll)
                     } else {

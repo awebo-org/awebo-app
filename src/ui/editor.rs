@@ -19,6 +19,10 @@ pub enum CursorMove {
     Down,
     Home,
     End,
+    WordLeft,
+    WordRight,
+    DocumentStart,
+    DocumentEnd,
     PageUp(usize),
     PageDown(usize),
 }
@@ -302,6 +306,26 @@ impl EditorState {
             CursorMove::End => {
                 self.cursor_col = self.lines[self.cursor_line].len();
             }
+            CursorMove::WordLeft => {
+                let (line, col) =
+                    word_boundary_left(&self.lines, self.cursor_line, self.cursor_col);
+                self.cursor_line = line;
+                self.cursor_col = col;
+            }
+            CursorMove::WordRight => {
+                let (line, col) =
+                    word_boundary_right(&self.lines, self.cursor_line, self.cursor_col);
+                self.cursor_line = line;
+                self.cursor_col = col;
+            }
+            CursorMove::DocumentStart => {
+                self.cursor_line = 0;
+                self.cursor_col = 0;
+            }
+            CursorMove::DocumentEnd => {
+                self.cursor_line = self.lines.len() - 1;
+                self.cursor_col = self.lines[self.cursor_line].len();
+            }
             CursorMove::PageUp(visible_lines) => {
                 self.cursor_line = self.cursor_line.saturating_sub(visible_lines);
                 self.cursor_col = self.cursor_col.min(self.lines[self.cursor_line].len());
@@ -412,6 +436,66 @@ impl EditorState {
         }
     }
 
+    /// Option+Backspace — delete one word backward.
+    pub fn delete_word_backward(&mut self) {
+        if self.mode != EditorMode::Text {
+            return;
+        }
+        if self.delete_selection() {
+            return;
+        }
+        let (new_line, new_col) =
+            word_boundary_left(&self.lines, self.cursor_line, self.cursor_col);
+        if new_line == self.cursor_line {
+            self.lines[self.cursor_line].drain(new_col..self.cursor_col);
+            self.cursor_col = new_col;
+        } else {
+            let tail = self.lines[self.cursor_line][self.cursor_col..].to_string();
+            self.lines[new_line].truncate(new_col);
+            self.lines[new_line].push_str(&tail);
+            self.lines.drain((new_line + 1)..=self.cursor_line);
+            self.cursor_line = new_line;
+            self.cursor_col = new_col;
+        }
+        self.mark_modified();
+    }
+
+    /// Option+Delete — delete one word forward.
+    pub fn delete_word_forward(&mut self) {
+        if self.mode != EditorMode::Text {
+            return;
+        }
+        if self.delete_selection() {
+            return;
+        }
+        let (new_line, new_col) =
+            word_boundary_right(&self.lines, self.cursor_line, self.cursor_col);
+        if new_line == self.cursor_line {
+            self.lines[self.cursor_line].drain(self.cursor_col..new_col);
+        } else {
+            let tail = self.lines[new_line][new_col..].to_string();
+            self.lines[self.cursor_line].truncate(self.cursor_col);
+            self.lines[self.cursor_line].push_str(&tail);
+            self.lines.drain((self.cursor_line + 1)..=new_line);
+        }
+        self.mark_modified();
+    }
+
+    /// Cmd+Backspace — delete from cursor to line start.
+    pub fn delete_to_line_start(&mut self) {
+        if self.mode != EditorMode::Text {
+            return;
+        }
+        if self.delete_selection() {
+            return;
+        }
+        if self.cursor_col > 0 {
+            self.lines[self.cursor_line].drain(..self.cursor_col);
+            self.cursor_col = 0;
+            self.mark_modified();
+        }
+    }
+
     /// Delete the selected region. Returns true if selection was deleted.
     pub fn delete_selection(&mut self) -> bool {
         let (sl, sc, el, ec) = match self.selection_range() {
@@ -487,6 +571,90 @@ impl EditorState {
             }
         }
     }
+
+    pub fn set_cursor_pos_selecting(&mut self, line: usize, col: usize) {
+        if self.sel_anchor.is_none() {
+            self.sel_anchor = Some((self.cursor_line, self.cursor_col));
+        }
+        self.cursor_line = line.min(self.lines.len().saturating_sub(1));
+        self.cursor_col = col.min(self.lines[self.cursor_line].len());
+    }
+}
+
+fn word_boundary_left(lines: &[String], line: usize, col: usize) -> (usize, usize) {
+    if col == 0 {
+        if line == 0 {
+            return (0, 0);
+        }
+        return (line - 1, lines[line - 1].len());
+    }
+
+    let s = &lines[line];
+    let mut i = prev_char_boundary(s, col);
+
+    while i > 0 && s.as_bytes()[i - 1].is_ascii_whitespace() {
+        i = prev_char_boundary(s, i);
+    }
+
+    while i > 0 && !s.as_bytes()[i - 1].is_ascii_whitespace() && !is_word_sep(s.as_bytes()[i - 1]) {
+        i = prev_char_boundary(s, i);
+    }
+    (line, i)
+}
+
+fn word_boundary_right(lines: &[String], line: usize, col: usize) -> (usize, usize) {
+    let s = &lines[line];
+    if col >= s.len() {
+        if line + 1 >= lines.len() {
+            return (line, s.len());
+        }
+        return (line + 1, 0);
+    }
+
+    let mut i = col;
+
+    while i < s.len() && !s.as_bytes()[i].is_ascii_whitespace() && !is_word_sep(s.as_bytes()[i]) {
+        i = next_char_boundary(s, i);
+    }
+
+    while i < s.len() && s.as_bytes()[i].is_ascii_whitespace() {
+        i = next_char_boundary(s, i);
+    }
+    (line, i)
+}
+
+fn is_word_sep(b: u8) -> bool {
+    matches!(
+        b,
+        b'(' | b')'
+            | b'['
+            | b']'
+            | b'{'
+            | b'}'
+            | b'"'
+            | b'\''
+            | b','
+            | b';'
+            | b':'
+            | b'.'
+            | b'/'
+            | b'\\'
+            | b'='
+            | b'+'
+            | b'-'
+            | b'*'
+            | b'<'
+            | b'>'
+            | b'&'
+            | b'|'
+            | b'!'
+            | b'@'
+            | b'#'
+            | b'%'
+            | b'^'
+            | b'~'
+            | b'`'
+    )
 }
 
 fn prev_char_boundary(s: &str, pos: usize) -> usize {
@@ -754,15 +922,6 @@ impl EditorState {
             diff_lines: Vec::new(),
         }
     }
-
-    /// Place cursor at (line, col) and start/extend selection from anchor.
-    pub fn set_cursor_pos_selecting(&mut self, line: usize, col: usize) {
-        if self.sel_anchor.is_none() {
-            self.sel_anchor = Some((self.cursor_line, self.cursor_col));
-        }
-        self.cursor_line = line.min(self.lines.len().saturating_sub(1));
-        self.cursor_col = col.min(self.lines[self.cursor_line].len());
-    }
 }
 
 #[cfg(test)]
@@ -933,5 +1092,103 @@ mod tests {
         assert_eq!(s.lines, vec!["line1", "line2", "line3"]);
         assert_eq!(s.cursor_line(), 2);
         assert_eq!(s.cursor_col(), 5);
+    }
+
+    #[test]
+    fn word_boundary_left_basic() {
+        let lines = vec!["hello world".to_string()];
+        assert_eq!(word_boundary_left(&lines, 0, 11), (0, 6));
+        assert_eq!(word_boundary_left(&lines, 0, 6), (0, 0));
+        assert_eq!(word_boundary_left(&lines, 0, 0), (0, 0));
+    }
+
+    #[test]
+    fn word_boundary_right_basic() {
+        let lines = vec!["hello world".to_string()];
+        assert_eq!(word_boundary_right(&lines, 0, 0), (0, 6));
+        assert_eq!(word_boundary_right(&lines, 0, 6), (0, 11));
+    }
+
+    #[test]
+    fn word_boundary_left_wraps_to_prev_line() {
+        let lines = vec!["first".to_string(), "second".to_string()];
+        assert_eq!(word_boundary_left(&lines, 1, 0), (0, 5));
+    }
+
+    #[test]
+    fn word_boundary_right_wraps_to_next_line() {
+        let lines = vec!["first".to_string(), "second".to_string()];
+        assert_eq!(word_boundary_right(&lines, 0, 5), (1, 0));
+    }
+
+    #[test]
+    fn move_cursor_word_left() {
+        let mut s = text_state(&["hello world"]);
+        s.cursor_col = 11;
+        s.move_cursor(CursorMove::WordLeft, false);
+        assert_eq!(s.cursor_col(), 6);
+        s.move_cursor(CursorMove::WordLeft, false);
+        assert_eq!(s.cursor_col(), 0);
+    }
+
+    #[test]
+    fn move_cursor_word_right() {
+        let mut s = text_state(&["hello world"]);
+        s.move_cursor(CursorMove::WordRight, false);
+        assert_eq!(s.cursor_col(), 6);
+        s.move_cursor(CursorMove::WordRight, false);
+        assert_eq!(s.cursor_col(), 11);
+    }
+
+    #[test]
+    fn move_cursor_document_start() {
+        let mut s = text_state(&["line1", "line2", "line3"]);
+        s.cursor_line = 2;
+        s.cursor_col = 3;
+        s.move_cursor(CursorMove::DocumentStart, false);
+        assert_eq!(s.cursor_line(), 0);
+        assert_eq!(s.cursor_col(), 0);
+    }
+
+    #[test]
+    fn move_cursor_document_end() {
+        let mut s = text_state(&["line1", "line2", "line3"]);
+        s.move_cursor(CursorMove::DocumentEnd, false);
+        assert_eq!(s.cursor_line(), 2);
+        assert_eq!(s.cursor_col(), 5);
+    }
+
+    #[test]
+    fn word_move_with_selection() {
+        let mut s = text_state(&["hello world"]);
+        s.move_cursor(CursorMove::WordRight, true);
+        assert_eq!(s.sel_anchor, Some((0, 0)));
+        assert_eq!(s.cursor_col(), 6);
+    }
+
+    #[test]
+    fn delete_word_backward_basic() {
+        let mut s = text_state(&["hello world"]);
+        s.cursor_col = 11;
+        s.delete_word_backward();
+        assert_eq!(s.lines[0], "hello ");
+        assert_eq!(s.cursor_col(), 6);
+    }
+
+    #[test]
+    fn delete_word_forward_basic() {
+        let mut s = text_state(&["hello world"]);
+        s.delete_word_forward();
+        assert_eq!(s.lines[0], "world");
+        assert_eq!(s.cursor_col(), 0);
+    }
+
+    #[test]
+    fn delete_to_line_start() {
+        let mut s = text_state(&["hello world"]);
+        s.cursor_col = 5;
+        s.delete_to_line_start();
+        assert_eq!(s.lines[0], " world");
+        assert_eq!(s.cursor_col(), 0);
     }
 }

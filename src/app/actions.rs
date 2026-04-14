@@ -182,6 +182,7 @@ pub enum AppAction {
 
     Copy,
     Paste,
+    Cut,
     SelectAll,
 
     /// Download the available update.
@@ -680,6 +681,9 @@ impl super::App {
             AppAction::Paste => {
                 self.perform_paste();
             }
+            AppAction::Cut => {
+                self.perform_cut();
+            }
             AppAction::SelectAll => {
                 self.perform_select_all();
             }
@@ -808,6 +812,7 @@ mod tests {
             AppAction::StopSandbox,
             AppAction::Copy,
             AppAction::Paste,
+            AppAction::Cut,
             AppAction::SelectAll,
             AppAction::ToggleGitPanel,
             AppAction::SwitchGitPanelTab {

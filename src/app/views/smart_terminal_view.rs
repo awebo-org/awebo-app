@@ -540,8 +540,86 @@ impl super::super::App {
                 use crate::ui::editor::CursorMove;
                 let sf = self.renderer.as_ref().unwrap().scale_factor as f32;
                 let vh = self.renderer.as_ref().unwrap().height as usize;
+                let alt = self.modifiers.alt_key();
+
+                // Cmd+Backspace — delete to line start
+                if super_key && matches!(logical_key.as_ref(), Key::Named(NamedKey::Backspace)) {
+                    if let Some(ed) = self.active_editor_state_mut() {
+                        ed.delete_to_line_start();
+                        ed.ensure_cursor_visible(sf, vh);
+                    }
+                    self.request_redraw();
+                    return;
+                }
+
+                // Option+Backspace — delete word backward
+                if alt && matches!(logical_key.as_ref(), Key::Named(NamedKey::Backspace)) {
+                    if let Some(ed) = self.active_editor_state_mut() {
+                        ed.delete_word_backward();
+                        ed.ensure_cursor_visible(sf, vh);
+                    }
+                    self.request_redraw();
+                    return;
+                }
+
+                // Option+Delete — delete word forward
+                if alt && matches!(logical_key.as_ref(), Key::Named(NamedKey::Delete)) {
+                    if let Some(ed) = self.active_editor_state_mut() {
+                        ed.delete_word_forward();
+                        ed.ensure_cursor_visible(sf, vh);
+                    }
+                    self.request_redraw();
+                    return;
+                }
 
                 let handled = match logical_key.as_ref() {
+                    // Cmd+Arrow — line/document boundaries
+                    Key::Named(NamedKey::ArrowLeft) if super_key => {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.move_cursor(CursorMove::Home, shift);
+                            ed.ensure_cursor_visible(sf, vh);
+                        }
+                        true
+                    }
+                    Key::Named(NamedKey::ArrowRight) if super_key => {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.move_cursor(CursorMove::End, shift);
+                            ed.ensure_cursor_visible(sf, vh);
+                        }
+                        true
+                    }
+                    Key::Named(NamedKey::ArrowUp) if super_key => {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.move_cursor(CursorMove::DocumentStart, shift);
+                            ed.ensure_cursor_visible(sf, vh);
+                        }
+                        true
+                    }
+                    Key::Named(NamedKey::ArrowDown) if super_key => {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.move_cursor(CursorMove::DocumentEnd, shift);
+                            ed.ensure_cursor_visible(sf, vh);
+                        }
+                        true
+                    }
+
+                    // Option+Arrow — word movement
+                    Key::Named(NamedKey::ArrowLeft) if alt => {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.move_cursor(CursorMove::WordLeft, shift);
+                            ed.ensure_cursor_visible(sf, vh);
+                        }
+                        true
+                    }
+                    Key::Named(NamedKey::ArrowRight) if alt => {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.move_cursor(CursorMove::WordRight, shift);
+                            ed.ensure_cursor_visible(sf, vh);
+                        }
+                        true
+                    }
+
+                    // Plain / Shift arrows
                     Key::Named(NamedKey::ArrowLeft) => {
                         if let Some(ed) = self.active_editor_state_mut() {
                             ed.move_cursor(CursorMove::Left, shift);
@@ -1360,6 +1438,7 @@ impl super::super::App {
         }
 
         let content_h = (renderer.height as usize).saturating_sub(bar_h);
+        let shift = self.modifiers.shift_key();
 
         if let Some(state) = self.active_editor_state()
             && let Some((line, col)) = crate::ui::components::editor_renderer::hit_test_cursor(
@@ -1368,9 +1447,14 @@ impl super::super::App {
         {
             let viewport_h = content_h;
             if let Some(ed) = self.active_editor_state_mut() {
-                ed.set_cursor_pos(line, col);
+                if shift {
+                    ed.set_cursor_pos_selecting(line, col);
+                } else {
+                    ed.set_cursor_pos(line, col);
+                }
                 ed.ensure_cursor_visible(sf, viewport_h);
             }
+            self.editor_selecting = true;
             self.request_redraw();
         }
     }
@@ -2071,6 +2155,7 @@ impl super::super::App {
                     self.request_redraw();
                 }
                 self.selecting = false;
+                self.editor_selecting = false;
             }
 
             WindowEvent::MouseInput {
@@ -2282,6 +2367,33 @@ impl super::super::App {
                         terminal.update_selection(point, side);
                         if let Some(r) = self.renderer.as_mut() {
                             r.invalidate_grid_cache();
+                        }
+                        self.request_redraw();
+                    }
+                }
+
+                if self.editor_selecting
+                    && let Some(renderer) = &self.renderer
+                {
+                    let sf = renderer.scale_factor as f32;
+                    let bar_h = renderer.tab_bar_height as usize;
+                    let x_off = self.side_panel_x_offset();
+                    let content_h = (renderer.height as usize).saturating_sub(bar_h);
+
+                    if let Some(state) = self.active_editor_state()
+                        && let Some((line, col)) =
+                            crate::ui::components::editor_renderer::hit_test_cursor(
+                                state,
+                                position.x as usize,
+                                position.y as usize,
+                                x_off,
+                                bar_h,
+                                sf,
+                            )
+                    {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.set_cursor_pos_selecting(line, col);
+                            ed.ensure_cursor_visible(sf, content_h);
                         }
                         self.request_redraw();
                     }
@@ -2662,8 +2774,19 @@ impl super::super::App {
                     let shell_picker_interactive = self.overlay.shell_picker_open
                         && self.overlay.shell_picker_hovered.is_some();
 
+                    let editor_text_area = self.is_editor_active()
+                        && !panel_resize_active
+                        && !right_resize_active
+                        && !tab_bar_interactive
+                        && self
+                            .renderer
+                            .as_ref()
+                            .is_some_and(|r| self.cursor_pos.1 > r.tab_bar_height as f64);
+
                     if panel_resize_active || right_resize_active {
                         window.set_cursor(winit::window::CursorIcon::ColResize);
+                    } else if editor_text_area {
+                        window.set_cursor(winit::window::CursorIcon::Text);
                     } else if tab_bar_interactive
                         || side_panel_interactive
                         || models_interactive
@@ -3351,6 +3474,22 @@ impl super::super::App {
     /// Tries block selection first, then terminal grid selection.
     /// The selection is preserved so the user can see what was copied.
     pub(crate) fn perform_copy(&mut self) {
+        if self.is_editor_active() {
+            if let Some(ed) = self.active_editor_state()
+                && let Some(sel_text) = ed.selected_text()
+            {
+                let len = sel_text.len();
+                if let Ok(mut cb) = arboard::Clipboard::new() {
+                    let _ = cb.set_text(&sel_text);
+                }
+                self.toast_mgr.push(
+                    format!("Copied {} chars", len),
+                    crate::ui::components::toast::ToastLevel::Info,
+                );
+            }
+            return;
+        }
+
         if let Some(sel) = &self.block_selection {
             let bl = match self.active_block_list() {
                 Some(bl) => bl,
@@ -3408,6 +3547,25 @@ impl super::super::App {
 
     /// Paste text from the system clipboard.
     pub(crate) fn perform_paste(&mut self) {
+        if self.is_editor_active() {
+            let paste_text = arboard::Clipboard::new()
+                .ok()
+                .and_then(|mut cb| cb.get_text().ok());
+            if let Some(txt) = paste_text {
+                let sf = self
+                    .renderer
+                    .as_ref()
+                    .map_or(1.0, |r| r.scale_factor as f32);
+                let vh = self.renderer.as_ref().map_or(600, |r| r.height as usize);
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.insert_str(&txt);
+                    ed.ensure_cursor_visible(sf, vh);
+                }
+            }
+            self.request_redraw();
+            return;
+        }
+
         if let Ok(mut clipboard) = arboard::Clipboard::new()
             && let Ok(text) = clipboard.get_text()
             && !text.is_empty()
@@ -3441,8 +3599,44 @@ impl super::super::App {
         }
     }
 
+    pub(crate) fn perform_cut(&mut self) {
+        if self.is_editor_active() {
+            let sel_text = self.active_editor_state().and_then(|ed| ed.selected_text());
+            if let Some(text) = sel_text {
+                let len = text.len();
+                if let Ok(mut cb) = arboard::Clipboard::new() {
+                    let _ = cb.set_text(&text);
+                }
+                self.toast_mgr.push(
+                    format!("Cut {} chars", len),
+                    crate::ui::components::toast::ToastLevel::Info,
+                );
+                let sf = self
+                    .renderer
+                    .as_ref()
+                    .map_or(1.0, |r| r.scale_factor as f32);
+                let vh = self.renderer.as_ref().map_or(600, |r| r.height as usize);
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.delete_selection();
+                    ed.ensure_cursor_visible(sf, vh);
+                }
+            }
+            self.request_redraw();
+            return;
+        }
+        self.perform_copy();
+    }
+
     /// Select all text in the current block view or terminal grid.
     pub(crate) fn perform_select_all(&mut self) {
+        if self.is_editor_active() {
+            if let Some(ed) = self.active_editor_state_mut() {
+                ed.select_all();
+            }
+            self.request_redraw();
+            return;
+        }
+
         let use_smart = self.settings_state.input_type == InputType::Smart
             && self
                 .active_terminal()

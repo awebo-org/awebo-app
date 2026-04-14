@@ -23,7 +23,7 @@ pub const BG_SURFACE: Rgb = (12, 12, 14);
 /// Even more lifted (active tabs, input fields).
 pub const BG_ELEVATED: Rgb = (22, 22, 26);
 /// Selection / hover highlight.
-pub const BG_SELECTION: Rgb = (36, 20, 28);
+pub const BG_SELECTION: Rgb = (60, 32, 50);
 /// Hover on interactive elements.
 pub const BG_HOVER: Rgb = (28, 28, 34);
 
