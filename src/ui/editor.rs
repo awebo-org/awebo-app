@@ -84,11 +84,26 @@ pub struct EditorState {
     highlight_cache: Vec<Token>,
     highlight_dirty: bool,
 
+    // Undo / redo
+    undo_stack: Vec<UndoSnapshot>,
+    redo_stack: Vec<UndoSnapshot>,
+
     /// Side-by-side diff rows — when present, the renderer draws split diff mode.
     pub diff_view: Option<Vec<DiffRow>>,
 
     /// Fraction (0.0–1.0) controlling the left/right split in diff mode.
     pub diff_split_frac: f32,
+}
+
+const MAX_UNDO: usize = 500;
+
+#[derive(Clone)]
+struct UndoSnapshot {
+    lines: Vec<String>,
+    cursor_line: usize,
+    cursor_col: usize,
+    sel_anchor: Option<(usize, usize)>,
+    modified: bool,
 }
 
 impl EditorState {
@@ -221,6 +236,8 @@ impl EditorState {
             syntax_config_idx,
             highlight_cache: Vec::new(),
             highlight_dirty: true,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
         };
@@ -275,6 +292,66 @@ impl EditorState {
     fn mark_modified(&mut self) {
         self.modified = true;
         self.highlight_dirty = true;
+    }
+
+    fn snapshot(&self) -> UndoSnapshot {
+        UndoSnapshot {
+            lines: self.lines.clone(),
+            cursor_line: self.cursor_line,
+            cursor_col: self.cursor_col,
+            sel_anchor: self.sel_anchor,
+            modified: self.modified,
+        }
+    }
+
+    /// Save an undo snapshot before an external content change.
+    pub fn push_undo_snapshot(&mut self) {
+        self.push_undo();
+    }
+
+    fn push_undo(&mut self) {
+        if self.undo_stack.len() >= MAX_UNDO {
+            self.undo_stack.remove(0);
+        }
+        self.undo_stack.push(self.snapshot());
+        self.redo_stack.clear();
+    }
+
+    fn restore_snapshot(&mut self, snap: UndoSnapshot) {
+        self.lines = snap.lines;
+        self.cursor_line = snap.cursor_line;
+        self.cursor_col = snap.cursor_col;
+        self.sel_anchor = snap.sel_anchor;
+        self.modified = snap.modified;
+        self.highlight_dirty = true;
+    }
+
+    /// Undo the last content change.
+    pub fn undo(&mut self) {
+        if let Some(snap) = self.undo_stack.pop() {
+            self.redo_stack.push(self.snapshot());
+            self.restore_snapshot(snap);
+        }
+    }
+
+    /// Redo a previously undone content change.
+    pub fn redo(&mut self) {
+        if let Some(snap) = self.redo_stack.pop() {
+            self.undo_stack.push(self.snapshot());
+            self.restore_snapshot(snap);
+        }
+    }
+
+    /// Query: whether an undo operation is available.
+    #[allow(dead_code)]
+    pub fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    /// Query: whether a redo operation is available.
+    #[allow(dead_code)]
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
     }
 
     /// Place cursor at (line, col). Clears selection.
@@ -375,6 +452,7 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         self.delete_selection();
         let line = &mut self.lines[self.cursor_line];
         line.insert(self.cursor_col, ch);
@@ -387,10 +465,11 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         self.delete_selection();
         for ch in s.chars() {
             if ch == '\n' || ch == '\r' {
-                self.new_line();
+                self.split_line();
             } else {
                 let line = &mut self.lines[self.cursor_line];
                 line.insert(self.cursor_col, ch);
@@ -405,13 +484,18 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         self.delete_selection();
+        self.split_line();
+        self.mark_modified();
+    }
+
+    fn split_line(&mut self) {
         let tail = self.lines[self.cursor_line][self.cursor_col..].to_string();
         self.lines[self.cursor_line].truncate(self.cursor_col);
         self.cursor_line += 1;
         self.cursor_col = 0;
         self.lines.insert(self.cursor_line, tail);
-        self.mark_modified();
     }
 
     /// Backspace — delete character before cursor, or delete selection.
@@ -419,6 +503,7 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         if self.delete_selection() {
             return;
         }
@@ -442,6 +527,7 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         if self.delete_selection() {
             return;
         }
@@ -463,6 +549,7 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         if self.delete_selection() {
             return;
         }
@@ -487,6 +574,7 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         if self.delete_selection() {
             return;
         }
@@ -508,6 +596,7 @@ impl EditorState {
         if self.mode != EditorMode::Text {
             return;
         }
+        self.push_undo();
         if self.delete_selection() {
             return;
         }
@@ -988,6 +1077,8 @@ impl EditorState {
             syntax_config_idx: None,
             highlight_cache: Vec::new(),
             highlight_dirty: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
         }
@@ -1012,6 +1103,8 @@ impl EditorState {
             syntax_config_idx: None,
             highlight_cache: Vec::new(),
             highlight_dirty: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
         }
@@ -1041,6 +1134,8 @@ mod tests {
             syntax_config_idx: None,
             highlight_cache: Vec::new(),
             highlight_dirty: false,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
         }
@@ -1400,5 +1495,82 @@ mod tests {
         let rows = build_diff_rows(&hunks);
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[1].kind, DiffRowKind::Separator);
+    }
+
+    #[test]
+    fn undo_insert_char() {
+        let mut s = text_state(&["hello"]);
+        s.cursor_col = 5;
+        s.insert_char('!');
+        assert_eq!(s.lines[0], "hello!");
+        assert!(s.can_undo());
+        s.undo();
+        assert_eq!(s.lines[0], "hello");
+        assert_eq!(s.cursor_col, 5);
+    }
+
+    #[test]
+    fn redo_after_undo() {
+        let mut s = text_state(&["abc"]);
+        s.cursor_col = 3;
+        s.insert_char('d');
+        assert_eq!(s.lines[0], "abcd");
+        s.undo();
+        assert_eq!(s.lines[0], "abc");
+        assert!(s.can_redo());
+        s.redo();
+        assert_eq!(s.lines[0], "abcd");
+    }
+
+    #[test]
+    fn new_edit_clears_redo() {
+        let mut s = text_state(&["abc"]);
+        s.cursor_col = 3;
+        s.insert_char('d');
+        s.undo();
+        assert!(s.can_redo());
+        s.insert_char('X');
+        assert!(!s.can_redo());
+    }
+
+    #[test]
+    fn undo_delete_backward() {
+        let mut s = text_state(&["abc"]);
+        s.cursor_col = 3;
+        s.delete_backward();
+        assert_eq!(s.lines[0], "ab");
+        s.undo();
+        assert_eq!(s.lines[0], "abc");
+        assert_eq!(s.cursor_col, 3);
+    }
+
+    #[test]
+    fn undo_new_line() {
+        let mut s = text_state(&["hello world"]);
+        s.cursor_col = 5;
+        s.new_line();
+        assert_eq!(s.lines.len(), 2);
+        s.undo();
+        assert_eq!(s.lines.len(), 1);
+        assert_eq!(s.lines[0], "hello world");
+    }
+
+    #[test]
+    fn undo_paste() {
+        let mut s = text_state(&["start"]);
+        s.cursor_col = 5;
+        s.insert_str(" end\nnext");
+        assert_eq!(s.lines.len(), 2);
+        s.undo();
+        assert_eq!(s.lines.len(), 1);
+        assert_eq!(s.lines[0], "start");
+    }
+
+    #[test]
+    fn undo_empty_does_nothing() {
+        let mut s = text_state(&["hello"]);
+        assert!(!s.can_undo());
+        s.undo();
+        assert_eq!(s.lines[0], "hello");
     }
 }

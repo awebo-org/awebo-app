@@ -184,6 +184,8 @@ pub enum AppAction {
     Paste,
     Cut,
     SelectAll,
+    Undo,
+    Redo,
 
     /// Download the available update.
     DownloadUpdate,
@@ -701,6 +703,12 @@ impl super::App {
             }
             AppAction::SelectAll => {
                 self.perform_select_all();
+            }
+            AppAction::Undo => {
+                self.perform_undo();
+            }
+            AppAction::Redo => {
+                self.perform_redo();
             }
 
             AppAction::DownloadUpdate => {

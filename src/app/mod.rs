@@ -1171,6 +1171,10 @@ impl ApplicationHandler<TerminalEvent> for App {
                         Some(AppAction::Cut)
                     } else if menu_event.id == app_menu.select_all_id {
                         Some(AppAction::SelectAll)
+                    } else if menu_event.id == app_menu.undo_id {
+                        Some(AppAction::Undo)
+                    } else if menu_event.id == app_menu.redo_id {
+                        Some(AppAction::Redo)
                     } else {
                         None
                     }

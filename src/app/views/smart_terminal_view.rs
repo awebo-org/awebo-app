@@ -595,6 +595,7 @@ impl super::super::App {
                         let sf = self.renderer.as_ref().unwrap().scale_factor as f32;
                         let vh = self.renderer.as_ref().unwrap().height as usize;
                         if let Some(ed) = self.active_editor_state_mut() {
+                            ed.push_undo_snapshot();
                             ed.delete_selection();
                             ed.ensure_cursor_visible(sf, vh);
                         }
@@ -604,6 +605,14 @@ impl super::super::App {
                 }
 
                 if super_key && matches!(logical_key.as_ref(), Key::Character(c) if c == "z") {
+                    if shift {
+                        if let Some(ed) = self.active_editor_state_mut() {
+                            ed.redo();
+                        }
+                    } else if let Some(ed) = self.active_editor_state_mut() {
+                        ed.undo();
+                    }
+                    self.request_redraw();
                     return;
                 }
 
@@ -2500,6 +2509,13 @@ impl super::super::App {
                     if self.overlay.confirm_close_hovered != prev {
                         self.request_redraw();
                     }
+                    if self.overlay.confirm_close_hovered.is_some() {
+                        if let Some(w) = &self.window {
+                            w.set_cursor(winit::window::CursorIcon::Pointer);
+                        }
+                    } else if let Some(w) = &self.window {
+                        w.set_cursor(winit::window::CursorIcon::Default);
+                    }
                     return;
                 }
 
@@ -4059,6 +4075,7 @@ impl super::super::App {
                     .map_or(1.0, |r| r.scale_factor as f32);
                 let vh = self.renderer.as_ref().map_or(600, |r| r.height as usize);
                 if let Some(ed) = self.active_editor_state_mut() {
+                    ed.push_undo_snapshot();
                     ed.delete_selection();
                     ed.ensure_cursor_visible(sf, vh);
                 }
@@ -4138,6 +4155,24 @@ impl super::super::App {
                 };
                 self.block_selection = Some(crate::blocks::BlockSelection { anchor, head });
             }
+        }
+    }
+
+    pub(crate) fn perform_undo(&mut self) {
+        if self.is_editor_active() {
+            if let Some(ed) = self.active_editor_state_mut() {
+                ed.undo();
+            }
+            self.request_redraw();
+        }
+    }
+
+    pub(crate) fn perform_redo(&mut self) {
+        if self.is_editor_active() {
+            if let Some(ed) = self.active_editor_state_mut() {
+                ed.redo();
+            }
+            self.request_redraw();
         }
     }
 }

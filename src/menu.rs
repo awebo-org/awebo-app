@@ -11,6 +11,8 @@ pub struct AppMenu {
     pub paste_id: MenuId,
     pub cut_id: MenuId,
     pub select_all_id: MenuId,
+    pub undo_id: MenuId,
+    pub redo_id: MenuId,
 
     #[cfg(target_os = "macos")]
     pub window_submenu: Submenu,
@@ -69,11 +71,25 @@ pub fn build_menu() -> AppMenu {
         Some(Accelerator::new(Some(CMD_OR_CTRL), Code::KeyA)),
     );
 
+    let undo_item = MenuItem::new(
+        "Undo",
+        true,
+        Some(Accelerator::new(Some(CMD_OR_CTRL), Code::KeyZ)),
+    );
+    let redo_item = MenuItem::new(
+        "Redo",
+        true,
+        Some(Accelerator::new(
+            Some(CMD_OR_CTRL | muda::accelerator::Modifiers::SHIFT),
+            Code::KeyZ,
+        )),
+    );
+
     let edit_submenu = Submenu::new("Edit", true);
     edit_submenu
         .append_items(&[
-            &PredefinedMenuItem::undo(None),
-            &PredefinedMenuItem::redo(None),
+            &undo_item,
+            &redo_item,
             &PredefinedMenuItem::separator(),
             &cut_item,
             &copy_item,
@@ -133,6 +149,8 @@ pub fn build_menu() -> AppMenu {
         paste_id: paste_item.into_id(),
         cut_id: cut_item.into_id(),
         select_all_id: select_all_item.into_id(),
+        undo_id: undo_item.into_id(),
+        redo_id: redo_item.into_id(),
         #[cfg(target_os = "macos")]
         window_submenu,
     }
