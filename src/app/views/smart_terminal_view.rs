@@ -2032,6 +2032,27 @@ impl super::super::App {
                                             }
                                         }
 
+                                        let forward_mouse = !self.modifiers.alt_key()
+                                            && self
+                                                .active_terminal()
+                                                .map(|t| t.has_mouse_mode())
+                                                .unwrap_or(false);
+
+                                        if forward_mouse {
+                                            if let Some(terminal) = self.active_terminal() {
+                                                let seq = sgr_mouse_press(
+                                                    0,
+                                                    point.column.0 as u32,
+                                                    point.line.0 as u32,
+                                                );
+                                                terminal.input(std::borrow::Cow::Owned(
+                                                    seq.into_bytes(),
+                                                ));
+                                            }
+                                            self.mouse_forwarding = true;
+                                            return;
+                                        }
+
                                         if let Some(terminal) = self.active_terminal() {
                                             terminal.start_selection(point, side);
                                             self.selecting = true;
@@ -2156,6 +2177,16 @@ impl super::super::App {
                 }
                 self.selecting = false;
                 self.editor_selecting = false;
+                if self.mouse_forwarding {
+                    self.mouse_forwarding = false;
+                    if let Some((point, _)) =
+                        self.mouse_to_grid_point(self.cursor_pos.0, self.cursor_pos.1)
+                        && let Some(terminal) = self.active_terminal()
+                    {
+                        let seq = sgr_mouse_release(0, point.column.0 as u32, point.line.0 as u32);
+                        terminal.input(std::borrow::Cow::Owned(seq.into_bytes()));
+                    }
+                }
             }
 
             WindowEvent::MouseInput {
@@ -2350,6 +2381,14 @@ impl super::super::App {
                     if menu.hovered != prev {
                         self.request_redraw();
                     }
+                }
+
+                if self.mouse_forwarding
+                    && let Some((point, _)) = self.mouse_to_grid_point(position.x, position.y)
+                    && let Some(terminal) = self.active_terminal()
+                {
+                    let seq = sgr_mouse_move(point.column.0 as u32, point.line.0 as u32);
+                    terminal.input(std::borrow::Cow::Owned(seq.into_bytes()));
                 }
 
                 if self.selecting {
@@ -3037,7 +3076,17 @@ impl super::super::App {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y as i32,
                         winit::event::MouseScrollDelta::PixelDelta(pos) => (pos.y / 20.0) as i32,
                     };
-                    if lines > 0 {
+                    if terminal.has_mouse_mode() {
+                        let (col, row) = self
+                            .mouse_to_grid_point(self.cursor_pos.0, self.cursor_pos.1)
+                            .map(|(p, _)| (p.column.0 as u32, p.line.0 as u32))
+                            .unwrap_or((0, 0));
+                        let up = lines > 0;
+                        for _ in 0..lines.abs() {
+                            let seq = sgr_mouse_scroll(up, col, row);
+                            terminal.input(Cow::Owned(seq.into_bytes()));
+                        }
+                    } else if lines > 0 {
                         for _ in 0..lines.abs() {
                             terminal.input(Cow::Borrowed(b"\x1b[A"));
                         }
@@ -3747,4 +3796,21 @@ fn shell_escape(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+fn sgr_mouse_press(button: u32, col: u32, row: u32) -> String {
+    format!("\x1b[<{};{};{}M", button, col + 1, row + 1)
+}
+
+fn sgr_mouse_release(button: u32, col: u32, row: u32) -> String {
+    format!("\x1b[<{};{};{}m", button, col + 1, row + 1)
+}
+
+fn sgr_mouse_move(col: u32, row: u32) -> String {
+    format!("\x1b[<32;{};{}M", col + 1, row + 1)
+}
+
+fn sgr_mouse_scroll(up: bool, col: u32, row: u32) -> String {
+    let button = if up { 64 } else { 65 };
+    format!("\x1b[<{};{};{}M", button, col + 1, row + 1)
 }

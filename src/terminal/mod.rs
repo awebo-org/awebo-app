@@ -218,6 +218,13 @@ impl Terminal {
         mode.contains(TermMode::ALT_SCREEN) || !mode.contains(TermMode::SHOW_CURSOR)
     }
 
+    pub fn has_mouse_mode(&self) -> bool {
+        let mode = *self.term.lock().mode();
+        mode.intersects(
+            TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION,
+        )
+    }
+
     pub fn prompt_info(&self) -> crate::prompt::PromptInfo {
         self.prompt_state.collect(self.cwd().as_deref())
     }

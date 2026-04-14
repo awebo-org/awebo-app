@@ -85,6 +85,7 @@ pub(crate) struct App {
     editor_scrollbar: crate::ui::components::editor_renderer::ScrollbarHit,
     editor_scrollbar_dragging: crate::ui::components::editor_renderer::ScrollbarHit,
     editor_selecting: bool,
+    mouse_forwarding: bool,
     is_fullscreen: bool,
     syntax: crate::ui::syntax::SyntaxRegistry,
     context_menu: Option<crate::ui::components::context_menu::ContextMenuState>,
@@ -179,6 +180,7 @@ impl App {
             editor_scrollbar: crate::ui::components::editor_renderer::ScrollbarHit::None,
             editor_scrollbar_dragging: crate::ui::components::editor_renderer::ScrollbarHit::None,
             editor_selecting: false,
+            mouse_forwarding: false,
             is_fullscreen: false,
             syntax: {
                 let mut reg = crate::ui::syntax::SyntaxRegistry::new();

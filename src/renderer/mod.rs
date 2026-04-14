@@ -154,6 +154,7 @@ impl Renderer {
         db.load_font_data(JBM_BOLD.to_vec());
         db.load_font_data(JBM_ITALIC.to_vec());
         db.load_font_data(JBM_BOLD_ITALIC.to_vec());
+        db.load_system_fonts();
         db.set_monospace_family("JetBrains Mono");
         db.set_sans_serif_family("JetBrains Mono");
         db.set_serif_family("JetBrains Mono");
@@ -200,7 +201,7 @@ impl Renderer {
             block_height_cache: BlockHeightCache::new(),
             icon_renderer: icons::IconRenderer::new(),
             avatar_renderer: icons::AvatarRenderer::new(),
-            system_fonts_loaded: false,
+            system_fonts_loaded: true,
             panel_inset_left: 0,
             panel_inset_right: 0,
         }
