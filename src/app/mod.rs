@@ -1183,10 +1183,7 @@ impl ApplicationHandler<TerminalEvent> for App {
 
         if self.overlay.git_panel_open && now >= self.git_poll_at {
             self.git_poll_at = now + std::time::Duration::from_secs(2);
-            let cwd = self
-                .active_terminal()
-                .and_then(|t| t.cwd())
-                .unwrap_or_else(|| ".".into());
+            let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
             self.git_panel.refresh(&cwd);
             self.pending_redraw = true;
         }

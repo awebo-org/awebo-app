@@ -144,7 +144,11 @@ pub fn draw_settings_about(
         Family::Monospace,
     );
 
-    let version = if is_pro { "v0.1.0 Pro" } else { "v0.1.0" };
+    let version = if is_pro {
+        concat!("v", env!("CARGO_PKG_VERSION"), " Pro")
+    } else {
+        concat!("v", env!("CARGO_PKG_VERSION"))
+    };
     let version_metrics = Metrics::new(12.0 * sf, 17.0 * sf);
     let version_tw =
         measure_text_width(font_system, version, version_metrics, Family::Monospace) as usize;

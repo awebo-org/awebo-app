@@ -76,6 +76,7 @@ pub fn draw(
     overlay_active: bool,
     font_size: f32,
     bg_override: Option<Rgb>,
+    avail_h: usize,
 ) -> Vec<CellGlyph> {
     let force_dirty = overlay_active || cache.had_overlay;
     cache.had_overlay = overlay_active;
@@ -275,6 +276,18 @@ pub fn draw(
             }
             CursorShape::Hidden => {}
         }
+    }
+
+    let rows_end_y = y_offset + y_pad + screen_lines * cell_h;
+    let grid_end_y = y_offset + avail_h;
+    if grid_end_y > rows_end_y {
+        buf.fill_rect(
+            x_pad,
+            rows_end_y,
+            w.saturating_sub(x_pad + pad),
+            grid_end_y - rows_end_y,
+            default_bg,
+        );
     }
 
     std::mem::swap(&mut cache.cells, &mut cache.grid_buf);

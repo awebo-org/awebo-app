@@ -149,7 +149,10 @@ impl Terminal {
             std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()),
         );
         env.insert("TERM_PROGRAM".to_string(), "terminal".to_string());
-        env.insert("TERM_PROGRAM_VERSION".to_string(), "0.1.0".to_string());
+        env.insert(
+            "TERM_PROGRAM_VERSION".to_string(),
+            env!("CARGO_PKG_VERSION").to_string(),
+        );
 
         let pty_config = tty::Options {
             shell: Some(tty::Shell::new(shell, vec!["-l".to_string()])),

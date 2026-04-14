@@ -2083,22 +2083,30 @@ impl super::super::App {
                         let header_h = 40.0 * sf;
                         let border_w = (1.0 * sf).max(1.0);
                         let content_y = renderer.tab_bar_height as f32 + header_h + border_w;
-                        if self.cursor_pos.1 as f32 > content_y
-                            && let Some(path) = crate::ui::file_tree::hit_test(
+                        if self.cursor_pos.1 as f32 > content_y {
+                            let hit_path = crate::ui::file_tree::hit_test(
                                 self.cursor_pos.1,
                                 content_y as usize,
                                 self.file_tree.scroll_offset,
                                 &self.file_tree,
                                 renderer.scale_factor,
-                            )
-                        {
-                            self.open_file_tree_context_menu(
-                                path,
-                                self.cursor_pos.0 as usize,
-                                self.cursor_pos.1 as usize,
                             );
-                            self.request_redraw();
-                            return;
+                            let target = hit_path.unwrap_or_else(|| {
+                                self.file_tree
+                                    .root
+                                    .as_ref()
+                                    .map(|r| r.path.clone())
+                                    .unwrap_or_default()
+                            });
+                            if !target.as_os_str().is_empty() {
+                                self.open_file_tree_context_menu(
+                                    target,
+                                    self.cursor_pos.0 as usize,
+                                    self.cursor_pos.1 as usize,
+                                );
+                                self.request_redraw();
+                                return;
+                            }
                         }
                     }
                 }

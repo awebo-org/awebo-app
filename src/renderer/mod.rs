@@ -35,6 +35,7 @@ pub use crate::ui::components::tab_bar::{DragState, TabInfo};
 
 const GRID_PADDING_LOGICAL: f32 = 8.0;
 const SANDBOX_PADDING_LOGICAL: f32 = 4.0;
+const APP_LEFT_PAD_LOGICAL: f32 = 4.0;
 
 /// Renderer: owns the render backend and cosmic-text font system.
 ///
@@ -250,8 +251,14 @@ impl Renderer {
 
     /// Width available for the terminal grid (total minus padding and panel insets).
     pub fn terminal_width(&self, is_app_controlled: bool) -> u32 {
+        let app_lpad = if is_app_controlled {
+            (APP_LEFT_PAD_LOGICAL * self.scale_factor as f32) as u32
+        } else {
+            0
+        };
         self.width
             .saturating_sub(self.grid_padding_for(is_app_controlled, false) * 2)
+            .saturating_sub(app_lpad)
             .saturating_sub(self.panel_inset_left)
             .saturating_sub(self.panel_inset_right)
     }
@@ -414,6 +421,18 @@ impl Renderer {
 
         let content_right_edge = w.saturating_sub(git_panel_w);
 
+        let has_overlay = debug_info.is_some()
+            || palette.is_some()
+            || model_picker.is_some()
+            || shell_picker.is_some()
+            || settings.is_some()
+            || models_view.is_some()
+            || tooltip.is_some()
+            || input_field.slash_menu_open
+            || context_menu.is_some()
+            || pro_panel.is_some()
+            || usage_limit_banner.is_some();
+
         if let Some(settings_state) = settings {
             crate::ui::components::overlay::draw_settings(
                 &mut self.pixel_buf,
@@ -480,6 +499,11 @@ impl Renderer {
         } else if let Some(term_handle) = term_handle {
             let is_app = is_app_controlled;
             let pad = self.grid_padding_for(is_app, is_sandbox) as usize;
+            let app_lpad = if is_app {
+                (APP_LEFT_PAD_LOGICAL * sf) as usize
+            } else {
+                0
+            };
 
             let prompt_h = if input_type == InputType::Smart && !is_app {
                 if prompt_info.is_some() {
@@ -518,12 +542,6 @@ impl Renderer {
             if use_block_renderer {
                 if grid_h > 0 {
                     let y_end = grid_y + grid_h;
-                    let overlay_active = palette.is_some()
-                        || model_picker.is_some()
-                        || shell_picker.is_some()
-                        || tooltip.is_some()
-                        || debug_info.is_some()
-                        || input_field.slash_menu_open;
                     let block_glyphs = crate::ui::components::block_renderer::draw(
                         &mut self.pixel_buf,
                         &mut self.font_system,
@@ -539,7 +557,7 @@ impl Renderer {
                         hovered_link,
                         &mut self.block_height_cache,
                         scrollbar_hovered,
-                        overlay_active,
+                        has_overlay,
                     );
                     if !block_glyphs.is_empty() {
                         glyph_scissor = Some((
@@ -553,15 +571,29 @@ impl Renderer {
                 }
             } else {
                 if grid_h > 0 {
-                    let grid_bg = if is_sandbox { Some((0, 0, 0)) } else { None };
+                    let grid_bg = if is_sandbox {
+                        Some((0, 0, 0))
+                    } else if is_app {
+                        let bg = {
+                            use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
+                            let term = term_handle.lock();
+                            let colors = term.renderable_content().colors;
+                            theme::resolve_color(&AnsiColor::Named(NamedColor::Background), colors)
+                        };
+                        Some(bg)
+                    } else {
+                        None
+                    };
                     if is_sandbox {
-                        self.pixel_buf.fill_rect(
-                            content_x_offset,
-                            grid_y,
-                            content_right_edge.saturating_sub(content_x_offset),
-                            grid_h,
-                            (0, 0, 0),
-                        );
+                        if let Some(bg) = grid_bg {
+                            self.pixel_buf.fill_rect(
+                                content_x_offset,
+                                grid_y,
+                                content_right_edge.saturating_sub(content_x_offset),
+                                grid_h,
+                                bg,
+                            );
+                        }
                     }
 
                     let sandbox_initializing =
@@ -577,24 +609,33 @@ impl Renderer {
                             sf,
                         );
                     } else {
+                        let grid_x = content_x_offset + app_lpad;
                         let cell_glyphs = crate::ui::components::grid::draw(
                             &mut self.pixel_buf,
                             term_handle,
                             grid_y,
                             pad,
-                            content_x_offset,
+                            grid_x,
                             self.cell_width,
                             self.cell_height,
                             self.scale_factor,
                             &mut self.grid_cache,
-                            palette.is_some()
-                                || model_picker.is_some()
-                                || shell_picker.is_some()
-                                || tooltip.is_some()
-                                || debug_info.is_some(),
+                            has_overlay,
                             self.font_size,
                             grid_bg,
+                            grid_h,
                         );
+                        if app_lpad > 0 {
+                            if let Some(bg) = grid_bg {
+                                self.pixel_buf.fill_rect(
+                                    content_x_offset,
+                                    grid_y,
+                                    app_lpad,
+                                    grid_h,
+                                    bg,
+                                );
+                            }
+                        }
                         pending_cell_glyphs = Some(cell_glyphs);
                         glyph_scissor = Some((
                             content_x_offset as u32,
@@ -671,16 +712,6 @@ impl Renderer {
                 cursor_visible,
             );
         }
-
-        let has_overlay = debug_info.is_some()
-            || palette.is_some()
-            || model_picker.is_some()
-            || shell_picker.is_some()
-            || settings.is_some()
-            || models_view.is_some()
-            || tooltip.is_some()
-            || input_field.slash_menu_open
-            || context_menu.is_some();
 
         if has_overlay && let Some(glyphs) = &pending_cell_glyphs {
             self.blit_glyphs_cpu(glyphs);
@@ -1102,8 +1133,8 @@ fn format_bytes(downloaded: u64, total: Option<u64>) -> String {
 
 /// Measure monospace cell dimensions in physical pixels.
 fn measure_cell(font_system: &mut FontSystem, scale_factor: f64) -> (f32, f32, f32) {
-    let base_font_size = 16.0;
-    let base_line_height = 22.0;
+    let base_font_size = 14.0;
+    let base_line_height = 19.0;
     let font_size = base_font_size * scale_factor as f32;
     let line_height = base_line_height * scale_factor as f32;
     let metrics = Metrics::new(font_size, line_height);

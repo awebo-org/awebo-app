@@ -87,11 +87,18 @@ impl TreeNode {
         })
     }
 
-    /// Ensure children of this node are loaded (lazy expansion).
-    pub fn ensure_children_loaded(&mut self) {
-        if !self.is_dir || !self.children.is_empty() {
+    /// Re-read this directory's children from the filesystem,
+    /// preserving already-loaded subtrees for expanded directories.
+    pub fn reload_children(&mut self) {
+        if !self.is_dir {
             return;
         }
+        let mut old: std::collections::HashMap<PathBuf, TreeNode> = self
+            .children
+            .drain(..)
+            .map(|c| (c.path.clone(), c))
+            .collect();
+
         if let Ok(entries) = std::fs::read_dir(&self.path) {
             for entry in entries.flatten() {
                 let child_path = entry.path();
@@ -99,13 +106,17 @@ impl TreeNode {
                 if child_name.starts_with('.') {
                     continue;
                 }
-                let is_dir = child_path.is_dir();
-                self.children.push(TreeNode {
-                    name: child_name,
-                    path: child_path,
-                    is_dir,
-                    children: Vec::new(),
-                });
+                if let Some(existing) = old.remove(&child_path) {
+                    self.children.push(existing);
+                } else {
+                    let is_dir = child_path.is_dir();
+                    self.children.push(TreeNode {
+                        name: child_name,
+                        path: child_path,
+                        is_dir,
+                        children: Vec::new(),
+                    });
+                }
             }
             sort_children(&mut self.children);
         }
@@ -207,10 +218,10 @@ impl FileTreeState {
     }
 }
 
-/// Recursively find the node at `target_path` and ensure its children are loaded.
+/// Recursively find the node at `target_path` and reload its children from disk.
 pub fn load_children_at(node: &mut TreeNode, target_path: &Path) {
     if node.path == target_path {
-        node.ensure_children_loaded();
+        node.reload_children();
         return;
     }
     for child in &mut node.children {

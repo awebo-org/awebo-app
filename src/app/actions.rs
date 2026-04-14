@@ -263,10 +263,7 @@ impl super::App {
             AppAction::ToggleGitPanel => {
                 self.overlay.toggle_git_panel();
                 if self.overlay.git_panel_open {
-                    let cwd = self
-                        .active_terminal()
-                        .and_then(|t| t.cwd())
-                        .unwrap_or_else(|| ".".into());
+                    let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                     self.git_panel.refresh(&cwd);
                 }
                 self.sync_panel_insets();
@@ -274,19 +271,13 @@ impl super::App {
             AppAction::SwitchGitPanelTab { tab } => {
                 self.panel_layout.switch_git_tab(tab);
                 self.git_panel.scroll_offset = 0.0;
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 self.git_panel.refresh(&cwd);
             }
             AppAction::GitStageFile { index } => {
                 if let Some(entry) = self.git_panel.data.entries.get(index) {
                     let path = entry.path.clone();
-                    let cwd = self
-                        .active_terminal()
-                        .and_then(|t| t.cwd())
-                        .unwrap_or_else(|| ".".into());
+                    let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                         if let Err(e) = repo.stage_file(&path) {
                             log::warn!("git stage failed: {e}");
@@ -298,10 +289,7 @@ impl super::App {
             AppAction::GitUnstageFile { index } => {
                 if let Some(entry) = self.git_panel.data.entries.get(index) {
                     let path = entry.path.clone();
-                    let cwd = self
-                        .active_terminal()
-                        .and_then(|t| t.cwd())
-                        .unwrap_or_else(|| ".".into());
+                    let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                         if let Err(e) = repo.unstage_file(&path) {
                             log::warn!("git unstage failed: {e}");
@@ -313,10 +301,7 @@ impl super::App {
             AppAction::GitCheckoutBranch { index } => {
                 if let Some(branch) = self.git_panel.data.branches.get(index) {
                     let name = branch.name.clone();
-                    let cwd = self
-                        .active_terminal()
-                        .and_then(|t| t.cwd())
-                        .unwrap_or_else(|| ".".into());
+                    let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                         if let Err(e) = repo.checkout_branch(&name) {
                             log::warn!("git checkout failed: {e}");
@@ -326,10 +311,7 @@ impl super::App {
                 }
             }
             AppAction::GitStageAll => {
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                     if let Err(e) = repo.stage_all() {
                         log::warn!("git stage all failed: {e}");
@@ -338,10 +320,7 @@ impl super::App {
                 }
             }
             AppAction::GitUnstageAll => {
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                     if let Err(e) = repo.unstage_all() {
                         log::warn!("git unstage all failed: {e}");
@@ -365,10 +344,7 @@ impl super::App {
                     .cursor_from_click(rel_x, rel_y, char_w, max_chars);
             }
             AppAction::GitGenerateCommitMessage => {
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                     let diff = repo.staged_diff_summary();
                     if diff.is_empty() {
@@ -435,10 +411,7 @@ impl super::App {
                 }
                 self.maybe_show_first_use_hint(crate::usage::Feature::Git);
                 self.usage_tracker.record_use(crate::usage::Feature::Git);
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                     match repo.commit(&msg) {
                         Ok(()) => {
@@ -455,10 +428,7 @@ impl super::App {
                 if let Some(entry) = self.git_panel.data.entries.get(index) {
                     let path = entry.path.clone();
                     let staged = entry.staged;
-                    let cwd = self
-                        .active_terminal()
-                        .and_then(|t| t.cwd())
-                        .unwrap_or_else(|| ".".into());
+                    let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                     if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                         match repo.diff_for_file(&path, staged) {
                             Ok(diff_text) => {
@@ -473,10 +443,7 @@ impl super::App {
                 }
             }
             AppAction::GitDiscardFileChanges { path } => {
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                     if let Err(e) = repo.discard_file_changes(&path) {
                         log::warn!("git discard changes failed: {e}");
@@ -485,10 +452,7 @@ impl super::App {
                 }
             }
             AppAction::GitAddToGitignore { path } => {
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 if let Some(repo) = crate::git::GitRepo::discover(&cwd) {
                     if let Err(e) = repo.add_to_gitignore(&path) {
                         log::warn!("git add to gitignore failed: {e}");
@@ -497,20 +461,14 @@ impl super::App {
                 }
             }
             AppAction::GitOpenFile { path } => {
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 let abs = std::path::Path::new(&cwd).join(&path);
                 if abs.exists() && !abs.is_dir() {
                     self.open_file_in_editor(&abs);
                 }
             }
             AppAction::GitRevealInFinder { path } => {
-                let cwd = self
-                    .active_terminal()
-                    .and_then(|t| t.cwd())
-                    .unwrap_or_else(|| ".".into());
+                let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
                 let abs = std::path::Path::new(&cwd).join(&path);
                 #[cfg(target_os = "macos")]
                 {
@@ -537,8 +495,7 @@ impl super::App {
                 self.panel_layout.switch_tab(tab);
                 if tab == crate::ui::panel_layout::SidePanelTab::Files {
                     let cwd = self
-                        .active_terminal()
-                        .and_then(|t| t.cwd())
+                        .resolve_cwd()
                         .map(std::path::PathBuf::from)
                         .unwrap_or_else(|| {
                             std::env::current_dir()

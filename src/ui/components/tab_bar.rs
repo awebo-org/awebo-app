@@ -917,9 +917,9 @@ pub fn draw_user_menu(
 
     let label_metrics = Metrics::new(11.0 * sf, 15.0 * sf);
     let version_label = if is_pro {
-        "Awebo Pro v0.1.0"
+        concat!("Awebo Pro v", env!("CARGO_PKG_VERSION"))
     } else {
-        "Awebo v0.1.0"
+        concat!("Awebo v", env!("CARGO_PKG_VERSION"))
     };
     let label_y_start = menu_y + items * item_h + sep_h;
     let label_y = label_y_start + ((label_h as f32 - 15.0 * sf) / 2.0) as usize;
