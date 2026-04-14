@@ -1103,6 +1103,8 @@ impl super::super::App {
                                     let cmd = format!("{}\n", text);
                                     log::info!("smart input: sending command to PTY: {:?}", text);
                                     terminal.input(Cow::Owned(cmd.into_bytes()));
+                                    self.smart_input.pending_command = Some(text);
+                                    self.smart_input.command_started = Some(Instant::now());
                                     self.smart_input.text.clear();
                                     self.smart_input.cursor = 0;
                                 } else {
@@ -1246,6 +1248,7 @@ impl super::super::App {
                                         self.smart_input.last_command_duration =
                                             Some(started.elapsed());
                                     }
+                                    self.smart_input.pending_command = None;
                                     self.smart_input.text.clear();
                                     self.smart_input.cursor = 0;
                                 } else if matches!(logical_key.as_ref(), Key::Character(c) if c == "a")
@@ -2172,6 +2175,8 @@ impl super::super::App {
                                             block_list.push_command(prompt_info, cmd_text.clone());
                                             let cmd = format!("{}\n", cmd_text);
                                             terminal.input(Cow::Owned(cmd.into_bytes()));
+                                            self.smart_input.pending_command = Some(cmd_text);
+                                            self.smart_input.command_started = Some(Instant::now());
                                         }
                                     } else {
                                         log::info!("Opening file: {}", path);

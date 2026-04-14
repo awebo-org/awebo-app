@@ -133,6 +133,11 @@ pub struct InputFieldState {
     pub ai_suggestion: Option<String>,
     /// Current input mode (Normal vs Agent).
     pub input_mode: InputMode,
+    /// Command text that was submitted and is currently executing.
+    /// While set, the prompt bar shows the command inline instead of
+    /// showing the empty pass-through indicator. Cleared when the
+    /// command finishes.
+    pub pending_command: Option<String>,
 }
 
 impl InputFieldState {
@@ -149,6 +154,7 @@ impl InputFieldState {
             history_stash: String::new(),
             ai_suggestion: None,
             input_mode: InputMode::Normal,
+            pending_command: None,
         }
     }
 
@@ -318,6 +324,30 @@ pub fn prompt_bar_height(sf: f32) -> usize {
         .ceil() as usize
 }
 
+/// Height of a single pending output line in physical pixels.
+const PENDING_LINE_H: f32 = 22.0;
+
+/// Prompt bar height when a pending command is active.
+/// Adds one row for the submitted command text and one row for
+/// the terminal cursor line (e.g. "Password:").
+pub fn prompt_bar_height_with_pending(sf: f32, has_pending_line: bool) -> usize {
+    let extra = PENDING_LINE_H
+        + if has_pending_line {
+            PENDING_LINE_H
+        } else {
+            0.0
+        };
+    ((PROMPT_MARGIN_TOP
+        + PROMPT_PAD_TOP
+        + SEGMENT_H_LOGICAL
+        + PROMPT_GAP
+        + INPUT_H_LOGICAL
+        + extra
+        + PROMPT_PAD_BOTTOM)
+        * sf)
+        .ceil() as usize
+}
+
 /// Returns hit-test rects for the context usage bar and stop button.
 pub fn draw(
     buf: &mut PixelBuffer,
@@ -334,8 +364,14 @@ pub fn draw(
     command_running: bool,
     model_name: Option<&str>,
     ai_thinking: bool,
+    pending_line_text: Option<&str>,
 ) -> PromptBarHitRects {
-    let total_h = prompt_bar_height(sf);
+    let has_pending = input.pending_command.is_some();
+    let total_h = if has_pending {
+        prompt_bar_height_with_pending(sf, pending_line_text.is_some())
+    } else {
+        prompt_bar_height(sf)
+    };
 
     buf.fill_rect(
         x_start,
@@ -480,7 +516,71 @@ pub fn draw(
     let text_x = x_start + content_pad;
     let cursor_x = text_x;
 
-    if command_running {
+    if command_running && has_pending {
+        let cmd_text = input.pending_command.as_deref().unwrap_or("");
+        let cmd_metrics = Metrics::new(13.0 * sf, 18.0 * sf);
+        let prefix = "$ ";
+        let prefix_w =
+            measure_text_width(font_system, prefix, cmd_metrics, Family::Monospace) as usize;
+        draw_text_at(
+            buf,
+            font_system,
+            swash_cache,
+            text_x,
+            text_y,
+            buf.height,
+            prefix,
+            cmd_metrics,
+            theme::FG_DIM,
+            Family::Monospace,
+        );
+        draw_text_at(
+            buf,
+            font_system,
+            swash_cache,
+            text_x + prefix_w,
+            text_y,
+            buf.height,
+            cmd_text,
+            cmd_metrics,
+            theme::FG_PRIMARY,
+            Family::Monospace,
+        );
+
+        let pending_row_h = (PENDING_LINE_H * sf) as usize;
+        let pending_y = input_y + input_h;
+
+        if let Some(line_text) = pending_line_text {
+            draw_text_at(
+                buf,
+                font_system,
+                swash_cache,
+                text_x,
+                pending_y + ((pending_row_h as f32 - 18.0 * sf) / 2.0) as usize,
+                buf.height,
+                line_text,
+                cmd_metrics,
+                theme::FG_BRIGHT,
+                Family::Monospace,
+            );
+
+            let line_w =
+                measure_text_width(font_system, line_text, cmd_metrics, Family::Monospace) as usize;
+            if cursor_visible {
+                let beam_w = (2.0 * sf).max(1.0) as usize;
+                let cursor_h = (18.0 * sf * 0.8) as usize;
+                let cy = pending_y + ((pending_row_h as f32 - cursor_h as f32) / 2.0) as usize;
+                buf.fill_rect(text_x + line_w, cy, beam_w, cursor_h, PASSTHROUGH_HINT);
+            }
+        } else {
+            if cursor_visible {
+                let beam_w = (2.0 * sf).max(1.0) as usize;
+                let cursor_h = (18.0 * sf * 0.8) as usize;
+                let cy = pending_y + ((pending_row_h as f32 - cursor_h as f32) / 2.0) as usize;
+                buf.fill_rect(text_x, cy, beam_w, cursor_h, PASSTHROUGH_HINT);
+            }
+        }
+    } else if command_running {
         if cursor_visible {
             let beam_w = (3.0 * sf).max(1.0) as usize;
             let cursor_h = (input_line_height * 0.75) as usize;

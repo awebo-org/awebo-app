@@ -106,6 +106,7 @@ pub struct BlockHeightCache {
     pub last_available_h: usize,
     pub last_any_pending: bool,
     pub last_overlay_active: bool,
+    pub last_hide_last: bool,
     pub pixels_valid: bool,
     /// Cached glyphs from last dirty render — returned on non-dirty frames
     /// so GPU swap chain (which doesn't preserve content) still gets text.
@@ -128,6 +129,7 @@ impl BlockHeightCache {
             last_available_h: 0,
             last_any_pending: false,
             last_overlay_active: false,
+            last_hide_last: false,
             pixels_valid: false,
             cached_glyphs: Vec::new(),
         }
@@ -523,9 +525,27 @@ impl Renderer {
                 0
             };
 
+            let pending_line_text: Option<String> =
+                if input_field.pending_command.is_some() && block_list.last_is_running() {
+                    block_list
+                        .blocks
+                        .last()
+                        .and_then(|b| b.pending_line.as_ref())
+                        .map(crate::blocks::styled_line_text)
+                } else {
+                    None
+                };
+
             let prompt_h = if input_type == InputType::Smart && !is_app {
                 if prompt_info.is_some() {
-                    crate::ui::components::prompt_bar::prompt_bar_height(sf)
+                    if input_field.pending_command.is_some() {
+                        crate::ui::components::prompt_bar::prompt_bar_height_with_pending(
+                            sf,
+                            pending_line_text.is_some(),
+                        )
+                    } else {
+                        crate::ui::components::prompt_bar::prompt_bar_height(sf)
+                    }
                 } else {
                     0
                 }
@@ -577,6 +597,7 @@ impl Renderer {
                         scrollbar_hovered,
                         has_overlay,
                         git_panel_w,
+                        input_field.pending_command.is_some(),
                     );
                     if !block_glyphs.is_empty() {
                         glyph_scissor = Some((
@@ -684,6 +705,7 @@ impl Renderer {
                     command_running,
                     model_name,
                     ai_thinking,
+                    pending_line_text.as_deref(),
                 );
             }
 

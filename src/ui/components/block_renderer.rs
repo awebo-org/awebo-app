@@ -622,6 +622,7 @@ pub fn draw(
     scrollbar_hovered: bool,
     overlay_active: bool,
     right_inset: usize,
+    hide_last_running: bool,
 ) -> Vec<CellGlyph> {
     let content_area_w = buf.width.saturating_sub(right_inset);
     if blocks.blocks.is_empty() {
@@ -743,7 +744,8 @@ pub fn draw(
         || any_pending
         || any_running
         || overlay_active != height_cache.last_overlay_active
-        || overlay_active;
+        || overlay_active
+        || hide_last_running != height_cache.last_hide_last;
 
     if !dirty {
         return height_cache.cached_glyphs.clone();
@@ -757,6 +759,7 @@ pub fn draw(
     height_cache.last_available_h = available_h;
     height_cache.last_any_pending = any_pending;
     height_cache.last_overlay_active = overlay_active;
+    height_cache.last_hide_last = hide_last_running;
 
     buf.fill_rect(
         x_offset,
@@ -766,7 +769,16 @@ pub fn draw(
         crate::renderer::theme::BG,
     );
 
-    let total_h = height_cache.total_height as usize;
+    let total_h = {
+        let mut th = height_cache.total_height;
+        if hide_last_running
+            && let Some(last_h) = height_cache.block_heights.last()
+            && blocks.blocks.last().is_some_and(|b| b.is_running())
+        {
+            th -= last_h;
+        }
+        th as usize
+    };
     let scroll = blocks.scroll_offset.max(0.0) as usize;
 
     let content_top = if total_h <= available_h {
@@ -791,6 +803,12 @@ pub fn draw(
     let block_pad_y = (BLOCK_PAD_Y * sf) as i32;
     let gap = (BLOCK_GAP * sf) as usize;
     let block_count = blocks.blocks.len();
+    let visible_block_count =
+        if hide_last_running && blocks.blocks.last().is_some_and(|b| b.is_running()) {
+            block_count.saturating_sub(1)
+        } else {
+            block_count
+        };
     let line_h_i32 = (LINE_H * sf) as i32;
 
     let mut text_buf = Buffer::new(font_system, out_metrics);
@@ -836,7 +854,10 @@ pub fn draw(
     }
 
     for (i, block) in blocks.blocks.iter().enumerate() {
-        let is_last = i == block_count - 1;
+        if i >= visible_block_count {
+            break;
+        }
+        let is_last = i == visible_block_count - 1;
         if i >= height_cache.block_heights.len() {
             break; // Cache stale after session switch — skip until next revalidation
         }

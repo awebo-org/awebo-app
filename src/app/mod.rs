@@ -1081,6 +1081,10 @@ impl ApplicationHandler<TerminalEvent> for App {
                         block_list.finish_block_if_confirmed_prompt();
                         if was_running && !block_list.last_is_running() {
                             should_hint = true;
+                            if let Some(started) = self.smart_input.command_started.take() {
+                                self.smart_input.last_command_duration = Some(started.elapsed());
+                            }
+                            self.smart_input.pending_command = None;
                         }
                     }
                 }
@@ -1175,6 +1179,12 @@ impl ApplicationHandler<TerminalEvent> for App {
                     }
                     block_list.finish_block_if_confirmed();
                     should_hint = was_running && !block_list.last_is_running();
+                    if was_running && !block_list.last_is_running() {
+                        if let Some(started) = self.smart_input.command_started.take() {
+                            self.smart_input.last_command_duration = Some(started.elapsed());
+                        }
+                        self.smart_input.pending_command = None;
+                    }
                 }
                 self.record_last_block();
                 if should_hint {
