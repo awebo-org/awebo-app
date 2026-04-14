@@ -620,7 +620,8 @@ pub fn draw(
         panel_w,
         header_h,
         sf,
-    );    buf.fill_rect(panel_x, hdr_border_y, panel_w, border_w, theme::BORDER);
+    );
+    buf.fill_rect(panel_x, hdr_border_y, panel_w, border_w, theme::BORDER);
 
     panel_w
 }
@@ -724,12 +725,10 @@ fn draw_toolbar(
         let add_label = format!("+{additions}");
         let del_label = format!("-{deletions}");
         let inner_gap = (4.0 * sf) as usize;
-        let add_w =
-            measure_text_width_bold(font_system, &add_label, metrics, Family::Monospace).ceil()
-                as usize;
-        let del_w =
-            measure_text_width_bold(font_system, &del_label, metrics, Family::Monospace).ceil()
-                as usize;
+        let add_w = measure_text_width_bold(font_system, &add_label, metrics, Family::Monospace)
+            .ceil() as usize;
+        let del_w = measure_text_width_bold(font_system, &del_label, metrics, Family::Monospace)
+            .ceil() as usize;
         let total_w = add_w + inner_gap + del_w;
 
         let right_margin = pad_x;
