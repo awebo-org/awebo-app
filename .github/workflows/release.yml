@@ -50,6 +50,11 @@ jobs:
       - name: Create macOS .app bundle
         run: cargo bundle --release
 
+      - name: Sign macOS .app bundle
+        run: |
+          xattr -cr target/release/bundle/osx/Awebo.app
+          codesign --force --deep --sign - target/release/bundle/osx/Awebo.app
+
       - name: Create DMG
         run: |
           APP_DIR="target/release/bundle/osx"
