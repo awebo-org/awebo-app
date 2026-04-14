@@ -387,7 +387,8 @@ impl super::App {
             .tab_mgr
             .active_tab()
             .and_then(|t| t.cwd())
-            .map(std::path::PathBuf::from);
+            .map(std::path::PathBuf::from)
+            .or_else(dirs::home_dir);
 
         let is_alt = false;
         let term_h = renderer.terminal_height(is_alt);
@@ -816,6 +817,12 @@ impl super::App {
         let lines = lines.max(2);
 
         let event_proxy = JsonEventProxy::new(self.proxy.clone());
+        let working_directory = self
+            .tab_mgr
+            .active_tab()
+            .and_then(|t| t.cwd())
+            .map(std::path::PathBuf::from)
+            .or_else(dirs::home_dir);
         let terminal = Terminal::new(
             cols,
             lines,
@@ -823,7 +830,7 @@ impl super::App {
             renderer.cell_height as u16,
             event_proxy,
             None,
-            None,
+            working_directory,
         );
 
         self.tab_mgr.push(Tab::new_terminal_with_blocks(

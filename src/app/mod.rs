@@ -273,7 +273,30 @@ impl App {
                 renderer.scale_factor,
             );
 
-            if self.overlay.sidebar_open {
+            let cursor_over_dropdown = if self.overlay.shell_picker_open {
+                let (ax, ay) = self.shell_picker_anchor();
+                let picker_state = self.build_shell_picker_state();
+                crate::ui::components::overlay::shell_picker_contains(
+                    self.cursor_pos.0,
+                    self.cursor_pos.1,
+                    ax,
+                    ay,
+                    &picker_state,
+                    renderer.scale_factor as f32,
+                )
+            } else if self.overlay.user_menu_open {
+                crate::ui::components::tab_bar::user_menu_contains(
+                    self.cursor_pos.0,
+                    self.cursor_pos.1,
+                    renderer.tab_bar_height as f64,
+                    renderer.width as f64,
+                    renderer.scale_factor,
+                )
+            } else {
+                false
+            };
+
+            if self.overlay.sidebar_open && !cursor_over_dropdown {
                 let session_count = self.session_mgr.count();
                 let sandbox_hover_info = self.build_sandbox_info();
                 let sp_changed = crate::ui::components::side_panel::update_hover(

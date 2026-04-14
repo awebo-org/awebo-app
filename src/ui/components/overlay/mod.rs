@@ -32,7 +32,7 @@ pub use settings::{
 };
 pub use shell_picker::{
     SandboxImageInfo, ShellInfo, ShellPickerChoice, ShellPickerState, draw_shell_picker,
-    shell_picker_hit_test, shell_picker_hover_test,
+    shell_picker_contains, shell_picker_hit_test, shell_picker_hover_test,
 };
 
 pub(crate) fn draw_border(

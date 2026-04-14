@@ -276,6 +276,26 @@ pub fn shell_picker_hit_test(
     None
 }
 
+/// Returns `true` when the cursor is anywhere inside the shell-picker rect.
+pub fn shell_picker_contains(
+    phys_x: f64,
+    phys_y: f64,
+    anchor_x: usize,
+    anchor_y: usize,
+    picker: &ShellPickerState,
+    sf: f32,
+) -> bool {
+    let rows = build_rows(picker);
+    let pad = (PADDING * sf) as f64;
+    let pw = (PICKER_WIDTH * sf) as f64;
+    let ph: f64 = rows.iter().map(|r| row_height(r, sf) as f64).sum::<f64>() + pad * 2.0;
+
+    let px = anchor_x as f64;
+    let py = anchor_y as f64;
+
+    phys_x >= px && phys_x < px + pw && phys_y >= py && phys_y < py + ph
+}
+
 /// Hover-test: returns the visual row index if the cursor is over an interactive item.
 pub fn shell_picker_hover_test(
     phys_x: f64,

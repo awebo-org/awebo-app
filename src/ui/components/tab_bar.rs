@@ -988,6 +988,12 @@ pub fn user_menu_hovered(
     user_menu_item_at(phys_x, phys_y, bar_h, buf_width, sf, is_pro)
 }
 
+/// Returns `true` when the cursor is anywhere inside the user-menu dropdown rect.
+pub fn user_menu_contains(phys_x: f64, phys_y: f64, bar_h: f64, buf_width: f64, sf: f64) -> bool {
+    let (mx, my, mw, mh) = user_menu_rect(buf_width, bar_h, sf, false);
+    phys_x >= mx && phys_x < mx + mw && phys_y >= my && phys_y < my + mh
+}
+
 // ── Update badge (tab bar) + dropdown ────────────────────────────
 
 /// Draw the "Update Awebo" badge in the tab bar, left of the git icon.
