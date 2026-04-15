@@ -2503,19 +2503,8 @@ impl super::super::App {
                                             self.smart_input.command_started = Some(Instant::now());
                                         }
                                     } else {
-                                        log::info!("Opening file: {}", path);
-                                        #[cfg(target_os = "macos")]
-                                        {
-                                            let _ = std::process::Command::new("open")
-                                                .arg(&path)
-                                                .spawn();
-                                        }
-                                        #[cfg(not(target_os = "macos"))]
-                                        {
-                                            let _ = std::process::Command::new("xdg-open")
-                                                .arg(&path)
-                                                .spawn();
-                                        }
+                                        log::info!("Opening file in editor: {}", path);
+                                        self.open_file_in_editor(std::path::Path::new(&path));
                                     }
                                     self.request_redraw();
                                 } else if let Some(pos) =
