@@ -35,6 +35,8 @@ pub enum TerminalEvent {
     CommandExitCode(i32),
     /// Background model file deletion completed (registry index).
     ModelDeleted(usize),
+    /// Ollama model list fetched in background.
+    OllamaModelsLoaded(Result<Vec<crate::ai::ollama::OllamaModel>, String>),
     /// An agent tool finished executing on a background thread.
     ToolComplete {
         request: crate::agent::parser::ToolCallRequest,

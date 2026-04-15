@@ -1,6 +1,6 @@
 //! Settings view — renders as a dedicated tab via the Tab+Router system.
 
-use crate::ui::components::overlay::SettingsCategory;
+use crate::ui::components::overlay::{AiModelsHit, SettingsCategory};
 
 use super::super::router;
 
@@ -65,19 +65,36 @@ impl super::super::App {
         self.panel_layout.left_physical_width(sf)
     }
 
-    /// Compute settings panel content area coordinates.
-    fn settings_content_coords(&self) -> Option<(usize, usize, usize, usize, f32)> {
+    /// Compute settings tab area (area_x, area_y, area_w, area_h) in physical pixels.
+    fn settings_area(&self) -> Option<(usize, usize, usize, usize, f32)> {
         let renderer = self.renderer.as_ref()?;
         let sf = renderer.scale_factor as f32;
         let bw = renderer.width as usize;
         let bh = renderer.height as usize;
-        let (px, py, pw, _ph) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
-        let sidebar_w = (180.0 * sf) as usize;
+        let bar_h = renderer.tab_bar_height as usize;
+        let x_offset = self.side_panel_x_offset();
+        let git_w = if self.overlay.git_panel_open {
+            self.panel_layout.right_physical_width(sf)
+        } else {
+            0
+        };
+        let area_x = x_offset;
+        let area_y = bar_h;
+        let area_w = bw.saturating_sub(x_offset + git_w);
+        let area_h = bh.saturating_sub(bar_h);
+        Some((area_x, area_y, area_w, area_h, sf))
+    }
+
+    /// Compute settings panel content area coordinates (content_x, content_w, body_y, _, sf).
+    fn settings_content_coords(&self) -> Option<(usize, usize, usize, usize, f32)> {
+        let (area_x, area_y, area_w, _area_h, sf) = self.settings_area()?;
+        let sidebar_w =
+            (crate::ui::components::overlay::settings::SIDEBAR_LOGICAL_WIDTH * sf) as usize;
         let border_w = (1.0_f32 * sf).max(1.0) as usize;
-        let content_x = px + sidebar_w + border_w;
-        let content_w = pw.saturating_sub(sidebar_w + border_w);
-        let body_y = py + (16.0 * sf) as usize;
-        Some((content_x, content_w, body_y, bw.max(bh), sf))
+        let content_x = area_x + sidebar_w + border_w;
+        let content_w = area_w.saturating_sub(sidebar_w + border_w);
+        let body_y = area_y + (16.0 * sf) as usize;
+        Some((content_x, content_w, body_y, 0, sf))
     }
 
     /// Handle settings hover on CursorMoved (main window).
@@ -85,20 +102,19 @@ impl super::super::App {
         if !self.is_settings_active() {
             return;
         }
-        let renderer = match &self.renderer {
-            Some(r) => r,
+
+        let (area_x, area_y, _area_w, area_h, sf) = match self.settings_area() {
+            Some(a) => a,
             None => return,
         };
-        let sf = renderer.scale_factor as f32;
-        let bw = renderer.width as usize;
-        let bh = renderer.height as usize;
 
         let prev = self.settings_state.hovered;
         self.settings_state.hovered = crate::ui::components::overlay::settings_sidebar_hit_test(
             self.cursor_pos.0,
             self.cursor_pos.1,
-            bw,
-            bh,
+            area_x,
+            area_y,
+            area_h,
             sf,
         );
 
@@ -118,6 +134,8 @@ impl super::super::App {
                     content_x,
                     content_w,
                     sf,
+                    self.settings_state.ollama_enabled,
+                    self.settings_state.ollama_models.len(),
                 );
         } else {
             self.settings_state.hovered_btn = None;
@@ -157,12 +175,11 @@ impl super::super::App {
 
         if self.settings_state.font_picker_open {
             let prev_fp = self.settings_state.font_picker_hovered;
-            let (_, py, _, _) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
             self.settings_state.font_picker_hovered =
                 crate::ui::components::overlay::font_picker_hit_test(
                     self.cursor_pos.0,
                     self.cursor_pos.1,
-                    py,
+                    area_y,
                     content_x,
                     content_w,
                     sf,
@@ -187,25 +204,11 @@ impl super::super::App {
         if !self.is_settings_active() {
             return;
         }
-        let renderer = match &self.renderer {
-            Some(r) => r,
+
+        let (area_x, area_y, _area_w, area_h, sf) = match self.settings_area() {
+            Some(a) => a,
             None => return,
         };
-        let sf = renderer.scale_factor as f32;
-        let bw = renderer.width as usize;
-        let bh = renderer.height as usize;
-
-        // Click outside panel closes settings
-        if !crate::ui::components::overlay::settings_panel_contains(
-            self.cursor_pos.0,
-            self.cursor_pos.1,
-            bw,
-            bh,
-            sf,
-        ) {
-            self.close_settings_view();
-            return;
-        }
 
         let (content_x, content_w, body_y, _, _) = match self.settings_content_coords() {
             Some(c) => c,
@@ -213,12 +216,11 @@ impl super::super::App {
         };
 
         if self.settings_state.font_picker_open {
-            let (_, py, _, _) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
             let font_count = self.settings_state.font_options.len();
             if let Some(idx) = crate::ui::components::overlay::font_picker_hit_test(
                 self.cursor_pos.0,
                 self.cursor_pos.1,
-                py,
+                area_y,
                 content_x,
                 content_w,
                 sf,
@@ -238,8 +240,9 @@ impl super::super::App {
         } else if let Some(idx) = crate::ui::components::overlay::settings_sidebar_hit_test(
             self.cursor_pos.0,
             self.cursor_pos.1,
-            bw,
-            bh,
+            area_x,
+            area_y,
+            area_h,
             sf,
         ) {
             if let Some(&cat) = SettingsCategory::all().get(idx) {
@@ -255,13 +258,67 @@ impl super::super::App {
                 content_x,
                 content_w,
                 sf,
+                self.settings_state.ollama_enabled,
+                self.settings_state.ollama_models.len(),
             ) {
-                self.handle_ai_models_hit(hit);
+                if hit == AiModelsHit::OllamaHostInput {
+                    self.settings_state.ollama_host_focused = true;
+                    self.settings_state.ollama_host_sel_anchor = None;
+                    let pad = (24.0 * sf) as f64;
+                    let text_pad = (8.0 * sf) as f64;
+                    let text_origin_x = content_x as f64 + pad + text_pad;
+                    let rel_x = (self.cursor_pos.0 - text_origin_x).max(0.0);
+                    if let Some(r) = &mut self.renderer {
+                        let metrics = cosmic_text::Metrics::new(11.0 * sf, 16.0 * sf);
+                        let host = &self.settings_state.ollama_host;
+                        let mut best = host.len();
+                        for (i, _) in host.char_indices() {
+                            let w = crate::renderer::text::measure_text_width(
+                                &mut r.font_system,
+                                &host[..i],
+                                metrics,
+                                cosmic_text::Family::Monospace,
+                            ) as f64;
+                            if w > rel_x {
+                                let prev_w = if i > 0 {
+                                    let prev = host[..i]
+                                        .char_indices()
+                                        .next_back()
+                                        .map_or(0, |(pi, _)| pi);
+                                    crate::renderer::text::measure_text_width(
+                                        &mut r.font_system,
+                                        &host[..prev],
+                                        metrics,
+                                        cosmic_text::Family::Monospace,
+                                    ) as f64
+                                } else {
+                                    0.0
+                                };
+                                if (rel_x - prev_w) < (w - rel_x) {
+                                    best = host[..i]
+                                        .char_indices()
+                                        .next_back()
+                                        .map_or(0, |(pi, _)| pi);
+                                } else {
+                                    best = i;
+                                }
+                                break;
+                            }
+                        }
+                        self.settings_state.ollama_host_cursor = best;
+                    }
+                } else {
+                    self.settings_state.ollama_host_focused = false;
+                    self.settings_state.ollama_host_sel_anchor = None;
+                    self.handle_ai_models_hit(hit);
+                }
+            } else {
+                self.settings_state.ollama_host_focused = false;
+                self.settings_state.ollama_host_sel_anchor = None;
             }
         } else if self.settings_state.active == SettingsCategory::Sandbox {
             let scroll = self.settings_state.sandbox.scroll_offset;
-            let (_, py, _, ph) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
-            let viewport_h = (py + ph).saturating_sub(body_y) as f32;
+            let viewport_h = (area_y + area_h).saturating_sub(body_y) as f32;
 
             if crate::ui::components::overlay::settings::sandbox_settings::scrollbar_thumb_hit_test(
                 self.cursor_pos.0,
@@ -399,11 +456,11 @@ impl super::super::App {
                 Some(c) => c,
                 None => return,
             };
-            let renderer = self.renderer.as_ref().unwrap();
-            let bw = renderer.width as usize;
-            let bh = renderer.height as usize;
-            let (_, py, _, ph) = crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
-            let viewport_h = (py + ph).saturating_sub(body_y) as f32;
+            let (_, area_y, _, area_h, _) = match self.settings_area() {
+                Some(a) => a,
+                None => return,
+            };
+            let viewport_h = (area_y + area_h).saturating_sub(body_y) as f32;
             let total_content =
                 crate::ui::components::overlay::settings::sandbox_settings::sandbox_settings_content_height(sf);
             if total_content <= viewport_h {

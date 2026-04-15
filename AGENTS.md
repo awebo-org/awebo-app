@@ -48,7 +48,8 @@ src/
     editor.rs          # Text editor component
     markdown.rs        # Markdown rendering
     syntax/            # Tree-sitter syntax highlighting
-  ai/                  # Local LLM inference (llama.cpp), model management, web search
+  ai/                  # LLM inference (llama.cpp + Ollama), model management, web search
+    ollama.rs          # Ollama REST API client (streaming NDJSON, model list)
   agent/               # AI agent orchestrator, tool use, session management
   git/                 # libgit2 wrapper (status, diff, branches)
   sandbox/             # microsandbox integration (OCI images, isolated sessions)
@@ -108,6 +109,13 @@ When adding new functionality:
 **Configuration**: `AppConfig` is deserialized from `~/.config/awebo/config.toml` via serde. Config file gets 0600 permissions on save (unix).
 
 **License**: Encrypted with chacha20poly1305 using a random per-file salt. License file format is versioned.
+
+**AI inference — dual backend**: Two inference backends:
+- **llama.cpp** (default): Local GGUF model files. `run_inference()` takes a `LoadedModelHandle`, streams tokens via mpsc. Model handle is borrowed during inference and returned via `InferenceResult`.
+- **Ollama**: Remote HTTP API (`/api/chat` with streaming NDJSON). `ollama::stream_chat()` sends structured messages, streams tokens via the same mpsc pattern. No model handle needed — Ollama manages models server-side. Config: `ollama_enabled`, `ollama_host`, `ollama_model` in `AiConfig`.
+- Dispatch: `start_ai_query()`, `start_summarize()`, `start_agent_inference()`, `request_ai_hint_if_eligible()`, and `GitGenerateCommitMessage` all check `config.ai.ollama_enabled` and route accordingly. Token polling (`poll_ai_tokens`) is shared.
+
+**Notifications — toast system**: All user-facing status messages and errors must use the toast system (`self.toast_mgr.push(msg, ToastLevel::Info|Error)`). Do not display errors inline in settings or overlays. Toasts are rendered as temporary floating notifications and auto-dismiss. Available levels: `ToastLevel::Info` (neutral/success), `ToastLevel::Error` (red/failure).
 
 ## CI Pipeline
 

@@ -237,6 +237,9 @@ impl App {
             line_height_px: config.appearance.line_height,
             models_path: config.ai.models_path.clone(),
             web_search_enabled: config.ai.web_search,
+            ollama_enabled: config.ai.ollama_enabled,
+            ollama_host: config.ai.ollama_host.clone(),
+            ollama_model: config.ai.ollama_model.clone(),
             sandbox: SandboxSettingsState {
                 cpus: config.sandbox.default_cpus,
                 memory_mib: config.sandbox.default_memory_mib,
@@ -804,6 +807,10 @@ impl ApplicationHandler<TerminalEvent> for App {
         self.create_tab(None);
         self.auto_load_model();
 
+        if self.config.ai.ollama_enabled {
+            self.fetch_ollama_models();
+        }
+
         if self.config.updates.auto_check {
             crate::updater::spawn_update_check(self.proxy.clone());
         }
@@ -910,26 +917,55 @@ impl ApplicationHandler<TerminalEvent> for App {
                 };
 
                 let model_picker_state = if self.overlay.model_picker_open {
-                    let models_dir = ai::model_manager::models_dir();
-                    let loaded_name = self.ai_ctrl.state.loaded_model_name.as_deref();
-                    let items: Vec<ModelPickerItem> = ai::registry::MODELS
-                        .iter()
-                        .map(|m| {
-                            let path = models_dir.join(m.filename);
-                            let status = if loaded_name == Some(m.name) {
-                                ModelStatus::Loaded
-                            } else if path.exists() {
-                                ModelStatus::Downloaded
-                            } else {
-                                ModelStatus::NotDownloaded
-                            };
-                            ModelPickerItem {
-                                name: m.name.to_string(),
-                                quant_label: m.quant_label.to_string(),
-                                status,
-                            }
-                        })
-                        .collect();
+                    let ollama_on = self.config.ai.ollama_enabled
+                        && !self.settings_state.ollama_models.is_empty();
+
+                    let items: Vec<ModelPickerItem> = if ollama_on {
+                        self.settings_state
+                            .ollama_models
+                            .iter()
+                            .map(|m| {
+                                let is_selected = self.config.ai.ollama_model == m.name;
+                                let status = if is_selected {
+                                    ModelStatus::Loaded
+                                } else {
+                                    ModelStatus::Downloaded
+                                };
+                                let info = if m.parameter_size.is_empty() {
+                                    ai::ollama::format_size(m.size)
+                                } else {
+                                    m.parameter_size.clone()
+                                };
+                                ModelPickerItem {
+                                    name: m.name.clone(),
+                                    quant_label: info,
+                                    status,
+                                }
+                            })
+                            .collect()
+                    } else {
+                        let models_dir = ai::model_manager::models_dir();
+                        let loaded_name = self.ai_ctrl.state.loaded_model_name.as_deref();
+                        ai::registry::MODELS
+                            .iter()
+                            .map(|m| {
+                                let path = models_dir.join(m.filename);
+                                let status = if loaded_name == Some(m.name) {
+                                    ModelStatus::Loaded
+                                } else if path.exists() {
+                                    ModelStatus::Downloaded
+                                } else {
+                                    ModelStatus::NotDownloaded
+                                };
+                                ModelPickerItem {
+                                    name: m.name.to_string(),
+                                    quant_label: m.quant_label.to_string(),
+                                    status,
+                                }
+                            })
+                            .collect()
+                    };
+
                     Some(ModelPickerState {
                         items,
                         selected: self.overlay.model_picker_selected,
@@ -1402,6 +1438,31 @@ impl ApplicationHandler<TerminalEvent> for App {
             TerminalEvent::ModelDeleted(idx) => {
                 log::info!("Model deletion complete: index {idx}");
                 self.settings_state.deleting_model = None;
+                self.pending_redraw = true;
+            }
+            TerminalEvent::OllamaModelsLoaded(result) => {
+                use crate::ui::components::overlay::settings::OllamaConnectionStatus;
+                match result {
+                    Ok(models) => {
+                        let count = models.len();
+                        self.settings_state.ollama_models = models;
+                        self.settings_state.ollama_status =
+                            OllamaConnectionStatus::Connected(count);
+                        self.toast_mgr.push(
+                            format!("Ollama connected — {count} model(s) available"),
+                            crate::ui::components::toast::ToastLevel::Info,
+                        );
+                    }
+                    Err(e) => {
+                        self.settings_state.ollama_models.clear();
+                        self.settings_state.ollama_status =
+                            OllamaConnectionStatus::Error(e.clone());
+                        self.toast_mgr.push(
+                            format!("Ollama connection failed: {e}"),
+                            crate::ui::components::toast::ToastLevel::Error,
+                        );
+                    }
+                }
                 self.pending_redraw = true;
             }
             TerminalEvent::ToolComplete { request, result } => {

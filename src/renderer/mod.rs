@@ -450,7 +450,6 @@ impl Renderer {
             || palette.is_some()
             || model_picker.is_some()
             || shell_picker.is_some()
-            || settings.is_some()
             || models_view.is_some()
             || tooltip.is_some()
             || input_field.slash_menu_open
@@ -461,6 +460,10 @@ impl Renderer {
             || drag_ghost.is_some();
 
         if let Some(settings_state) = settings {
+            let s_area_x = content_x_offset;
+            let s_area_y = bar_h;
+            let s_area_w = content_right_edge.saturating_sub(content_x_offset);
+            let s_area_h = h.saturating_sub(bar_h);
             crate::ui::components::overlay::draw_settings(
                 &mut self.pixel_buf,
                 &mut self.font_system,
@@ -468,23 +471,25 @@ impl Renderer {
                 &mut self.icon_renderer,
                 &mut self.avatar_renderer,
                 settings_state,
+                s_area_x,
+                s_area_y,
+                s_area_w,
+                s_area_h,
                 sf,
                 is_pro,
             );
 
             if settings_state.font_picker_open {
-                let (spx, spy, spw, _) =
-                    crate::ui::components::overlay::settings_panel_rect(w, h, sf);
                 let sidebar_w = (180.0 * sf) as usize;
                 let border_w = (1.0_f32 * sf).max(1.0) as usize;
-                let content_x = spx + sidebar_w + border_w;
-                let content_w = spw.saturating_sub(sidebar_w + border_w);
+                let content_x = s_area_x + sidebar_w + border_w;
+                let content_w = s_area_w.saturating_sub(sidebar_w + border_w);
                 crate::ui::components::overlay::draw_font_picker(
                     &mut self.pixel_buf,
                     &mut self.font_system,
                     &mut self.swash_cache,
                     settings_state,
-                    spy,
+                    s_area_y,
                     content_x,
                     content_w,
                     sf,

@@ -31,6 +31,9 @@ pub struct AiConfig {
     pub web_search: bool,
     pub context_lines: usize,
     pub auto_load: bool,
+    pub ollama_enabled: bool,
+    pub ollama_host: String,
+    pub ollama_model: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +77,9 @@ impl Default for AiConfig {
             web_search: false,
             context_lines: 30,
             auto_load: true,
+            ollama_enabled: false,
+            ollama_host: "http://localhost:11434".into(),
+            ollama_model: String::new(),
         }
     }
 }

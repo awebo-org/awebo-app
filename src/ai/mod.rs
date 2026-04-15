@@ -1,5 +1,6 @@
 pub mod inference;
 pub mod model_manager;
+pub mod ollama;
 pub mod registry;
 pub mod web_search;
 
@@ -531,7 +532,7 @@ Answer: NONE");
 }
 
 /// Detect OS, architecture and shell for the hint system prompt.
-fn detect_os_info() -> String {
+pub fn detect_os_info() -> String {
     let os = if cfg!(target_os = "macos") {
         "macOS"
     } else if cfg!(target_os = "linux") {
@@ -577,6 +578,43 @@ fn detect_os_info() -> String {
     }
     info.push_str(&format!(", package manager: {pkg_mgr}"));
     info
+}
+
+pub fn hint_system_prompt(os_info: &str) -> String {
+    format!("\
+You are a terminal assistant running on {os_info}. \
+The user just ran a command in their terminal. Analyze the command and its output.
+
+Rules:
+- If the command succeeded with normal output and there is nothing to improve, respond with exactly: NONE
+- If the command failed or could be corrected, respond with ONLY the corrected command.
+- No explanation, no markdown, no backticks, no quotes. Just the raw command or NONE.
+- Think about what the user was TRYING to do and suggest the correct way to achieve it:
+  * \"command not found\" -> suggest install command (brew install X, apt install X, etc.)
+  * Typo in command name -> fix the typo
+  * Permission denied -> add sudo
+  * Wrong flags or syntax -> fix them
+  * Wrong usage (e.g. passing a string as a filename) -> suggest the correct invocation (e.g. piping with echo)
+- Only respond NONE when the output is clearly successful and intentional.
+- NEVER suggest a command from a different OS. You are on {os_info}. Use only commands available on this OS.
+- Prefer the system's native package manager.
+
+Examples:
+Command: ls -l
+Output: total 0\\n-rw-r--r-- 1 user staff 0 Jan 1 00:00 file.txt
+Answer: NONE
+
+Command: gti status
+Output: zsh: command not found: gti
+Answer: git status
+
+Command: md5 hello
+Output: md5: hello: No such file or directory
+Answer: echo \"hello\" | md5
+
+Command: cat nonexistent.txt
+Output: cat: nonexistent.txt: No such file or directory
+Answer: NONE")
 }
 
 /// Strip GPT-oss style channel/message tokens from model output.

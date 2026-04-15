@@ -205,6 +205,14 @@ impl super::App {
             return;
         }
 
+        let ollama_enabled = self.config.ai.ollama_enabled;
+        let ollama_model_set = !self.config.ai.ollama_model.is_empty();
+
+        if ollama_enabled && ollama_model_set {
+            self.start_ai_query_ollama(query);
+            return;
+        }
+
         if self.ai_ctrl.state.loaded_model.is_none()
             && self.ai_ctrl.state.loaded_model_name.is_none()
             && !self.auto_load_best_efficient()
@@ -278,6 +286,55 @@ impl super::App {
         );
         self.ai_ctrl.state.inference_rx = Some(token_rx);
         self.ai_ctrl.state.inference_handle = Some(jh);
+        self.ai_ctrl.state.begin_assistant_message();
+    }
+
+    fn start_ai_query_ollama(&mut self, query: &str) {
+        let context_lines = self
+            .active_block_list()
+            .map(|bl| bl.context_for_ai(self.ai_ctrl.state.context_lines))
+            .unwrap_or_default();
+
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, format!("/ask {}", query));
+            if let Some(block) = block_list.blocks.last_mut() {
+                block.thinking = true;
+            }
+        }
+
+        self.maybe_show_first_use_hint(crate::usage::Feature::Ask);
+        self.usage_tracker.record_use(crate::usage::Feature::Ask);
+        self.ai_ctrl.state.add_user_message(query.to_string());
+
+        let system = format!(
+            "You are a helpful terminal assistant. \
+             Answer concisely. When suggesting commands, use code blocks. \
+             You have access to the user's recent terminal output below.\n\n{}",
+            context_lines.join("\n")
+        );
+        let messages = ai::ollama::build_chat_messages(&system, &self.ai_ctrl.state.messages);
+
+        let (token_tx, token_rx) = std::sync::mpsc::channel();
+        let cancel = self.ai_ctrl.arm_cancel();
+        let host = self.config.ai.ollama_host.clone();
+        let model = self.config.ai.ollama_model.clone();
+        let _jh = ai::ollama::stream_chat(
+            &host,
+            &model,
+            messages,
+            token_tx,
+            self.proxy.clone(),
+            cancel,
+        );
+
+        self.ai_ctrl.state.inference_rx = Some(token_rx);
         self.ai_ctrl.state.begin_assistant_message();
     }
 
@@ -367,6 +424,11 @@ impl super::App {
     /// Start a `/summarize` inference — uses the same streaming path as `/ask`
     /// but with a summarization-focused system prompt.
     pub(crate) fn start_summarize(&mut self) {
+        if self.config.ai.ollama_enabled && !self.config.ai.ollama_model.is_empty() {
+            self.start_summarize_ollama();
+            return;
+        }
+
         let context_lines = self
             .active_block_list()
             .map(|bl| bl.context_for_ai(self.ai_ctrl.state.context_lines))
@@ -451,6 +513,57 @@ impl super::App {
         self.ai_ctrl.state.begin_assistant_message();
     }
 
+    fn start_summarize_ollama(&mut self) {
+        let context_lines = self
+            .active_block_list()
+            .map(|bl| bl.context_for_ai(self.ai_ctrl.state.context_lines))
+            .unwrap_or_default();
+
+        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+            && let super::TabKind::Terminal {
+                terminal,
+                block_list,
+                ..
+            } = &mut tab.kind
+        {
+            let prompt_info = terminal.prompt_info();
+            block_list.push_command(prompt_info, "/summarize".to_string());
+            if let Some(block) = block_list.blocks.last_mut() {
+                block.thinking = true;
+            }
+        }
+
+        self.ai_ctrl
+            .state
+            .add_user_message("Summarize my recent terminal session.".to_string());
+
+        let system = format!(
+            "You are a terminal output summarizer. \
+             The user's recent terminal session is provided below. \
+             Produce a clear, concise summary of what happened: \
+             which commands were run, whether they succeeded or failed, \
+             and any important output. Use markdown formatting.\n\n{}",
+            context_lines.join("\n")
+        );
+        let messages = ai::ollama::build_chat_messages(&system, &self.ai_ctrl.state.messages);
+
+        let (token_tx, token_rx) = std::sync::mpsc::channel();
+        let cancel = self.ai_ctrl.arm_cancel();
+        let host = self.config.ai.ollama_host.clone();
+        let model = self.config.ai.ollama_model.clone();
+        let _jh = ai::ollama::stream_chat(
+            &host,
+            &model,
+            messages,
+            token_tx,
+            self.proxy.clone(),
+            cancel,
+        );
+
+        self.ai_ctrl.state.inference_rx = Some(token_rx);
+        self.ai_ctrl.state.begin_assistant_message();
+    }
+
     /// Check the last finished block for error patterns and, if a model is
     /// loaded (and not busy with a user query), start a background inference
     /// to suggest a fix command shown as ghost text in the input field.
@@ -484,59 +597,105 @@ impl super::App {
             (block.command.clone(), output_text)
         };
 
-        let model_handle = match self.ai_ctrl.state.loaded_model.take() {
-            Some(h) => h,
-            None => return,
-        };
-
         let web_search_enabled = self.settings_state.web_search_enabled;
-        let fallback_template = self.ai_ctrl.fallback_template().to_string();
-
         let (token_tx, token_rx) = std::sync::mpsc::channel();
         let proxy = self.proxy.clone();
         let cancel = self.ai_ctrl.arm_cancel();
 
         self.ai_ctrl.state.hint_rx = Some(token_rx);
+        self.ai_ctrl.state.hint_buffer.clear();
 
-        let jh = tokio::task::spawn_blocking(move || {
-            let web_context = if web_search_enabled {
-                let first_line = output_text.lines().next().unwrap_or(&output_text);
-                let program = command.split_whitespace().next().unwrap_or(&command);
-                let query = format!("{program} {first_line}");
-                log::info!("web search query: {:?}", query);
-                let result = ai::web_search::search(&query, 3);
-                if let Some(ref ctx) = result {
-                    log::info!("web search result: {:?}", ctx);
+        if self.config.ai.ollama_enabled && !self.config.ai.ollama_model.is_empty() {
+            let host = self.config.ai.ollama_host.clone();
+            let model_name = self.config.ai.ollama_model.clone();
+
+            tokio::task::spawn_blocking(move || {
+                let web_context = if web_search_enabled {
+                    let first_line = output_text.lines().next().unwrap_or(&output_text);
+                    let program = command.split_whitespace().next().unwrap_or(&command);
+                    let query = format!("{program} {first_line}");
+                    ai::web_search::search(&query, 3)
                 } else {
-                    log::info!("web search: no results");
+                    None
+                };
+
+                if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = token_tx.send(String::new());
+                    let _ = proxy.send_event(TerminalEvent::Wakeup);
+                    return;
                 }
-                result
-            } else {
-                None
+
+                let os_info = ai::detect_os_info();
+                let system = ai::hint_system_prompt(&os_info);
+                let mut user_text = format!("Command: {command}\nOutput:\n{output_text}");
+                if let Some(ctx) = web_context.as_deref() {
+                    user_text.push_str("\n\nWeb search results:\n");
+                    user_text.push_str(ctx);
+                }
+                user_text.push_str("\nAnswer:");
+
+                let msgs = vec![
+                    ai::ollama::ChatMsg {
+                        role: "system".into(),
+                        content: system,
+                    },
+                    ai::ollama::ChatMsg {
+                        role: "user".into(),
+                        content: user_text,
+                    },
+                ];
+                ai::ollama::do_stream_chat_pub(&host, &model_name, &msgs, token_tx, proxy, cancel);
+            });
+        } else {
+            let model_handle = match self.ai_ctrl.state.loaded_model.take() {
+                Some(h) => h,
+                None => {
+                    self.ai_ctrl.state.hint_rx = None;
+                    return;
+                }
             };
 
-            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-                let _ = token_tx.send(String::new());
-                let _ = proxy.send_event(TerminalEvent::Wakeup);
-                return None;
-            }
+            let fallback_template = self.ai_ctrl.fallback_template().to_string();
 
-            let prompt = ai::AiState::build_hint_prompt_static(
-                &command,
-                &output_text,
-                web_context.as_deref(),
-                &model_handle.model,
-                &fallback_template,
-            );
+            let jh = tokio::task::spawn_blocking(move || {
+                let web_context = if web_search_enabled {
+                    let first_line = output_text.lines().next().unwrap_or(&output_text);
+                    let program = command.split_whitespace().next().unwrap_or(&command);
+                    let query = format!("{program} {first_line}");
+                    log::info!("web search query: {:?}", query);
+                    let result = ai::web_search::search(&query, 3);
+                    if let Some(ref ctx) = result {
+                        log::info!("web search result: {:?}", ctx);
+                    } else {
+                        log::info!("web search: no results");
+                    }
+                    result
+                } else {
+                    None
+                };
 
-            log::info!("command: {:?}", command);
-            log::info!("prompt sent to model:\n{}", prompt);
+                if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = token_tx.send(String::new());
+                    let _ = proxy.send_event(TerminalEvent::Wakeup);
+                    return None;
+                }
 
-            ai::inference::do_inference_pub(model_handle, prompt, token_tx, proxy, cancel)
-        });
+                let prompt = ai::AiState::build_hint_prompt_static(
+                    &command,
+                    &output_text,
+                    web_context.as_deref(),
+                    &model_handle.model,
+                    &fallback_template,
+                );
 
-        self.ai_ctrl.state.hint_handle = Some(jh);
-        self.ai_ctrl.state.hint_buffer.clear();
+                log::info!("command: {:?}", command);
+                log::info!("prompt sent to model:\n{}", prompt);
+
+                ai::inference::do_inference_pub(model_handle, prompt, token_tx, proxy, cancel)
+            });
+
+            self.ai_ctrl.state.hint_handle = Some(jh);
+        }
 
         log::info!("hint inference started (web search + inference in background)");
     }

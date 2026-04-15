@@ -10,10 +10,18 @@ use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::draw_text_at;
 use crate::renderer::theme;
 
-use super::{draw_border_rounded, fill_rounded_rect};
+use super::fill_rounded_rect;
 
 pub use ai_models::{AiModelsHit, settings_ai_models_hit_test};
 pub use font_picker::{detect_monospace_fonts, draw_font_picker, font_picker_hit_test};
+
+/// Status of the Ollama backend connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OllamaConnectionStatus {
+    Unknown,
+    Connected(usize),
+    Error(String),
+}
 
 /// Settings panel category tabs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +71,22 @@ pub struct SettingsState {
     pub models_path: String,
     /// Whether to enrich AI hints with web search results (default: off).
     pub web_search_enabled: bool,
+    /// Whether to use Ollama as the inference backend.
+    pub ollama_enabled: bool,
+    /// Ollama host URL (e.g. "http://localhost:11434").
+    pub ollama_host: String,
+    /// Selected Ollama model name (e.g. "llama3:latest").
+    pub ollama_model: String,
+    /// Cached list of available Ollama models (fetched from /api/tags).
+    pub ollama_models: Vec<crate::ai::ollama::OllamaModel>,
+    /// Status of last Ollama connection attempt.
+    pub ollama_status: OllamaConnectionStatus,
+    /// Whether the Ollama host text input is focused.
+    pub ollama_host_focused: bool,
+    /// Byte-offset cursor position within `ollama_host`.
+    pub ollama_host_cursor: usize,
+    /// Selection anchor (byte offset) for the Ollama host input.
+    pub ollama_host_sel_anchor: Option<usize>,
     /// Registry index of a model currently being deleted (shows spinner).
     pub deleting_model: Option<usize>,
     /// Sandbox settings sub-state.
@@ -162,6 +186,14 @@ impl SettingsState {
             font_options,
             models_path,
             web_search_enabled: false,
+            ollama_enabled: false,
+            ollama_host: "http://localhost:11434".to_string(),
+            ollama_model: String::new(),
+            ollama_models: Vec::new(),
+            ollama_status: OllamaConnectionStatus::Unknown,
+            ollama_host_focused: false,
+            ollama_host_cursor: 0,
+            ollama_host_sel_anchor: None,
             deleting_model: None,
             sandbox: SandboxSettingsState::default(),
             about_hovered: None,
@@ -177,25 +209,12 @@ impl Default for SettingsState {
 
 pub mod ai_models;
 
-const PANEL_W: f32 = 680.0;
-const PANEL_MAX_H: f32 = 520.0;
-const PANEL_CORNER_R: f32 = 10.0;
-const SIDEBAR_LOGICAL_WIDTH: f32 = 180.0;
+pub const SIDEBAR_LOGICAL_WIDTH: f32 = 180.0;
 const ITEM_LOGICAL_HEIGHT: f32 = 36.0;
 const SIDEBAR_TOP_PAD: f32 = 16.0;
 const SIDEBAR_ITEM_PAD: f32 = 12.0;
 const PANEL_BG: crate::renderer::pixel_buffer::Rgb = theme::BG_SURFACE;
 const PANEL_BORDER: crate::renderer::pixel_buffer::Rgb = theme::BORDER;
-
-/// Compute the centered settings panel rect (px, py, pw, ph) in physical pixels.
-pub fn settings_panel_rect(buf_w: usize, buf_h: usize, sf: f32) -> (usize, usize, usize, usize) {
-    let pw = (PANEL_W * sf) as usize;
-    let max_ph = (PANEL_MAX_H * sf) as usize;
-    let ph = max_ph.min(buf_h * 80 / 100);
-    let px = buf_w.saturating_sub(pw) / 2;
-    let py = buf_h.saturating_sub(ph) / 2;
-    (px, py, pw, ph)
-}
 
 pub fn draw_settings(
     buf: &mut PixelBuffer,
@@ -204,31 +223,28 @@ pub fn draw_settings(
     icon_renderer: &mut crate::renderer::icons::IconRenderer,
     avatar_renderer: &mut crate::renderer::icons::AvatarRenderer,
     state: &SettingsState,
+    area_x: usize,
+    area_y: usize,
+    area_w: usize,
+    area_h: usize,
     sf: f32,
     is_pro: bool,
 ) {
-    buf.dim(0.45);
+    let px = area_x;
+    let py = area_y;
+    let pw = area_w;
+    let ph = area_h;
 
-    let (px, py, pw, ph) = settings_panel_rect(buf.width, buf.height, sf);
-    let corner = (PANEL_CORNER_R * sf) as usize;
+    buf.fill_rect(px, py, pw, ph, PANEL_BG);
+
     let border_w = (1.0_f32 * sf).max(1.0) as usize;
-
-    fill_rounded_rect(buf, px, py, pw, ph, corner, PANEL_BG);
-    draw_border_rounded(buf, px, py, pw, ph, border_w, corner, PANEL_BORDER);
-
     let sidebar_w = (SIDEBAR_LOGICAL_WIDTH * sf) as usize;
     let item_h = (ITEM_LOGICAL_HEIGHT * sf) as usize;
     let top_pad = (SIDEBAR_TOP_PAD * sf) as usize;
     let item_pad_x = (SIDEBAR_ITEM_PAD * sf) as usize;
 
     let divider_x = px + sidebar_w;
-    buf.fill_rect(
-        divider_x,
-        py + corner,
-        border_w,
-        ph.saturating_sub(corner * 2),
-        PANEL_BORDER,
-    );
+    buf.fill_rect(divider_x, py, border_w, ph, PANEL_BORDER);
 
     let label_metrics = Metrics::new(13.0 * sf, 18.0 * sf);
     let categories = SettingsCategory::all();
@@ -342,24 +358,24 @@ pub fn draw_settings(
 pub fn settings_sidebar_hit_test(
     phys_x: f64,
     phys_y: f64,
-    buf_w: usize,
-    buf_h: usize,
+    area_x: usize,
+    area_y: usize,
+    area_h: usize,
     sf: f32,
 ) -> Option<usize> {
-    let (px, py, _pw, ph) = settings_panel_rect(buf_w, buf_h, sf);
     let sidebar_w = (SIDEBAR_LOGICAL_WIDTH * sf) as f64;
 
-    if phys_x < px as f64
-        || phys_x >= px as f64 + sidebar_w
-        || phys_y < py as f64
-        || phys_y >= (py + ph) as f64
+    if phys_x < area_x as f64
+        || phys_x >= area_x as f64 + sidebar_w
+        || phys_y < area_y as f64
+        || phys_y >= (area_y + area_h) as f64
     {
         return None;
     }
 
     let item_h = (ITEM_LOGICAL_HEIGHT * sf) as f64;
     let top_pad = (SIDEBAR_TOP_PAD * sf) as f64;
-    let rel_y = phys_y - py as f64 - top_pad;
+    let rel_y = phys_y - area_y as f64 - top_pad;
 
     if rel_y < 0.0 {
         return None;
@@ -368,21 +384,6 @@ pub fn settings_sidebar_hit_test(
     let idx = (rel_y / item_h) as usize;
     let count = SettingsCategory::all().len();
     if idx < count { Some(idx) } else { None }
-}
-
-/// Check whether a click is inside the settings panel area.
-pub fn settings_panel_contains(
-    phys_x: f64,
-    phys_y: f64,
-    buf_w: usize,
-    buf_h: usize,
-    sf: f32,
-) -> bool {
-    let (px, py, pw, ph) = settings_panel_rect(buf_w, buf_h, sf);
-    phys_x >= px as f64
-        && phys_x < (px + pw) as f64
-        && phys_y >= py as f64
-        && phys_y < (py + ph) as f64
 }
 
 #[cfg(test)]
@@ -411,39 +412,22 @@ mod tests {
 
     #[test]
     fn settings_sidebar_hit_test_outside() {
-        assert!(settings_sidebar_hit_test(0.0, 0.0, 1000, 800, 1.0).is_none());
+        assert!(settings_sidebar_hit_test(0.0, 0.0, 100, 50, 400, 1.0).is_none());
     }
 
     #[test]
     fn settings_sidebar_hit_test_first_item() {
-        let (px, py, _, _) = settings_panel_rect(1000, 800, 1.0);
-        let result = settings_sidebar_hit_test(px as f64 + 50.0, py as f64 + 20.0, 1000, 800, 1.0);
+        let area_x = 100;
+        let area_y = 50;
+        let area_h = 400;
+        let result = settings_sidebar_hit_test(
+            area_x as f64 + 50.0,
+            area_y as f64 + 20.0,
+            area_x,
+            area_y,
+            area_h,
+            1.0,
+        );
         assert_eq!(result, Some(0));
-    }
-
-    #[test]
-    fn settings_panel_rect_centered() {
-        let (px, py, pw, ph) = settings_panel_rect(1000, 800, 1.0);
-        assert!(pw > 0);
-        assert!(ph > 0);
-        assert_eq!(px, (1000 - pw) / 2);
-        assert_eq!(py, (800 - ph) / 2);
-    }
-
-    #[test]
-    fn settings_panel_contains_inside() {
-        let (px, py, pw, ph) = settings_panel_rect(1000, 800, 1.0);
-        assert!(settings_panel_contains(
-            (px + pw / 2) as f64,
-            (py + ph / 2) as f64,
-            1000,
-            800,
-            1.0
-        ));
-    }
-
-    #[test]
-    fn settings_panel_contains_outside() {
-        assert!(!settings_panel_contains(0.0, 0.0, 1000, 800, 1.0));
     }
 }

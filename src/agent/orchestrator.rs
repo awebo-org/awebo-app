@@ -49,7 +49,6 @@ pub struct AgentOrchestrator {
     os_info: String,
     shell: String,
     cwd: String,
-    /// Consecutive parsing failures (no valid tag detected).
     consecutive_parse_failures: u32,
 }
 

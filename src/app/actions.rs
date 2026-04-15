@@ -368,45 +368,65 @@ impl super::App {
                         return;
                     }
                     log::info!("GitGenerateCommitMessage: diff len={}", diff.len());
-                    let handle = match self.ai_ctrl.state.loaded_model.take() {
-                        Some(h) => {
-                            log::info!(
-                                "GitGenerateCommitMessage: model available, starting inference"
-                            );
-                            h
-                        }
-                        None => {
-                            log::info!(
-                                "GitGenerateCommitMessage: no model loaded, setting pending"
-                            );
-                            self.git_panel.pending_generate_commit_msg = true;
-                            self.git_panel.generating_commit_msg = true;
-                            self.git_panel.commit_message.clear();
-                            if !self.auto_load_best_efficient() {
-                                self.auto_download_default_model("generate commit message");
-                            }
-                            return;
-                        }
-                    };
+
                     let system = "You write git commit messages. Output ONLY the message, nothing else. Format: <type>: <short summary>. Types: feat, fix, refactor, chore, docs, style, test. Example: \"refactor: simplify user auth flow\". Max 72 chars. Plain English. No code, no file names, no markdown, no quotes, no explanation.";
                     let user_msg =
                         format!("Summarize these staged changes in one commit message:\n\n{diff}");
-                    let fallback = self.ai_ctrl.fallback_template();
-                    let prompt = self.ai_ctrl.state.build_custom_prompt(
-                        system,
-                        &[("user", &user_msg)],
-                        &handle.model,
-                        fallback,
-                    );
-                    self.ai_ctrl.state.begin_assistant_message();
-                    let proxy = self.proxy.clone();
-                    let cancel = self.ai_ctrl.arm_cancel();
-                    let (tx, rx) = std::sync::mpsc::channel();
-                    let inf_handle =
-                        crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
-                    self.ai_ctrl.state.inference_rx = Some(rx);
-                    self.ai_ctrl.state.inference_handle = Some(inf_handle);
-                    self.git_panel.generating_commit_msg = true;
+
+                    if self.config.ai.ollama_enabled && !self.config.ai.ollama_model.is_empty() {
+                        let msgs =
+                            crate::ai::ollama::build_agent_messages(system, &[("user", &user_msg)]);
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        let cancel = self.ai_ctrl.arm_cancel();
+                        let _jh = crate::ai::ollama::stream_chat(
+                            &self.config.ai.ollama_host,
+                            &self.config.ai.ollama_model,
+                            msgs,
+                            tx,
+                            self.proxy.clone(),
+                            cancel,
+                        );
+                        self.ai_ctrl.state.begin_assistant_message();
+                        self.ai_ctrl.state.inference_rx = Some(rx);
+                        self.git_panel.generating_commit_msg = true;
+                    } else {
+                        let handle = match self.ai_ctrl.state.loaded_model.take() {
+                            Some(h) => {
+                                log::info!(
+                                    "GitGenerateCommitMessage: model available, starting inference"
+                                );
+                                h
+                            }
+                            None => {
+                                log::info!(
+                                    "GitGenerateCommitMessage: no model loaded, setting pending"
+                                );
+                                self.git_panel.pending_generate_commit_msg = true;
+                                self.git_panel.generating_commit_msg = true;
+                                self.git_panel.commit_message.clear();
+                                if !self.auto_load_best_efficient() {
+                                    self.auto_download_default_model("generate commit message");
+                                }
+                                return;
+                            }
+                        };
+                        let fallback = self.ai_ctrl.fallback_template();
+                        let prompt = self.ai_ctrl.state.build_custom_prompt(
+                            system,
+                            &[("user", &user_msg)],
+                            &handle.model,
+                            fallback,
+                        );
+                        self.ai_ctrl.state.begin_assistant_message();
+                        let proxy = self.proxy.clone();
+                        let cancel = self.ai_ctrl.arm_cancel();
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        let inf_handle =
+                            crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
+                        self.ai_ctrl.state.inference_rx = Some(rx);
+                        self.ai_ctrl.state.inference_handle = Some(inf_handle);
+                        self.git_panel.generating_commit_msg = true;
+                    }
                 }
             }
             AppAction::GitCancelGenerateCommitMessage => {
@@ -695,7 +715,16 @@ impl super::App {
             }
 
             AppAction::LoadModel { index } => {
-                self.load_model_by_index(index);
+                if self.config.ai.ollama_enabled && !self.settings_state.ollama_models.is_empty() {
+                    if let Some(model) = self.settings_state.ollama_models.get(index) {
+                        self.config.ai.ollama_model = model.name.clone();
+                        self.settings_state.ollama_model = model.name.clone();
+                        self.overlay.close_model_picker();
+                        self.save_config();
+                    }
+                } else {
+                    self.load_model_by_index(index);
+                }
             }
             AppAction::CancelInference => {
                 self.ai_ctrl.cancel_inference();

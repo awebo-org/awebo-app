@@ -294,7 +294,13 @@ impl super::super::App {
                         }
                     }
                     Key::Named(NamedKey::ArrowDown) => {
-                        let count = crate::ai::registry::MODELS.len();
+                        let count = if self.config.ai.ollama_enabled
+                            && !self.settings_state.ollama_models.is_empty()
+                        {
+                            self.settings_state.ollama_models.len()
+                        } else {
+                            crate::ai::registry::MODELS.len()
+                        };
                         if self.overlay.model_picker_selected + 1 < count {
                             self.overlay.model_picker_selected += 1;
                         }
@@ -353,6 +359,60 @@ impl super::super::App {
                                 self.git_panel.select_all();
                             } else if !s.is_empty() && !ctrl && !super_key {
                                 self.git_panel.insert_text(s);
+                            }
+                        }
+                    }
+                }
+                self.request_redraw();
+                return;
+            }
+
+            if self.settings_state.ollama_host_focused && self.is_settings_active() {
+                match logical_key.as_ref() {
+                    Key::Named(NamedKey::Escape) => {
+                        self.settings_state.ollama_host_focused = false;
+                        self.settings_state.ollama_host_sel_anchor = None;
+                    }
+                    Key::Named(NamedKey::Enter) => {
+                        self.settings_state.ollama_host_focused = false;
+                        self.settings_state.ollama_host_sel_anchor = None;
+                        self.save_config();
+                    }
+                    Key::Named(NamedKey::Backspace) => {
+                        self.ollama_host_delete_back();
+                    }
+                    Key::Named(NamedKey::Delete) => {
+                        self.ollama_host_delete_forward();
+                    }
+                    Key::Named(NamedKey::ArrowLeft) => {
+                        self.ollama_host_move_left(shift);
+                    }
+                    Key::Named(NamedKey::ArrowRight) => {
+                        self.ollama_host_move_right(shift);
+                    }
+                    Key::Named(NamedKey::Home) => {
+                        self.ollama_host_move_home(shift);
+                    }
+                    Key::Named(NamedKey::End) => {
+                        self.ollama_host_move_end(shift);
+                    }
+                    _ => {
+                        if let Some(txt) = text {
+                            let s = txt.as_str();
+                            if (super_key || ctrl) && (s == "a" || s == "A") {
+                                self.ollama_host_select_all();
+                            } else if (super_key || ctrl) && (s == "v" || s == "V") {
+                                if let Ok(mut clip) = arboard::Clipboard::new()
+                                    && let Ok(pasted) = clip.get_text()
+                                {
+                                    self.ollama_host_insert(&pasted);
+                                }
+                            } else if (super_key || ctrl) && (s == "c" || s == "C") {
+                                self.ollama_host_copy();
+                            } else if (super_key || ctrl) && (s == "x" || s == "X") {
+                                self.ollama_host_cut();
+                            } else if !s.is_empty() && !ctrl && !super_key {
+                                self.ollama_host_insert(s);
                             }
                         }
                     }
@@ -3387,12 +3447,19 @@ impl super::super::App {
                         (self.settings_state.sandbox.scroll_offset - dy).max(0.0);
                     if let Some(renderer) = &self.renderer {
                         let sf = renderer.scale_factor as f32;
-                        let bw = renderer.width as usize;
+                        let bar_h = renderer.tab_bar_height as usize;
                         let bh = renderer.height as usize;
-                        let (_, py, _, ph) =
-                            crate::ui::components::overlay::settings_panel_rect(bw, bh, sf);
-                        let body_y = py + (16.0 * sf) as usize;
-                        let viewport_h = (py + ph).saturating_sub(body_y) as f32;
+                        let x_offset = self.side_panel_x_offset();
+                        let git_w = if self.overlay.git_panel_open {
+                            self.panel_layout.right_physical_width(sf)
+                        } else {
+                            0
+                        };
+                        let area_y = bar_h;
+                        let area_h = bh.saturating_sub(bar_h);
+                        let _ = (x_offset, git_w);
+                        let body_y = area_y + (16.0 * sf) as usize;
+                        let viewport_h = (area_y + area_h).saturating_sub(body_y) as f32;
                         let total = crate::ui::components::overlay::settings::sandbox_settings::sandbox_settings_content_height(sf);
                         let max = (total - viewport_h).max(0.0);
                         self.settings_state.sandbox.scroll_offset =

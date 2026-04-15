@@ -10,7 +10,10 @@ use crate::agent::tools::ToolRegistry;
 impl super::super::App {
     /// Start an agent session from `/agent <task>`.
     pub(crate) fn start_agent(&mut self, task: String) {
-        if self.ai_ctrl.state.loaded_model.is_none()
+        let ollama_ready = self.config.ai.ollama_enabled && !self.config.ai.ollama_model.is_empty();
+
+        if !ollama_ready
+            && self.ai_ctrl.state.loaded_model.is_none()
             && self.ai_ctrl.state.loaded_model_name.is_none()
             && !self.auto_load_best_efficient()
         {
@@ -19,7 +22,7 @@ impl super::super::App {
             return;
         }
 
-        if self.ai_ctrl.state.loaded_model.is_none() {
+        if !ollama_ready && self.ai_ctrl.state.loaded_model.is_none() {
             let model_label = self
                 .ai_ctrl
                 .state
@@ -278,18 +281,6 @@ impl super::super::App {
     ) {
         use crate::agent::orchestrator::AgentConvRole;
 
-        let handle = match self.ai_ctrl.state.loaded_model.take() {
-            Some(h) => h,
-            None => {
-                self.push_agent_error("Model was unloaded during agent session.");
-                self.agent = None;
-                self.agent_command = None;
-                return;
-            }
-        };
-
-        let fallback_template = self.ai_ctrl.fallback_template();
-
         let msg_tuples: Vec<(&str, String)> = messages
             .iter()
             .map(|m| {
@@ -304,26 +295,52 @@ impl super::super::App {
         let msg_refs: Vec<(&str, &str)> =
             msg_tuples.iter().map(|(r, c)| (*r, c.as_str())).collect();
 
-        let prompt = self.ai_ctrl.state.build_custom_prompt(
-            &system_prompt,
-            &msg_refs,
-            &handle.model,
-            fallback_template,
-        );
-
         self.push_agent_thinking_block();
-
         self.ai_ctrl.state.begin_assistant_message();
 
         let proxy = self.proxy.clone();
         let cancel = self.ai_ctrl.arm_cancel();
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let inference_handle =
-            crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
+        if self.config.ai.ollama_enabled && !self.config.ai.ollama_model.is_empty() {
+            let tools =
+                crate::ai::ollama::tools_from_registry(&self.agent.as_ref().unwrap().tool_registry);
+            let ollama_msgs = crate::ai::ollama::build_agent_messages(&system_prompt, &msg_refs);
+            let _jh = crate::ai::ollama::stream_chat_with_tools(
+                &self.config.ai.ollama_host,
+                &self.config.ai.ollama_model,
+                ollama_msgs,
+                tools,
+                tx,
+                proxy,
+                cancel,
+            );
+            self.ai_ctrl.state.inference_rx = Some(rx);
+        } else {
+            let handle = match self.ai_ctrl.state.loaded_model.take() {
+                Some(h) => h,
+                None => {
+                    self.push_agent_error("Model was unloaded during agent session.");
+                    self.agent = None;
+                    self.agent_command = None;
+                    return;
+                }
+            };
 
-        self.ai_ctrl.state.inference_rx = Some(rx);
-        self.ai_ctrl.state.inference_handle = Some(inference_handle);
+            let fallback_template = self.ai_ctrl.fallback_template();
+            let prompt = self.ai_ctrl.state.build_custom_prompt(
+                &system_prompt,
+                &msg_refs,
+                &handle.model,
+                fallback_template,
+            );
+
+            let inference_handle =
+                crate::ai::inference::run_inference(handle, prompt, tx, proxy, cancel);
+            self.ai_ctrl.state.inference_rx = Some(rx);
+            self.ai_ctrl.state.inference_handle = Some(inference_handle);
+        }
+
         self.ai_ctrl.state.thinking_since = Some(std::time::Instant::now());
         self.ai_ctrl.block_written = 0;
     }
