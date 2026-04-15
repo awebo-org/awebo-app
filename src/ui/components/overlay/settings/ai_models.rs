@@ -5,7 +5,7 @@ use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::{draw_text_at, draw_text_clipped, measure_text_width};
 use crate::renderer::theme;
 
-use super::super::{draw_border, fill_rounded_rect};
+use super::super::{draw_border, draw_border_rounded, fill_rounded_rect};
 use super::SettingsState;
 
 const BTN_BG: (u8, u8, u8) = theme::BG_ELEVATED;
@@ -397,6 +397,17 @@ fn draw_local_section(
         BTN_BG
     };
     fill_rounded_rect(buf, manage_x, *y, manage_w, btn_h, btn_corner, manage_bg);
+    let bw = (1.0 * sf).max(1.0) as usize;
+    draw_border_rounded(
+        buf,
+        manage_x,
+        *y,
+        manage_w,
+        btn_h,
+        bw,
+        btn_corner,
+        theme::BORDER,
+    );
     let manage_text_y = *y + ((btn_h as f32 - 17.0 * sf) / 2.0) as usize;
     draw_text_at(
         buf,

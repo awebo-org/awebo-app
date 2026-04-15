@@ -50,6 +50,7 @@ pub struct AgentOrchestrator {
     shell: String,
     cwd: String,
     consecutive_parse_failures: u32,
+    prior_history: Vec<String>,
 }
 
 impl AgentOrchestrator {
@@ -61,6 +62,7 @@ impl AgentOrchestrator {
         os_info: String,
         shell: String,
         cwd: String,
+        prior_history: Vec<String>,
     ) -> (Self, AgentNext) {
         let session = AgentSession::new(task);
 
@@ -71,6 +73,7 @@ impl AgentOrchestrator {
             shell,
             cwd,
             consecutive_parse_failures: 0,
+            prior_history,
         };
 
         let next = orch.build_inference_request();
@@ -241,6 +244,7 @@ impl AgentOrchestrator {
             &self.os_info,
             &self.shell,
             &self.cwd,
+            &self.prior_history,
         );
 
         let messages = self.build_conversation_messages();
@@ -406,6 +410,7 @@ mod tests {
             "Linux".into(),
             "bash".into(),
             "/home/user".into(),
+            Vec::new(),
         )
     }
 

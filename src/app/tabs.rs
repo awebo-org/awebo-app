@@ -23,6 +23,10 @@ pub(crate) enum TabKind {
         terminal: Terminal,
         is_alt: bool,
         block_list: BlockList,
+        /// Per-tab conversation history for `/ask` queries.
+        ai_messages: Vec<crate::ai::ChatMessage>,
+        /// Summaries of completed `/agent` sessions for cross-session context.
+        agent_history: Vec<String>,
     },
     /// A sandbox terminal running inside a microsandbox microVM.
     Sandbox {
@@ -51,6 +55,8 @@ impl Tab {
                 terminal,
                 is_alt: false,
                 block_list: BlockList::new(),
+                ai_messages: Vec::new(),
+                agent_history: Vec::new(),
             },
             session_id: None,
         }
@@ -68,6 +74,8 @@ impl Tab {
                 terminal,
                 is_alt: false,
                 block_list,
+                ai_messages: Vec::new(),
+                agent_history: Vec::new(),
             },
             session_id: Some(session_id),
         }

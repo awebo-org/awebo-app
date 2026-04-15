@@ -38,9 +38,18 @@ impl super::super::App {
         let os_info = std::env::consts::OS.to_string();
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".into());
 
+        let prior_history = if let Some(tab) = self.tab_mgr.get(self.tab_mgr.active_index())
+            && let super::super::TabKind::Terminal { agent_history, .. } = &tab.kind
+        {
+            agent_history.clone()
+        } else {
+            Vec::new()
+        };
+
         let tools = ToolRegistry::with_defaults();
         let agent_cmd = format!("/agent {task}");
-        let (mut orch, next) = AgentOrchestrator::start(task.clone(), tools, os_info, shell, cwd);
+        let (mut orch, next) =
+            AgentOrchestrator::start(task.clone(), tools, os_info, shell, cwd, prior_history);
 
         let ctx_size = self.ai_ctrl.state.context_size;
         orch.set_context_size(ctx_size);
@@ -217,6 +226,29 @@ impl super::super::App {
                     .as_ref()
                     .map(|o| o.session.inference_rounds)
                     .unwrap_or(0);
+
+                let task_summary = self
+                    .agent_command
+                    .as_deref()
+                    .unwrap_or("/agent")
+                    .strip_prefix("/agent ")
+                    .unwrap_or("task");
+                let brief_answer = if answer.len() > 200 {
+                    format!("{}…", &answer[..200])
+                } else {
+                    answer.clone()
+                };
+                let history_entry = format!("Task: {task_summary} → {brief_answer}");
+                if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                    && let super::super::TabKind::Terminal { agent_history, .. } = &mut tab.kind
+                {
+                    const MAX_AGENT_HISTORY: usize = 20;
+                    if agent_history.len() >= MAX_AGENT_HISTORY {
+                        agent_history.remove(0);
+                    }
+                    agent_history.push(history_entry);
+                }
+
                 self.push_agent_block_with_step(
                     &format!("Agent complete:\n\n{answer}\n\n---\n{rounds} rounds, {token_info}",),
                     Some(crate::blocks::AgentStepKind::FinalAnswer),
@@ -296,7 +328,7 @@ impl super::super::App {
             msg_tuples.iter().map(|(r, c)| (*r, c.as_str())).collect();
 
         self.push_agent_thinking_block();
-        self.ai_ctrl.state.begin_assistant_message();
+        self.ai_ctrl.state.begin_agent_response();
 
         let proxy = self.proxy.clone();
         let cancel = self.ai_ctrl.arm_cancel();

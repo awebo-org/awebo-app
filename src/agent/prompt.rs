@@ -17,6 +17,7 @@ pub fn build_agent_system_prompt(
     os_info: &str,
     shell: &str,
     cwd: &str,
+    prior_history: &[String],
 ) -> String {
     let mut prompt = String::with_capacity(3072);
 
@@ -27,6 +28,18 @@ pub fn build_agent_system_prompt(
     prompt.push_str(&format!(
         "ENVIRONMENT: OS={os_info}, Shell={shell}, CWD={cwd}\n\n",
     ));
+
+    if !prior_history.is_empty() {
+        prompt.push_str("PRIOR SESSION CONTEXT (completed agent tasks in this tab):\n");
+        for entry in prior_history {
+            prompt.push_str("- ");
+            prompt.push_str(entry);
+            prompt.push('\n');
+        }
+        prompt.push_str(
+            "Use this context to avoid repeating work and to understand what has already been done.\n\n",
+        );
+    }
 
     prompt.push_str("TOOLS:\n");
     for spec in tools.specs() {
@@ -94,7 +107,7 @@ mod tests {
     #[test]
     fn system_prompt_contains_tools() {
         let reg = ToolRegistry::with_defaults();
-        let prompt = build_agent_system_prompt(&reg, "macOS 15", "zsh", "/home/user");
+        let prompt = build_agent_system_prompt(&reg, "macOS 15", "zsh", "/home/user", &[]);
         assert!(prompt.contains("shell_exec"));
         assert!(prompt.contains("read_file"));
         assert!(prompt.contains("write_file"));
@@ -106,10 +119,30 @@ mod tests {
     #[test]
     fn system_prompt_contains_env_info() {
         let reg = ToolRegistry::with_defaults();
-        let prompt = build_agent_system_prompt(&reg, "Ubuntu 24.04", "bash", "/root");
+        let prompt = build_agent_system_prompt(&reg, "Ubuntu 24.04", "bash", "/root", &[]);
         assert!(prompt.contains("Ubuntu 24.04"));
         assert!(prompt.contains("bash"));
         assert!(prompt.contains("/root"));
+    }
+
+    #[test]
+    fn system_prompt_includes_prior_history() {
+        let reg = ToolRegistry::with_defaults();
+        let history = vec![
+            "Task: fix bug → Fixed the null pointer in main.rs".to_string(),
+            "Task: add test → Added unit test for parser".to_string(),
+        ];
+        let prompt = build_agent_system_prompt(&reg, "macOS 15", "zsh", "/home/user", &history);
+        assert!(prompt.contains("PRIOR SESSION CONTEXT"));
+        assert!(prompt.contains("fix bug"));
+        assert!(prompt.contains("add test"));
+    }
+
+    #[test]
+    fn system_prompt_no_history_section_when_empty() {
+        let reg = ToolRegistry::with_defaults();
+        let prompt = build_agent_system_prompt(&reg, "macOS 15", "zsh", "/home/user", &[]);
+        assert!(!prompt.contains("PRIOR SESSION CONTEXT"));
     }
 
     #[test]

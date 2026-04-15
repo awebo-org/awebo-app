@@ -251,10 +251,11 @@ impl super::App {
 
         let model_handle = self.ai_ctrl.state.loaded_model.take().unwrap();
 
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+        let tab_messages = if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
             && let super::TabKind::Terminal {
                 terminal,
                 block_list,
+                ai_messages,
                 ..
             } = &mut tab.kind
         {
@@ -263,17 +264,30 @@ impl super::App {
             if let Some(block) = block_list.blocks.last_mut() {
                 block.thinking = true;
             }
-        }
+            ai_messages.push(crate::ai::ChatMessage {
+                role: crate::ai::MessageRole::User,
+                content: query.to_string(),
+                streaming: false,
+            });
+            ai_messages.clone()
+        } else {
+            vec![crate::ai::ChatMessage {
+                role: crate::ai::MessageRole::User,
+                content: query.to_string(),
+                streaming: false,
+            }]
+        };
 
         self.maybe_show_first_use_hint(crate::usage::Feature::Ask);
         self.usage_tracker.record_use(crate::usage::Feature::Ask);
-        self.ai_ctrl.state.add_user_message(query.to_string());
 
         let fallback_template = self.ai_ctrl.fallback_template();
-        let prompt =
-            self.ai_ctrl
-                .state
-                .build_prompt(&context_lines, &model_handle.model, fallback_template);
+        let prompt = self.ai_ctrl.state.build_prompt(
+            &tab_messages,
+            &context_lines,
+            &model_handle.model,
+            fallback_template,
+        );
 
         let (token_tx, token_rx) = std::sync::mpsc::channel();
         let cancel = self.ai_ctrl.arm_cancel();
@@ -295,10 +309,11 @@ impl super::App {
             .map(|bl| bl.context_for_ai(self.ai_ctrl.state.context_lines))
             .unwrap_or_default();
 
-        if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+        let tab_messages = if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
             && let super::TabKind::Terminal {
                 terminal,
                 block_list,
+                ai_messages,
                 ..
             } = &mut tab.kind
         {
@@ -307,11 +322,22 @@ impl super::App {
             if let Some(block) = block_list.blocks.last_mut() {
                 block.thinking = true;
             }
-        }
+            ai_messages.push(crate::ai::ChatMessage {
+                role: crate::ai::MessageRole::User,
+                content: query.to_string(),
+                streaming: false,
+            });
+            ai_messages.clone()
+        } else {
+            vec![crate::ai::ChatMessage {
+                role: crate::ai::MessageRole::User,
+                content: query.to_string(),
+                streaming: false,
+            }]
+        };
 
         self.maybe_show_first_use_hint(crate::usage::Feature::Ask);
         self.usage_tracker.record_use(crate::usage::Feature::Ask);
-        self.ai_ctrl.state.add_user_message(query.to_string());
 
         let system = format!(
             "You are a helpful terminal assistant. \
@@ -319,7 +345,7 @@ impl super::App {
              You have access to the user's recent terminal output below.\n\n{}",
             context_lines.join("\n")
         );
-        let messages = ai::ollama::build_chat_messages(&system, &self.ai_ctrl.state.messages);
+        let messages = ai::ollama::build_chat_messages(&system, &tab_messages);
 
         let (token_tx, token_rx) = std::sync::mpsc::channel();
         let cancel = self.ai_ctrl.arm_cancel();
@@ -361,18 +387,21 @@ impl super::App {
         }
 
         if got_token {
-            let full_content: Option<String> = self
-                .ai_ctrl
-                .state
-                .messages
-                .last()
-                .filter(|msg| !msg.content.is_empty())
-                .map(|msg| msg.content.clone());
+            if self.agent.is_some() {
+                let buf = &self.ai_ctrl.state.agent_response_buf;
+                if !buf.is_empty() {
+                    self.ai_ctrl.block_written = buf.len();
+                }
+            } else {
+                let full_content: Option<String> = self
+                    .ai_ctrl
+                    .state
+                    .messages
+                    .last()
+                    .filter(|msg| !msg.content.is_empty())
+                    .map(|msg| msg.content.clone());
 
-            if let Some(full_text) = full_content {
-                if self.agent.is_some() {
-                    self.ai_ctrl.block_written = full_text.len();
-                } else {
+                if let Some(full_text) = full_content {
                     let display_text = ai::strip_channel_tokens(&full_text);
                     if let Some(bl) = self.active_block_list_mut() {
                         if let Some(block) = bl.blocks.last_mut()
@@ -388,15 +417,10 @@ impl super::App {
         }
 
         if self.ai_ctrl.state.inference_rx.is_none() && self.ai_ctrl.block_written > 0 {
-            let full_response = self
-                .ai_ctrl
-                .state
-                .messages
-                .last()
-                .map(|m| m.content.clone())
-                .unwrap_or_default();
-
             if self.agent.is_some() {
+                let full_response = self.ai_ctrl.state.agent_response_buf.clone();
+                self.ai_ctrl.state.agent_response_buf.clear();
+
                 if let Some(bl) = self.active_block_list_mut()
                     && let Some(last) = bl.blocks.last()
                     && (last.thinking
@@ -412,6 +436,26 @@ impl super::App {
                 self.on_agent_inference_complete(full_response);
                 return;
             }
+
+            let full_response = self
+                .ai_ctrl
+                .state
+                .messages
+                .last()
+                .map(|m| m.content.clone())
+                .unwrap_or_default();
+
+            if let Some(tab) = self.tab_mgr.get_mut(self.tab_mgr.active_index())
+                && let super::TabKind::Terminal { ai_messages, .. } = &mut tab.kind
+            {
+                ai_messages.push(crate::ai::ChatMessage {
+                    role: crate::ai::MessageRole::Assistant,
+                    content: full_response,
+                    streaming: false,
+                });
+            }
+
+            self.ai_ctrl.state.messages.clear();
 
             if let Some(bl) = self.active_block_list_mut() {
                 bl.finish_last();

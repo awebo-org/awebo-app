@@ -55,6 +55,11 @@ pub struct AiState {
     pub last_generated_tokens: usize,
     /// Context window size of the loaded model.
     pub context_size: u32,
+
+    /// When true, streaming tokens go to `agent_response_buf` instead of `messages`.
+    pub agent_streaming: bool,
+    /// Accumulates the raw model response during agent inference.
+    pub agent_response_buf: String,
 }
 
 impl AiState {
@@ -75,6 +80,8 @@ impl AiState {
             last_prompt_tokens: 0,
             last_generated_tokens: 0,
             context_size: 0,
+            agent_streaming: false,
+            agent_response_buf: String::new(),
         }
     }
 
@@ -97,9 +104,22 @@ impl AiState {
         self.auto_scroll = true;
     }
 
+    /// Begin streaming an agent inference response into a dedicated buffer
+    /// so it does not pollute the `/ask` conversation history.
+    pub fn begin_agent_response(&mut self) {
+        self.thinking_since = Some(Instant::now());
+        self.agent_streaming = true;
+        self.agent_response_buf.clear();
+    }
+
     pub fn append_token(&mut self, token: &str) {
         if self.thinking_since.is_some() {
             self.thinking_since = None;
+        }
+        if self.agent_streaming {
+            self.agent_response_buf.push_str(token);
+            self.auto_scroll = true;
+            return;
         }
         if let Some(msg) = self.messages.last_mut()
             && msg.role == MessageRole::Assistant
@@ -112,6 +132,10 @@ impl AiState {
 
     pub fn finish_streaming(&mut self) {
         self.thinking_since = None;
+        if self.agent_streaming {
+            self.agent_streaming = false;
+            return;
+        }
         if let Some(msg) = self.messages.last_mut() {
             msg.streaming = false;
         }
@@ -314,6 +338,7 @@ Answer: NONE");
 
     pub fn build_prompt(
         &self,
+        chat_messages: &[ChatMessage],
         terminal_lines: &[String],
         model: &llama_cpp_2::model::LlamaModel,
         fallback_template: &str,
@@ -321,7 +346,13 @@ Answer: NONE");
         let base = "You are a helpful terminal assistant. \
                      Answer concisely. When suggesting commands, use code blocks. \
                      You have access to the user's recent terminal output below.";
-        self.build_prompt_with_system(base, terminal_lines, model, fallback_template)
+        Self::build_prompt_with_system(
+            chat_messages,
+            base,
+            terminal_lines,
+            model,
+            fallback_template,
+        )
     }
 
     /// Build a prompt from a custom system message and explicit chat messages.
@@ -397,11 +428,11 @@ Answer: NONE");
                      Produce a clear, concise summary of what happened: \
                      which commands were run, whether they succeeded or failed, \
                      and any important output. Use markdown formatting.";
-        self.build_prompt_with_system(base, terminal_lines, model, fallback_template)
+        Self::build_prompt_with_system(&[], base, terminal_lines, model, fallback_template)
     }
 
     fn build_prompt_with_system(
-        &self,
+        chat_messages: &[ChatMessage],
         system_base: &str,
         terminal_lines: &[String],
         model: &llama_cpp_2::model::LlamaModel,
@@ -419,7 +450,7 @@ Answer: NONE");
         };
 
         if fallback_template == "gemma" {
-            return self.build_gemma4_prompt(&system_text);
+            return Self::build_gemma4_prompt(chat_messages, &system_text);
         }
 
         let template = model
@@ -430,7 +461,7 @@ Answer: NONE");
 
         let mut messages = Vec::new();
         messages.push(LlamaChatMessage::new("system".into(), system_text).unwrap());
-        for msg in &self.messages {
+        for msg in chat_messages {
             match msg.role {
                 MessageRole::User => {
                     messages
@@ -457,7 +488,7 @@ Answer: NONE");
             }
             Err(e) => {
                 log::error!("apply_chat_template '{}' failed: {e:?}", fallback_template);
-                self.build_prompt_fallback(terminal_lines)
+                Self::build_prompt_fallback(chat_messages, terminal_lines)
             }
         }
     }
@@ -470,13 +501,13 @@ Answer: NONE");
     ///   <|turn>model\n{msg}<turn|>\n
     ///   ...
     ///   <|turn>model\n
-    fn build_gemma4_prompt(&self, system_text: &str) -> String {
+    fn build_gemma4_prompt(chat_messages: &[ChatMessage], system_text: &str) -> String {
         let mut prompt = String::new();
         prompt.push_str("<bos>");
         prompt.push_str("<|turn>system\n");
         prompt.push_str(system_text);
         prompt.push_str("<turn|>\n");
-        for msg in &self.messages {
+        for msg in chat_messages {
             match msg.role {
                 MessageRole::User => {
                     prompt.push_str("<|turn>user\n");
@@ -496,7 +527,7 @@ Answer: NONE");
         prompt
     }
 
-    fn build_prompt_fallback(&self, terminal_lines: &[String]) -> String {
+    fn build_prompt_fallback(chat_messages: &[ChatMessage], terminal_lines: &[String]) -> String {
         let system_text = {
             let base = "You are a helpful terminal assistant. \
                          Answer concisely. When suggesting commands, use code blocks.";
@@ -512,7 +543,7 @@ Answer: NONE");
         prompt.push_str("<|im_start|>system\n");
         prompt.push_str(&system_text);
         prompt.push_str("<|im_end|>\n");
-        for msg in &self.messages {
+        for msg in chat_messages {
             match msg.role {
                 MessageRole::User => {
                     prompt.push_str("<|im_start|>user\n");
@@ -778,8 +809,8 @@ mod tests {
 
     #[test]
     fn build_prompt_fallback_has_structure() {
-        let state = AiState::new();
-        let prompt = state.build_prompt_fallback(&["$ ls".to_string(), "file.txt".to_string()]);
+        let prompt =
+            AiState::build_prompt_fallback(&[], &["$ ls".to_string(), "file.txt".to_string()]);
         assert!(prompt.contains("<|im_start|>system"));
         assert!(prompt.contains("terminal_context"));
         assert!(prompt.contains("<|im_start|>assistant"));
@@ -787,21 +818,36 @@ mod tests {
 
     #[test]
     fn build_prompt_fallback_empty_context() {
-        let state = AiState::new();
-        let prompt = state.build_prompt_fallback(&[]);
+        let prompt = AiState::build_prompt_fallback(&[], &[]);
         assert!(prompt.contains("<|im_start|>system"));
         assert!(!prompt.contains("terminal_context"));
     }
 
     #[test]
     fn build_gemma4_prompt_format() {
-        let mut state = AiState::new();
-        state.add_user_message("hello".to_string());
-        let prompt = state.build_gemma4_prompt("You are helpful.");
+        let msgs = vec![ChatMessage {
+            role: MessageRole::User,
+            content: "hello".to_string(),
+            streaming: false,
+        }];
+        let prompt = AiState::build_gemma4_prompt(&msgs, "You are helpful.");
         assert!(prompt.starts_with("<bos>"));
         assert!(prompt.contains("<|turn>system\n"));
         assert!(prompt.contains("<|turn>user\n"));
         assert!(prompt.ends_with("<|turn>model\n"));
+    }
+
+    #[test]
+    fn agent_streaming_isolates_from_messages() {
+        let mut state = AiState::new();
+        state.add_user_message("hello".to_string());
+        state.begin_agent_response();
+        state.append_token("agent ");
+        state.append_token("stuff");
+        state.finish_streaming();
+        assert_eq!(state.agent_response_buf, "agent stuff");
+        assert_eq!(state.messages.len(), 1);
+        assert_eq!(state.messages[0].content, "hello");
     }
 
     #[test]
