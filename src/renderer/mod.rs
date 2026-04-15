@@ -357,6 +357,7 @@ impl Renderer {
         )>,
         cwd_badge_hovered: bool,
         cwd_dropdown: Option<(&[String], Option<usize>, usize)>,
+        drag_ghost: Option<(&str, f64, f64)>,
     ) -> Option<crate::ui::components::prompt_bar::PromptBarHitRects> {
         let w = self.width as usize;
         let h = self.height as usize;
@@ -453,7 +454,8 @@ impl Renderer {
             || context_menu.is_some()
             || pro_panel.is_some()
             || usage_limit_banner.is_some()
-            || cwd_dropdown.is_some();
+            || cwd_dropdown.is_some()
+            || drag_ghost.is_some();
 
         if let Some(settings_state) = settings {
             crate::ui::components::overlay::draw_settings(
@@ -960,6 +962,45 @@ impl Renderer {
             toast_mgr,
             sf,
         );
+
+        if let Some((label, cx, cy)) = drag_ghost {
+            let ghost_size = 11.0 * sf;
+            let ghost_metrics = cosmic_text::Metrics::new(ghost_size, ghost_size * 1.3);
+            let tw = crate::renderer::text::measure_text_width(
+                &mut self.font_system,
+                label,
+                ghost_metrics,
+                cosmic_text::Family::SansSerif,
+            ) as usize;
+            let pad_x = (6.0 * sf) as usize;
+            let pad_y = (3.0 * sf) as usize;
+            let gw = tw + pad_x * 2;
+            let gh = (ghost_size * 1.3) as usize + pad_y * 2;
+            let gx = (cx as usize + (12.0 * sf) as usize).min(w.saturating_sub(gw));
+            let gy = (cy as usize + (12.0 * sf) as usize).min(h.saturating_sub(gh));
+            let ghost_bg: crate::renderer::pixel_buffer::Rgb = (35, 35, 40);
+            let ghost_border: crate::renderer::pixel_buffer::Rgb = (70, 70, 78);
+            let ghost_fg: crate::renderer::pixel_buffer::Rgb = (200, 200, 210);
+            self.pixel_buf.fill_rect(gx, gy, gw, gh, ghost_bg);
+            self.pixel_buf.fill_rect(gx, gy, gw, 1, ghost_border);
+            self.pixel_buf
+                .fill_rect(gx, gy + gh.saturating_sub(1), gw, 1, ghost_border);
+            self.pixel_buf.fill_rect(gx, gy, 1, gh, ghost_border);
+            self.pixel_buf
+                .fill_rect(gx + gw.saturating_sub(1), gy, 1, gh, ghost_border);
+            crate::renderer::text::draw_text_at(
+                &mut self.pixel_buf,
+                &mut self.font_system,
+                &mut self.swash_cache,
+                gx + pad_x,
+                gy + pad_y,
+                gy + gh,
+                label,
+                ghost_metrics,
+                ghost_fg,
+                cosmic_text::Family::SansSerif,
+            );
+        }
 
         if widget_debug {
             let backend_label = format!("{}", self.backend);

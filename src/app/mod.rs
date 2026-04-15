@@ -100,6 +100,123 @@ pub(crate) struct App {
     usage_tracker: crate::usage::UsageTracker,
     license_mgr: crate::license::LicenseManager,
     usage_limit_banner: crate::ui::components::usage_limit_banner::UsageLimitBannerState,
+    path_drag: PathDragState,
+}
+
+#[derive(Default)]
+pub(crate) struct PathDragState {
+    pending: Option<PathDragPending>,
+    active_path: Option<std::path::PathBuf>,
+}
+
+struct PathDragPending {
+    path: std::path::PathBuf,
+    action: crate::app::actions::AppAction,
+    origin_x: f64,
+    origin_y: f64,
+}
+
+const PATH_DRAG_THRESHOLD: f64 = 5.0;
+
+impl PathDragState {
+    fn begin(
+        &mut self,
+        path: std::path::PathBuf,
+        action: crate::app::actions::AppAction,
+        x: f64,
+        y: f64,
+    ) {
+        self.pending = Some(PathDragPending {
+            path,
+            action,
+            origin_x: x,
+            origin_y: y,
+        });
+        self.active_path = None;
+    }
+
+    fn update(&mut self, x: f64, y: f64) -> bool {
+        if self.active_path.is_some() {
+            return true;
+        }
+        if let Some(p) = &self.pending {
+            let dx = (x - p.origin_x).abs();
+            let dy = (y - p.origin_y).abs();
+            if dx > PATH_DRAG_THRESHOLD || dy > PATH_DRAG_THRESHOLD {
+                self.active_path = Some(p.path.clone());
+                self.pending = None;
+                return true;
+            }
+        }
+        false
+    }
+
+    fn is_active(&self) -> bool {
+        self.active_path.is_some()
+    }
+
+    fn take_drop_path(&mut self) -> Option<std::path::PathBuf> {
+        self.pending = None;
+        self.active_path.take()
+    }
+
+    fn take_click_action(&mut self) -> Option<crate::app::actions::AppAction> {
+        self.active_path = None;
+        self.pending.take().map(|p| p.action)
+    }
+}
+
+#[cfg(test)]
+mod path_drag_tests {
+    use super::*;
+    use crate::app::actions::AppAction;
+
+    #[test]
+    fn click_without_drag_returns_action() {
+        let mut state = PathDragState::default();
+        let path = std::path::PathBuf::from("/tmp/test.txt");
+        let action = AppAction::OpenFile { path: path.clone() };
+        state.begin(path, action.clone(), 100.0, 100.0);
+
+        assert!(!state.is_active());
+        state.update(102.0, 101.0);
+        assert!(!state.is_active());
+
+        let recovered = state.take_click_action();
+        assert_eq!(recovered, Some(action));
+    }
+
+    #[test]
+    fn drag_past_threshold_activates() {
+        let mut state = PathDragState::default();
+        let path = std::path::PathBuf::from("/tmp/test.txt");
+        state.begin(
+            path.clone(),
+            AppAction::OpenFile { path: path.clone() },
+            100.0,
+            100.0,
+        );
+
+        assert!(!state.update(103.0, 103.0));
+        assert!(state.update(106.0, 100.0));
+        assert!(state.is_active());
+
+        let dropped = state.take_drop_path();
+        assert_eq!(dropped.as_deref(), Some(path.as_path()));
+        assert!(!state.is_active());
+    }
+
+    #[test]
+    fn take_drop_clears_pending() {
+        let mut state = PathDragState::default();
+        let path = std::path::PathBuf::from("/a/b");
+        state.begin(path.clone(), AppAction::OpenFile { path }, 0.0, 0.0);
+        state.update(100.0, 100.0);
+
+        let _ = state.take_drop_path();
+        assert!(state.take_click_action().is_none());
+        assert!(state.take_drop_path().is_none());
+    }
 }
 
 impl App {
@@ -207,6 +324,7 @@ impl App {
             license_mgr: crate::license::LicenseManager::load(),
             usage_limit_banner:
                 crate::ui::components::usage_limit_banner::UsageLimitBannerState::default(),
+            path_drag: PathDragState::default(),
         }
     }
 
@@ -935,6 +1053,22 @@ impl ApplicationHandler<TerminalEvent> for App {
                         .as_ref()
                         .map(|(name, h)| (name.as_str(), *h));
 
+                    let drag_ghost_data: Option<(String, f64, f64)> = if self.path_drag.is_active()
+                    {
+                        self.path_drag.active_path.as_ref().map(|p| {
+                            let name = p
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "file".to_string());
+                            (name, self.cursor_pos.0, self.cursor_pos.1)
+                        })
+                    } else {
+                        None
+                    };
+                    let drag_ghost = drag_ghost_data
+                        .as_ref()
+                        .map(|(n, x, y)| (n.as_str(), *x, *y));
+
                     let hit_rects = renderer.render(
                         term_handle.as_ref(),
                         is_app_controlled,
@@ -1025,6 +1159,7 @@ impl ApplicationHandler<TerminalEvent> for App {
                         } else {
                             None
                         },
+                        drag_ghost,
                     );
                     if let Some(rects) = hit_rects {
                         self.overlay.ctx_bar_rect = rects.ctx_bar;
@@ -1058,6 +1193,10 @@ impl ApplicationHandler<TerminalEvent> for App {
                     self.is_fullscreen = w.fullscreen().is_some();
                 }
                 self.request_redraw();
+            }
+
+            WindowEvent::DroppedFile(ref path) => {
+                self.handle_dropped_file(path.clone());
             }
 
             _ => {}

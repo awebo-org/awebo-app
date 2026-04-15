@@ -2137,7 +2137,21 @@ impl super::super::App {
                                     self.file_tree.cancel_rename();
                                     self.request_redraw();
                                 }
-                                self.dispatch(action, event_loop);
+                                match &action {
+                                    crate::app::actions::AppAction::OpenFile { path }
+                                    | crate::app::actions::AppAction::ToggleFileTreeNode { path } =>
+                                    {
+                                        self.path_drag.begin(
+                                            path.clone(),
+                                            action,
+                                            self.cursor_pos.0,
+                                            self.cursor_pos.1,
+                                        );
+                                    }
+                                    _ => {
+                                        self.dispatch(action, event_loop);
+                                    }
+                                }
                             }
 
                             if self.overlay.git_panel_open && self.git_panel.scrollbar_hovered {
@@ -2156,7 +2170,23 @@ impl super::super::App {
                                     ) {
                                         self.git_panel.commit_input_focused = false;
                                     }
-                                    self.dispatch(action, event_loop);
+                                    if let crate::app::actions::AppAction::GitOpenFileDiff {
+                                        index,
+                                    } = &action
+                                    {
+                                        if let Some(abs) = self.git_entry_abs_path(*index) {
+                                            self.path_drag.begin(
+                                                abs,
+                                                action,
+                                                self.cursor_pos.0,
+                                                self.cursor_pos.1,
+                                            );
+                                        } else {
+                                            self.dispatch(action, event_loop);
+                                        }
+                                    } else {
+                                        self.dispatch(action, event_loop);
+                                    }
                                     self.request_redraw();
                                     return;
                                 } else {
@@ -2370,6 +2400,17 @@ impl super::super::App {
                     }
                     self.request_redraw();
                 }
+
+                if self.path_drag.is_active() {
+                    if let Some(path) = self.path_drag.take_drop_path() {
+                        self.insert_dropped_path(&path);
+                    }
+                    self.request_redraw();
+                } else if let Some(action) = self.path_drag.take_click_action() {
+                    self.dispatch(action, event_loop);
+                    self.request_redraw();
+                }
+
                 self.selecting = false;
                 self.editor_selecting = false;
                 if self.mouse_forwarding {
@@ -2642,6 +2683,10 @@ impl super::super::App {
 
                 if self.drag.dragging.is_some() {
                     self.drag.update(position.x);
+                    self.request_redraw();
+                }
+
+                if self.path_drag.update(position.x, position.y) {
                     self.request_redraw();
                 }
 
@@ -3104,16 +3149,25 @@ impl super::super::App {
                         && self.renderer.as_ref().is_some_and(|r| {
                             let below_bar = self.cursor_pos.1 > r.tab_bar_height as f64;
                             let sf = r.scale_factor as f32;
+                            let left_edge = if self.overlay.sidebar_open {
+                                self.panel_layout.left_physical_width(sf) as f64
+                            } else {
+                                0.0
+                            };
                             let git_w = if self.overlay.git_panel_open {
                                 self.panel_layout.right_physical_width(sf) as f64
                             } else {
                                 0.0
                             };
                             let right_edge = r.width as f64 - git_w;
-                            below_bar && self.cursor_pos.0 < right_edge
+                            below_bar
+                                && self.cursor_pos.0 >= left_edge
+                                && self.cursor_pos.0 < right_edge
                         });
 
-                    if panel_resize_active
+                    if self.path_drag.is_active() {
+                        window.set_cursor(winit::window::CursorIcon::Grabbing);
+                    } else if panel_resize_active
                         || right_resize_active
                         || self.diff_split_hovered
                         || self.diff_split_dragging
@@ -3597,6 +3651,16 @@ impl super::super::App {
             GitPanelHit::CheckoutBranch(idx) => Some(AppAction::GitCheckoutBranch { index: idx }),
             GitPanelHit::None => None,
         }
+    }
+
+    fn git_entry_abs_path(&self, index: usize) -> Option<std::path::PathBuf> {
+        let entry = self.git_panel.data.entries.get(index)?;
+        let cwd = self.resolve_cwd().unwrap_or_else(|| ".".into());
+        let repo = crate::git::GitRepo::discover(&cwd)?;
+        let workdir = repo
+            .workdir_path()
+            .unwrap_or_else(|| std::path::PathBuf::from(&cwd));
+        Some(workdir.join(&entry.path))
     }
 
     /// Convert mouse pixel position to a block text position (for Smart mode selection).
@@ -4174,6 +4238,46 @@ impl super::super::App {
             }
             self.request_redraw();
         }
+    }
+
+    fn is_cursor_over_smart_input(&self) -> bool {
+        let renderer = match self.renderer.as_ref() {
+            Some(r) => r,
+            None => return false,
+        };
+        let sf = renderer.scale_factor as f32;
+        let is_smart = self
+            .tab_mgr
+            .active_tab()
+            .and_then(|t| t.terminal())
+            .map(|t| !t.is_app_controlled())
+            .unwrap_or(false);
+        if !is_smart {
+            return false;
+        }
+        let prompt_h = crate::ui::components::prompt_bar::prompt_bar_height(sf);
+        let prompt_top = (renderer.height as usize).saturating_sub(prompt_h);
+        self.cursor_pos.1 >= prompt_top as f64
+    }
+
+    fn insert_dropped_path(&mut self, path: &std::path::Path) {
+        let escaped = shell_escape(&path.to_string_lossy());
+        if self.is_cursor_over_smart_input() {
+            self.smart_input
+                .text
+                .insert_str(self.smart_input.cursor, &escaped);
+            self.smart_input.cursor += escaped.len();
+            self.smart_input.update_slash_menu();
+            let cwd = self.active_terminal().and_then(|t| t.cwd());
+            self.smart_input.update_suggestion(cwd.as_deref());
+        } else if let Some(terminal) = self.active_terminal() {
+            terminal.input(std::borrow::Cow::Owned(escaped.into_bytes()));
+        }
+        self.request_redraw();
+    }
+
+    pub(crate) fn handle_dropped_file(&mut self, path: std::path::PathBuf) {
+        self.insert_dropped_path(&path);
     }
 }
 
