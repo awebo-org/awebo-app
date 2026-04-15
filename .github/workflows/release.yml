@@ -64,10 +64,18 @@ jobs:
           cp -R "${APP_DIR}/Awebo.app" "${STAGING}/"
           ln -s /Applications "${STAGING}/Applications"
 
-          hdiutil create -volname "Awebo" \
-            -srcfolder "${STAGING}" \
-            -ov -format UDZO \
-            "${APP_DIR}/${DMG_NAME}"
+          # Prevent Spotlight from locking the staging folder
+          touch "${STAGING}/.metadata_never_index"
+
+          # Retry hdiutil up to 3 times (macOS runners occasionally hold locks)
+          for i in 1 2 3; do
+            hdiutil create -volname "Awebo" \
+              -srcfolder "${STAGING}" \
+              -ov -format UDZO \
+              "${APP_DIR}/${DMG_NAME}" && break
+            echo "hdiutil attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
 
           cd "${APP_DIR}"
           shasum -a 256 "${DMG_NAME}" > "${DMG_NAME}.sha256"
