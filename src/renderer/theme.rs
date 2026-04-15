@@ -12,6 +12,7 @@ use super::pixel_buffer::Rgb;
 
 /// Primary accent — used for active indicators, focused elements, interactive highlights.
 pub const PRIMARY: Rgb = (219, 39, 119);
+pub const PRIMARY_DIM: Rgb = (60, 20, 45);
 
 pub const BG: Rgb = (0, 0, 0);
 /// The color `NamedColor::Background` resolves to (used for bg_override remapping).

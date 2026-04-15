@@ -136,3 +136,64 @@ All jobs run on `macos-latest`. Permissions are locked down (top-level `permissi
 **Adding a tree-sitter grammar**: Drop a directory into `vendor/grammars/` with `grammar.toml`, `parser.c`, `scanner.c` (optional), and `.scm` query files. The build script handles the rest.
 
 **Modifying the terminal**: The PTY layer is in `src/terminal/mod.rs` wrapping `alacritty_terminal`. Grid state queries go through `Terminal` methods.
+
+## Text Input & Editor Patterns
+
+All text inputs in Awebo are custom pixel-rendered (no native OS text fields). Each input maintains its own state and keyboard/mouse routing.
+
+### Input Field Requirements
+
+Every text input (search panel, commit message, license key, rename field, prompt bar) must support:
+
+- **Character insertion**: Route printable characters, filter control chars
+- **Cursor movement**: ArrowLeft, ArrowRight, Home, End (byte-offset aware for UTF-8)
+- **Deletion**: Backspace (delete behind), Delete (delete forward)
+- **Text selection**: `selection_anchor: Option<usize>` tracks selection start; cursor is the moving end. `selected_range()` returns `(start, end)` byte offsets. Selection clears on arrow keys, applies on type/delete/paste
+- **Select all**: Cmd+A (macOS) / Ctrl+A — sets anchor to 0, cursor to end
+- **Copy/Cut/Paste**: Cmd+C/X/V via `arboard::Clipboard`. Paste replaces selection if active
+- **Focus management**: `focused: bool` field, set on click in input area, cleared on click outside or Escape
+- **Visual feedback**: Blinking cursor when focused (driven by `cursor_blink_on`/`cursor_blink_at` in App), selection highlight fill rect behind text
+
+### Input Keyboard Routing
+
+Keyboard input is routed in `smart_terminal_view.rs::handle_keyboard_input()`. Each focused input gets a priority block that returns early:
+
+```
+confirm_close → rename → pro_panel → usage_panel → search_panel → ...
+→ cwd_dropdown → palette → model_picker → shell_picker → git_commit
+→ settings_input → models_view → global shortcuts → editor → terminal PTY
+```
+
+When adding a new input, insert its keyboard block in the appropriate priority position. The block must `return;` after handling to prevent event leaking.
+
+### Editor Component (`src/ui/editor.rs`)
+
+`EditorState` is a full text editor with:
+
+- **Line-based model**: `lines: Vec<String>`, cursor as `(cursor_line, cursor_col)` in byte offsets
+- **Selection**: `sel_anchor: Option<(line, col)>`, selection range computed via `selection_range()`
+- **Undo/Redo**: Snapshot-based (`UndoSnapshot` stores full lines + cursor). `push_undo()` before mutations, `undo()`/`redo()` swap snapshots. Max 500 entries. Cmd+Z/Cmd+Shift+Z routed via custom `MenuItem` (NOT `PredefinedMenuItem` — macOS NSUndoManager intercepts those)
+- **Syntax highlighting**: Tree-sitter via `SyntaxRegistry`, cached tokens invalidated on edit (`highlight_dirty`)
+- **Search highlight**: `search_highlight: Option<String>` — when set, the editor renderer highlights all case-insensitive matches with `SEARCH_HIGHLIGHT_BG` background. Set by the search panel's `OpenFileAtLine` action
+- **Diff view**: `diff_view: Option<Vec<DiffRow>>` for side-by-side git diff rendering
+- **Modes**: `EditorMode::Text | Hex | Image` — hex and image are read-only
+
+### Text Rendering & Clipping
+
+Text rendering uses cosmic-text via helpers in `renderer/text.rs`:
+
+- `draw_text_at()`: Standard text, vertical clip only (`clip_y`)
+- `draw_text_clipped()`: Text with both vertical (`clip_y`) and horizontal (`clip_x_right`) clipping — use this for panel-constrained content (search results, side panels)
+- `draw_text_at_buffered()`: Reuses a cosmic-text `Buffer` for hot loops (block renderer lines)
+- `measure_text_width()`: Measures pixel width for cursor positioning and layout
+
+**Clipping rule**: Any text rendered inside a panel that could overflow horizontally must use `draw_text_clipped()` with the panel's right edge as `clip_x_right`. The standard `draw_text_at()` only clips vertically.
+
+### Side Panel Architecture
+
+The left side panel (`src/ui/components/side_panel.rs`) hosts multiple tabs via `SidePanelTab` enum: Sessions, Files, Sandbox, Search.
+
+- **Toolbar buttons** are drawn conditionally (Sandbox only when `sandbox_info.is_some()`)
+- **Hit testing** (`toolbar_hit`) must match draw order — when a button is conditionally hidden, the hit test must skip its slot too (pass `has_sandbox` flag)
+- **Each tab** has its own state struct, scroll offset, hover tracking, and draw/hit_test functions
+- **Hover updates** run in `App::update_hover()` (`app/mod.rs`) on every `CursorMoved` event — each active tab updates its own hover state

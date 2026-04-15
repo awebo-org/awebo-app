@@ -119,6 +119,11 @@ pub enum AppAction {
     OpenFile {
         path: std::path::PathBuf,
     },
+    OpenFileAtLine {
+        path: std::path::PathBuf,
+        line: Option<u32>,
+    },
+    FocusSearchInput,
     /// Toggle the debug overlay.
     ToggleDebugPanel,
     /// Open the command palette.
@@ -528,12 +533,56 @@ impl super::App {
                         });
                     self.file_tree.load(&cwd);
                 }
+                if tab == crate::ui::panel_layout::SidePanelTab::Search {
+                    self.search_panel.focused = true;
+                    let cwd = self
+                        .resolve_cwd()
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|| {
+                            std::env::current_dir()
+                                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                        });
+                    self.search_panel.set_root(&cwd);
+                } else {
+                    self.search_panel.focused = false;
+                }
             }
             AppAction::ToggleFileTreeNode { path } => {
                 self.file_tree.toggle_expand(&path);
             }
             AppAction::OpenFile { path } => {
                 self.open_file_in_editor(&path);
+            }
+            AppAction::OpenFileAtLine { path, line } => {
+                let search_term = if !self.search_panel.query.is_empty() {
+                    Some(self.search_panel.query.clone())
+                } else {
+                    None
+                };
+                self.open_file_in_editor(&path);
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.search_highlight = search_term;
+                }
+                if let Some(line_num) = line {
+                    let sf = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| r.scale_factor as f32)
+                        .unwrap_or(1.0);
+                    let content_h = self
+                        .renderer
+                        .as_ref()
+                        .map(|r| (r.height as usize).saturating_sub(r.tab_bar_height as usize))
+                        .unwrap_or(600);
+                    if let Some(ed) = self.active_editor_state_mut() {
+                        let target = (line_num as usize).saturating_sub(1);
+                        ed.set_cursor_pos(target, 0);
+                        ed.ensure_cursor_visible(sf, content_h);
+                    }
+                }
+            }
+            AppAction::FocusSearchInput => {
+                self.search_panel.focused = true;
             }
             AppAction::ToggleDebugPanel => {
                 self.overlay.debug_panel = !self.overlay.debug_panel;

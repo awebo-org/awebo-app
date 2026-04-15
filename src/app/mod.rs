@@ -77,6 +77,7 @@ pub(crate) struct App {
     git_panel: crate::ui::components::git_panel::GitPanelState,
     panel_layout: crate::ui::panel_layout::PanelLayout,
     file_tree: crate::ui::file_tree::FileTreeState,
+    search_panel: crate::ui::search_panel::SearchPanelState,
     hint_banner: crate::ui::components::hint_banner::HintBannerState,
     scrollbar_hovered: bool,
     scrollbar_dragging: bool,
@@ -286,6 +287,7 @@ impl App {
                 ft.load(std::path::Path::new("."));
                 ft
             },
+            search_panel: crate::ui::search_panel::SearchPanelState::default(),
             hint_banner: {
                 let mut hb = crate::ui::components::hint_banner::HintBannerState::default();
                 if hint_banner_dismissed {
@@ -470,6 +472,29 @@ impl App {
                     if self.file_tree.scrollbar_hovered != prev_sb {
                         panel_changed = true;
                     }
+                } else if self.panel_layout.active_tab
+                    == crate::ui::panel_layout::SidePanelTab::Search
+                {
+                    let sf = renderer.scale_factor as f32;
+                    let header_h = (40.0 * sf) as usize;
+                    let border_w = (1.0 * sf).max(1.0) as usize;
+                    let content_y = renderer.tab_bar_height as usize + header_h + border_w;
+                    let panel_w = self.panel_layout.left_physical_width(sf);
+                    let prev = self.search_panel.hovered_idx;
+                    if self.cursor_pos.0 >= 0.0 && (self.cursor_pos.0 as usize) < panel_w {
+                        self.search_panel.hovered_idx = crate::ui::search_panel::hit_test(
+                            self.cursor_pos.1,
+                            content_y,
+                            self.search_panel.scroll_offset,
+                            &self.search_panel,
+                            renderer.scale_factor,
+                        );
+                    } else {
+                        self.search_panel.hovered_idx = None;
+                    }
+                    if self.search_panel.hovered_idx != prev {
+                        panel_changed = true;
+                    }
                 } else {
                     if self.file_tree.hovered_idx.is_some() {
                         self.file_tree.hovered_idx = None;
@@ -481,6 +506,7 @@ impl App {
                     || self.side_panel.hovered_clear.is_some()
                     || self.side_panel.hovered_toolbar_btn.is_some()
                     || self.file_tree.hovered_idx.is_some()
+                    || self.search_panel.hovered_idx.is_some()
                 {
                     panel_changed = true;
                 }
@@ -488,6 +514,7 @@ impl App {
                 self.side_panel.hovered_clear = None;
                 self.side_panel.hovered_toolbar_btn = None;
                 self.file_tree.hovered_idx = None;
+                self.search_panel.hovered_idx = None;
                 self.file_tree.scrollbar_hovered = false;
             }
 
@@ -1119,6 +1146,7 @@ impl ApplicationHandler<TerminalEvent> for App {
                         &sessions_refs,
                         &self.side_panel,
                         &self.file_tree,
+                        &self.search_panel,
                         &self.panel_layout,
                         &self.hint_banner,
                         editor_state,
@@ -1469,6 +1497,13 @@ impl ApplicationHandler<TerminalEvent> for App {
         if self.overlay.sidebar_open && now >= self.file_tree_poll_at {
             self.file_tree_poll_at = now + std::time::Duration::from_secs(2);
             self.refresh_file_tree();
+            self.pending_redraw = true;
+        }
+
+        if self.search_panel.poll() {
+            self.pending_redraw = true;
+        }
+        if self.search_panel.has_pending_debounce() {
             self.pending_redraw = true;
         }
 

@@ -12,6 +12,7 @@ pub enum SidePanelTab {
     Files,
     /// Sandbox management — only visible when a sandbox tab is active.
     Sandbox,
+    Search,
 }
 
 /// Which sub-view is active inside the right (git) panel.

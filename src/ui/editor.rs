@@ -93,6 +93,9 @@ pub struct EditorState {
 
     /// Fraction (0.0–1.0) controlling the left/right split in diff mode.
     pub diff_split_frac: f32,
+
+    /// Active search highlight term from the search panel.
+    pub search_highlight: Option<String>,
 }
 
 const MAX_UNDO: usize = 500;
@@ -240,6 +243,7 @@ impl EditorState {
             redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
+            search_highlight: None,
         };
 
         match mode {
@@ -1081,6 +1085,7 @@ impl EditorState {
             redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
+            search_highlight: None,
         }
     }
 
@@ -1107,6 +1112,7 @@ impl EditorState {
             redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
+            search_highlight: None,
         }
     }
 }
@@ -1138,6 +1144,7 @@ mod tests {
             redo_stack: Vec::new(),
             diff_view: None,
             diff_split_frac: 0.5,
+            search_highlight: None,
         }
     }
 

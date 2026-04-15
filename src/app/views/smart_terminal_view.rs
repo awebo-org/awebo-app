@@ -394,6 +394,87 @@ impl super::super::App {
                 return;
             }
 
+            if self.search_panel.focused
+                && self.panel_layout.active_tab == crate::ui::panel_layout::SidePanelTab::Search
+            {
+                match logical_key.as_ref() {
+                    Key::Named(NamedKey::Escape) => {
+                        if self.search_panel.query.is_empty() {
+                            self.search_panel.focused = false;
+                        } else {
+                            self.search_panel.clear();
+                        }
+                    }
+                    Key::Named(NamedKey::Backspace) => {
+                        self.search_panel.delete_back();
+                    }
+                    Key::Named(NamedKey::Delete) => {
+                        self.search_panel.delete_forward();
+                    }
+                    Key::Named(NamedKey::ArrowLeft) => {
+                        self.search_panel.move_left();
+                    }
+                    Key::Named(NamedKey::ArrowRight) => {
+                        self.search_panel.move_right();
+                    }
+                    Key::Named(NamedKey::Home) => {
+                        self.search_panel.move_home();
+                    }
+                    Key::Named(NamedKey::End) => {
+                        self.search_panel.move_end();
+                    }
+                    _ => {
+                        if (super_key || ctrl)
+                            && matches!(logical_key.as_ref(), Key::Character(c) if c == "a")
+                        {
+                            self.search_panel.select_all();
+                        } else if (super_key || ctrl)
+                            && matches!(logical_key.as_ref(), Key::Character(c) if c == "v")
+                        {
+                            if let Ok(mut cb) = arboard::Clipboard::new()
+                                && let Ok(pasted) = cb.get_text()
+                            {
+                                let cleaned: String =
+                                    pasted.chars().filter(|c| !c.is_control()).collect();
+                                if !cleaned.is_empty() {
+                                    self.search_panel.insert_text(&cleaned);
+                                }
+                            }
+                        } else if (super_key || ctrl)
+                            && matches!(logical_key.as_ref(), Key::Character(c) if c == "c" || c == "x")
+                        {
+                            if let Some((start, end)) = self.search_panel.selected_range() {
+                                let selected = self.search_panel.query[start..end].to_string();
+                                let _ = arboard::Clipboard::new()
+                                    .and_then(|mut cb| cb.set_text(selected));
+                                if matches!(logical_key.as_ref(), Key::Character(c) if c == "x") {
+                                    self.search_panel.delete_back();
+                                }
+                            }
+                        } else if let Some(txt) = text {
+                            let s = txt.as_str();
+                            if !s.is_empty() && !ctrl && !super_key {
+                                for ch in s.chars() {
+                                    if !ch.is_control() {
+                                        self.search_panel.insert_char(ch);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(r) = self.renderer.as_mut() {
+                    let sf = r.scale_factor as f32;
+                    let panel_w = self.panel_layout.left_physical_width(sf);
+                    self.search_panel
+                        .ensure_cursor_visible(&mut r.font_system, sf, panel_w);
+                }
+                self.cursor_blink_on = true;
+                self.cursor_blink_at = std::time::Instant::now();
+                self.request_redraw();
+                return;
+            }
+
             if self.is_models_active() {
                 match logical_key.as_ref() {
                     Key::Named(NamedKey::Escape) => {
@@ -492,6 +573,22 @@ impl super::super::App {
                     }
                     Key::Character(c) if c == "}" || c == "]" => {
                         self.dispatch(crate::app::actions::AppAction::NextTab, event_loop);
+                        return;
+                    }
+                    Key::Character(c) if c == "F" || c == "f" => {
+                        self.dispatch(
+                            crate::app::actions::AppAction::SwitchPanelTab {
+                                tab: crate::ui::panel_layout::SidePanelTab::Search,
+                            },
+                            event_loop,
+                        );
+                        if !self.overlay.sidebar_open {
+                            self.dispatch(
+                                crate::app::actions::AppAction::ToggleSidebar,
+                                event_loop,
+                            );
+                        }
+                        self.dispatch(crate::app::actions::AppAction::FocusSearchInput, event_loop);
                         return;
                     }
                     _ => {}
@@ -2137,19 +2234,42 @@ impl super::super::App {
                                     self.file_tree.cancel_rename();
                                     self.request_redraw();
                                 }
-                                match &action {
-                                    crate::app::actions::AppAction::OpenFile { path }
-                                    | crate::app::actions::AppAction::ToggleFileTreeNode { path } =>
-                                    {
-                                        self.path_drag.begin(
-                                            path.clone(),
-                                            action,
+                                if matches!(
+                                    action,
+                                    crate::app::actions::AppAction::FocusSearchInput
+                                ) {
+                                    self.search_panel.focused = true;
+                                    if let Some(r) = self.renderer.as_mut() {
+                                        let sf = r.scale_factor as f32;
+                                        let pos = self.search_panel.click_to_cursor(
                                             self.cursor_pos.0,
-                                            self.cursor_pos.1,
+                                            &mut r.font_system,
+                                            sf,
                                         );
+                                        self.search_panel.cursor = pos;
+                                        self.search_panel.selection_anchor = Some(pos);
+                                        self.search_panel.input_mouse_dragging = true;
                                     }
-                                    _ => {
-                                        self.dispatch(action, event_loop);
+                                    self.cursor_blink_on = true;
+                                    self.cursor_blink_at = std::time::Instant::now();
+                                    self.request_redraw();
+                                } else {
+                                    self.search_panel.focused = false;
+                                    match &action {
+                                        crate::app::actions::AppAction::OpenFile { path }
+                                        | crate::app::actions::AppAction::ToggleFileTreeNode {
+                                            path,
+                                        } => {
+                                            self.path_drag.begin(
+                                                path.clone(),
+                                                action,
+                                                self.cursor_pos.0,
+                                                self.cursor_pos.1,
+                                            );
+                                        }
+                                        _ => {
+                                            self.dispatch(action, event_loop);
+                                        }
                                     }
                                 }
                             }
@@ -2194,6 +2314,26 @@ impl super::super::App {
                                 }
                             } else if self.git_panel.commit_input_focused {
                                 self.git_panel.commit_input_focused = false;
+                            }
+
+                            if self.search_panel.focused {
+                                let in_input = self.renderer.as_ref().is_some_and(|r| {
+                                    let sf = r.scale_factor as f32;
+                                    let header_h = (40.0 * sf) as usize;
+                                    let border_w = (1.0 * sf).max(1.0) as usize;
+                                    let content_y = r.tab_bar_height as usize + header_h + border_w;
+                                    let panel_w = self.panel_layout.left_physical_width(sf);
+                                    crate::ui::search_panel::is_in_input(
+                                        self.cursor_pos.0,
+                                        self.cursor_pos.1,
+                                        content_y,
+                                        sf,
+                                        panel_w,
+                                    )
+                                });
+                                if !in_input {
+                                    self.search_panel.focused = false;
+                                }
                             }
 
                             if self.is_settings_active() {
@@ -2365,6 +2505,14 @@ impl super::super::App {
                 }
                 if self.git_panel.scrollbar_dragging {
                     self.git_panel.scrollbar_dragging = false;
+                    self.request_redraw();
+                }
+
+                if self.search_panel.input_mouse_dragging {
+                    self.search_panel.input_mouse_dragging = false;
+                    if self.search_panel.selection_anchor == Some(self.search_panel.cursor) {
+                        self.search_panel.selection_anchor = None;
+                    }
                     self.request_redraw();
                 }
 
@@ -2624,6 +2772,17 @@ impl super::super::App {
                     if menu.hovered != prev {
                         self.request_redraw();
                     }
+                }
+
+                if self.search_panel.input_mouse_dragging {
+                    if let Some(r) = self.renderer.as_mut() {
+                        let sf = r.scale_factor as f32;
+                        let pos =
+                            self.search_panel
+                                .click_to_cursor(position.x, &mut r.font_system, sf);
+                        self.search_panel.cursor = pos;
+                    }
+                    self.request_redraw();
                 }
 
                 if self.mouse_forwarding
@@ -3110,6 +3269,7 @@ impl super::super::App {
                         && (self.side_panel.hovered_item.is_some()
                             || self.side_panel.hovered_toolbar_btn.is_some()
                             || self.file_tree.hovered_idx.is_some()
+                            || self.search_panel.hovered_idx.is_some()
                             || self.side_panel.sandbox.stop_hovered);
                     let panel_resize_active =
                         self.overlay.sidebar_open && self.panel_layout.left_resize.hovered;
@@ -3281,6 +3441,15 @@ impl super::super::App {
                                     .min(max_scroll as f32);
                             }
                             crate::ui::panel_layout::SidePanelTab::Sandbox => {}
+                            crate::ui::panel_layout::SidePanelTab::Search => {
+                                let row_h = (24.0 * sf) as usize;
+                                let total_h = self.search_panel.flat_row_count() * row_h;
+                                let max_scroll = total_h.saturating_sub(visible_h);
+                                self.search_panel.scroll_offset = (self.search_panel.scroll_offset
+                                    - dy)
+                                    .max(0.0)
+                                    .min(max_scroll as f32);
+                            }
                         }
                         self.request_redraw();
                         return;
@@ -3564,6 +3733,9 @@ impl super::super::App {
             SidePanelHit::ToolbarSandbox => Some(AppAction::SwitchPanelTab {
                 tab: crate::ui::panel_layout::SidePanelTab::Sandbox,
             }),
+            SidePanelHit::ToolbarSearch => Some(AppAction::SwitchPanelTab {
+                tab: crate::ui::panel_layout::SidePanelTab::Search,
+            }),
             SidePanelHit::StopSandbox => Some(AppAction::StopSandbox),
             SidePanelHit::None => {
                 if self.panel_layout.active_tab == crate::ui::panel_layout::SidePanelTab::Files {
@@ -3588,6 +3760,40 @@ impl super::super::App {
                             } else {
                                 return Some(AppAction::OpenFile { path });
                             }
+                        }
+                    }
+                }
+                if self.panel_layout.active_tab == crate::ui::panel_layout::SidePanelTab::Search {
+                    let panel_w = self
+                        .panel_layout
+                        .left_physical_width(renderer.scale_factor as f32);
+                    if self.cursor_pos.0 < panel_w as f64 {
+                        let header_h = 40.0 * renderer.scale_factor;
+                        let border_w = (1.0 * renderer.scale_factor).max(1.0);
+                        let content_y =
+                            (renderer.tab_bar_height as f64 + header_h + border_w) as usize;
+                        let sf = renderer.scale_factor;
+
+                        if crate::ui::search_panel::is_in_input(
+                            self.cursor_pos.0,
+                            self.cursor_pos.1,
+                            content_y,
+                            sf as f32,
+                            panel_w,
+                        ) {
+                            return Some(AppAction::FocusSearchInput);
+                        }
+
+                        if let Some(flat_idx) = crate::ui::search_panel::hit_test(
+                            self.cursor_pos.1,
+                            content_y,
+                            self.search_panel.scroll_offset,
+                            &self.search_panel,
+                            sf,
+                        ) && let Some((path, line)) =
+                            self.search_panel.path_at_flat_index(flat_idx)
+                        {
+                            return Some(AppAction::OpenFileAtLine { path, line });
                         }
                     }
                 }
@@ -3950,6 +4156,13 @@ impl super::super::App {
     /// Tries block selection first, then terminal grid selection.
     /// The selection is preserved so the user can see what was copied.
     pub(crate) fn perform_copy(&mut self) {
+        if self.search_panel.focused {
+            if let Some((start, end)) = self.search_panel.selected_range() {
+                let selected = self.search_panel.query[start..end].to_string();
+                let _ = arboard::Clipboard::new().and_then(|mut cb| cb.set_text(selected));
+            }
+            return;
+        }
         if self.is_editor_active() {
             if let Some(ed) = self.active_editor_state()
                 && let Some(sel_text) = ed.selected_text()
@@ -4027,6 +4240,21 @@ impl super::super::App {
             Ok(t) if !t.is_empty() => t,
             _ => return,
         };
+
+        if self.search_panel.focused {
+            let cleaned: String = paste_text.chars().filter(|c| !c.is_control()).collect();
+            if !cleaned.is_empty() {
+                self.search_panel.insert_text(&cleaned);
+                if let Some(r) = self.renderer.as_mut() {
+                    let sf = r.scale_factor as f32;
+                    let panel_w = self.panel_layout.left_physical_width(sf);
+                    self.search_panel
+                        .ensure_cursor_visible(&mut r.font_system, sf, panel_w);
+                }
+            }
+            self.request_redraw();
+            return;
+        }
 
         if self.overlay.pro_panel_open {
             let cleaned: String = paste_text.chars().filter(|c| !c.is_control()).collect();
@@ -4122,6 +4350,21 @@ impl super::super::App {
     }
 
     pub(crate) fn perform_cut(&mut self) {
+        if self.search_panel.focused {
+            if let Some((start, end)) = self.search_panel.selected_range() {
+                let selected = self.search_panel.query[start..end].to_string();
+                let _ = arboard::Clipboard::new().and_then(|mut cb| cb.set_text(selected));
+                self.search_panel.delete_selection();
+                if let Some(r) = self.renderer.as_mut() {
+                    let sf = r.scale_factor as f32;
+                    let panel_w = self.panel_layout.left_physical_width(sf);
+                    self.search_panel
+                        .ensure_cursor_visible(&mut r.font_system, sf, panel_w);
+                }
+            }
+            self.request_redraw();
+            return;
+        }
         if self.is_editor_active() {
             let sel_text = self.active_editor_state().and_then(|ed| ed.selected_text());
             if let Some(text) = sel_text {
@@ -4152,6 +4395,11 @@ impl super::super::App {
 
     /// Select all text in the current block view or terminal grid.
     pub(crate) fn perform_select_all(&mut self) {
+        if self.search_panel.focused {
+            self.search_panel.select_all();
+            self.request_redraw();
+            return;
+        }
         if self.is_editor_active() {
             if let Some(ed) = self.active_editor_state_mut() {
                 ed.select_all();

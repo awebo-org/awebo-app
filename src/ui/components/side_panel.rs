@@ -33,6 +33,7 @@ pub enum SidePanelHit {
     ToolbarSessions,
     ToolbarFiles,
     ToolbarSandbox,
+    ToolbarSearch,
     StopSandbox,
     None,
 }
@@ -83,6 +84,8 @@ pub fn draw(
     bar_h: usize,
     sf: f32,
     sandbox_info: Option<&SandboxInfo>,
+    search_panel: &crate::ui::search_panel::SearchPanelState,
+    cursor_visible: bool,
 ) -> usize {
     let panel_w = panel_layout.left_physical_width(sf);
     let panel_h = buf.height.saturating_sub(bar_h);
@@ -181,6 +184,32 @@ pub fn draw(
                 sandbox_info,
                 panel_w,
                 content_y,
+                sf,
+            );
+        }
+        SidePanelTab::Search => {
+            crate::ui::search_panel::draw(
+                buf,
+                font_system,
+                swash_cache,
+                icon_renderer,
+                search_panel,
+                panel_w,
+                content_y,
+                sf,
+                cursor_visible,
+            );
+            let visible_h = buf.height.saturating_sub(content_y);
+            let total_h = search_panel.total_height(sf);
+            let sb_hover = search_panel.scrollbar_hovered || search_panel.scrollbar_dragging;
+            draw_panel_scrollbar(
+                buf,
+                panel_w,
+                content_y,
+                visible_h,
+                total_h,
+                search_panel.scroll_offset as usize,
+                sb_hover,
                 sf,
             );
         }
@@ -292,6 +321,23 @@ pub fn draw(
             sandbox_hovered,
         );
     }
+
+    cx += container_sz + btn_gap;
+    let search_active = panel_layout.active_tab == SidePanelTab::Search;
+    let search_hovered = state.hovered_toolbar_btn == Some(SidePanelTab::Search);
+    draw_toolbar_btn(
+        buf,
+        icon_renderer,
+        Icon::Search,
+        cx,
+        container_y,
+        container_sz,
+        icon_sz,
+        icon_inset,
+        btn_r,
+        search_active,
+        search_hovered,
+    );
 
     panel_w
 }
@@ -803,7 +849,7 @@ pub fn hit_test(
     let header_h = HEADER_HEIGHT as f64 * sf;
 
     if phys_y < bar_h_phys + header_h {
-        return toolbar_hit(phys_x, phys_y, bar_h_phys, sf);
+        return toolbar_hit(phys_x, phys_y, bar_h_phys, sf, sandbox_info.is_some());
     }
 
     if panel_layout.active_tab == SidePanelTab::Sandbox {
@@ -841,7 +887,13 @@ pub fn hit_test(
 }
 
 /// Hit-test the toolbar buttons in the header.
-fn toolbar_hit(phys_x: f64, phys_y: f64, bar_h_phys: f64, sf: f64) -> SidePanelHit {
+fn toolbar_hit(
+    phys_x: f64,
+    phys_y: f64,
+    bar_h_phys: f64,
+    sf: f64,
+    has_sandbox: bool,
+) -> SidePanelHit {
     let header_h = HEADER_HEIGHT as f64 * sf;
     let csz = TOOLBAR_BTN_CONTAINER as f64 * sf;
     let btn_gap = TOOLBAR_BTN_GAP as f64 * sf;
@@ -862,9 +914,17 @@ fn toolbar_hit(phys_x: f64, phys_y: f64, bar_h_phys: f64, sf: f64) -> SidePanelH
         return SidePanelHit::ToolbarFiles;
     }
 
-    let sandbox_x = files_x + csz + btn_gap;
-    if phys_x >= sandbox_x && phys_x <= sandbox_x + csz {
-        return SidePanelHit::ToolbarSandbox;
+    let mut next_x = files_x + csz + btn_gap;
+
+    if has_sandbox {
+        if phys_x >= next_x && phys_x <= next_x + csz {
+            return SidePanelHit::ToolbarSandbox;
+        }
+        next_x += csz + btn_gap;
+    }
+
+    if phys_x >= next_x && phys_x <= next_x + csz {
+        return SidePanelHit::ToolbarSearch;
     }
 
     SidePanelHit::None
@@ -945,11 +1005,12 @@ pub fn update_hover(
     if phys_y < bar_h_phys + header_h {
         state.hovered_item = None;
         state.hovered_clear = None;
-        let hit = toolbar_hit(phys_x, phys_y, bar_h_phys, sf);
+        let hit = toolbar_hit(phys_x, phys_y, bar_h_phys, sf, sandbox_info.is_some());
         state.hovered_toolbar_btn = match hit {
             SidePanelHit::ToolbarSessions => Some(SidePanelTab::Sessions),
             SidePanelHit::ToolbarFiles => Some(SidePanelTab::Files),
             SidePanelHit::ToolbarSandbox => Some(SidePanelTab::Sandbox),
+            SidePanelHit::ToolbarSearch => Some(SidePanelTab::Search),
             _ => None,
         };
         return state.hovered_item != prev_item

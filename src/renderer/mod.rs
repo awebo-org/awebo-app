@@ -334,6 +334,7 @@ impl Renderer {
         sessions: &[&crate::session::Session],
         side_panel_state: &crate::ui::components::side_panel::SidePanelState,
         file_tree_state: &crate::ui::file_tree::FileTreeState,
+        search_panel_state: &crate::ui::search_panel::SearchPanelState,
         panel_layout: &crate::ui::panel_layout::PanelLayout,
         hint_banner: &crate::ui::components::hint_banner::HintBannerState,
         editor_state: Option<&crate::ui::editor::EditorState>,
@@ -429,6 +430,8 @@ impl Renderer {
                 bar_h,
                 sf,
                 sandbox_info,
+                search_panel_state,
+                cursor_visible,
             )
         } else {
             0

@@ -6,6 +6,7 @@ pub mod file_tree;
 pub mod layout;
 pub mod markdown;
 pub mod panel_layout;
+pub mod search_panel;
 pub mod syntax;
 pub mod widget;
 pub mod widgets;

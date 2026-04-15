@@ -31,6 +31,39 @@ pub fn measure_text_width(
         .unwrap_or(0.0)
 }
 
+pub fn cursor_byte_from_x(
+    font_system: &mut FontSystem,
+    text: &str,
+    metrics: Metrics,
+    family: Family<'_>,
+    target_x: f32,
+) -> usize {
+    if text.is_empty() || target_x <= 0.0 {
+        return 0;
+    }
+    let mut best_byte = 0usize;
+    let mut best_dist = target_x;
+    let mut prev_w = 0.0_f32;
+    for (byte_idx, _) in text.char_indices().skip(1) {
+        let w = measure_text_width(font_system, &text[..byte_idx], metrics, family);
+        let mid = (prev_w + w) / 2.0;
+        let dist = (target_x - w).abs();
+        if target_x < mid {
+            return best_byte;
+        }
+        if dist < best_dist {
+            best_dist = dist;
+            best_byte = byte_idx;
+        }
+        prev_w = w;
+    }
+    let full_w = measure_text_width(font_system, text, metrics, family);
+    if target_x > (prev_w + full_w) / 2.0 {
+        return text.len();
+    }
+    best_byte
+}
+
 /// Internal text rendering with configurable shaping mode and weight.
 fn draw_text_impl(
     buf: &mut PixelBuffer,
@@ -39,7 +72,9 @@ fn draw_text_impl(
     text_buf: &mut Buffer,
     x_off: usize,
     y_off: usize,
-    clip_h: usize,
+    clip_y: usize,
+    clip_x_right: usize,
+    clip_x_left: usize,
     text: &str,
     metrics: Metrics,
     color: Rgb,
@@ -62,6 +97,11 @@ fn draw_text_impl(
     let (cr, cg, cb) = color;
     let buf_w = buf.width;
     let buf_h = buf.height;
+    let x_limit = if clip_x_right > 0 {
+        clip_x_right
+    } else {
+        buf_w
+    };
 
     text_buf.draw(
         font_system,
@@ -75,7 +115,7 @@ fn draw_text_impl(
             }
             let px = px as usize;
             let py = py as usize;
-            if px >= buf_w || py >= buf_h || py >= clip_h {
+            if px < clip_x_left || px >= x_limit || py >= buf_h || py >= clip_y {
                 return;
             }
             let a = c.a();
@@ -113,6 +153,8 @@ pub fn draw_text_at_buffered(
         x_off,
         y_off,
         clip_h,
+        0,
+        0,
         text,
         metrics,
         color,
@@ -145,6 +187,43 @@ pub fn draw_text_at(
         x_off,
         y_off,
         clip_h,
+        0,
+        0,
+        text,
+        metrics,
+        color,
+        family,
+        Shaping::Advanced,
+        Weight::NORMAL,
+    );
+}
+
+/// Draw text with both vertical and horizontal clipping.
+pub fn draw_text_clipped(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    x_off: usize,
+    y_off: usize,
+    clip_y: usize,
+    clip_x_right: usize,
+    clip_x_left: usize,
+    text: &str,
+    metrics: Metrics,
+    color: Rgb,
+    family: Family<'_>,
+) {
+    let mut buffer = Buffer::new(font_system, metrics);
+    draw_text_impl(
+        buf,
+        font_system,
+        swash_cache,
+        &mut buffer,
+        x_off,
+        y_off,
+        clip_y,
+        clip_x_right,
+        clip_x_left,
         text,
         metrics,
         color,
@@ -176,6 +255,8 @@ pub fn draw_text_at_bold(
         x_off,
         y_off,
         clip_h,
+        0,
+        0,
         text,
         metrics,
         color,
@@ -207,6 +288,8 @@ pub fn draw_text_at_bold_buffered(
         x_off,
         y_off,
         clip_h,
+        0,
+        0,
         text,
         metrics,
         color,

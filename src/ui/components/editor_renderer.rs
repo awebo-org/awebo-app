@@ -17,6 +17,7 @@ const GUTTER_ACTIVE_TEXT: (u8, u8, u8) = theme::EDITOR_GUTTER_ACTIVE;
 const LINE_TEXT: (u8, u8, u8) = theme::FG_PRIMARY;
 const CURRENT_LINE_BG: (u8, u8, u8) = theme::EDITOR_CURRENT_LINE_BG;
 const SELECTION_BG: (u8, u8, u8) = theme::BG_SELECTION;
+const SEARCH_HIGHLIGHT_BG: (u8, u8, u8) = (80, 60, 20);
 const CURSOR_COLOR: (u8, u8, u8) = theme::EDITOR_CURSOR;
 
 const DIFF_ADDED_BG: (u8, u8, u8) = (30, 60, 30);
@@ -427,6 +428,27 @@ fn draw_text_mode(
                 let sel_right = ((code_x + x_end_sel).saturating_sub(scroll_x)).min(clip_right);
                 let sel_draw_w = sel_right.saturating_sub(sel_px_x).max(char_w);
                 buf.fill_rect(sel_px_x, y_px, sel_draw_w, line_h, SELECTION_BG);
+            }
+        }
+
+        if let Some(ref term) = state.search_highlight {
+            let line = &state.lines[idx];
+            let term_lower = term.to_lowercase();
+            let line_lower = line.to_lowercase();
+            let mut search_pos = 0;
+            while let Some(found) = line_lower[search_pos..].find(&term_lower) {
+                let byte_start = search_pos + found;
+                let byte_end = byte_start + term_lower.len();
+                let col_start = line[..byte_start].chars().count();
+                let col_end = col_start + line[byte_start..byte_end].chars().count();
+                let hl_x = (code_x + col_start * char_w).saturating_sub(scroll_x);
+                let hl_w = (col_end - col_start) * char_w;
+                if hl_x + hl_w > code_x && hl_x < clip_right {
+                    let draw_x = hl_x.max(code_x);
+                    let draw_w = (hl_x + hl_w).min(clip_right).saturating_sub(draw_x);
+                    buf.fill_rect(draw_x, y_px, draw_w, line_h, SEARCH_HIGHLIGHT_BG);
+                }
+                search_pos = byte_end;
             }
         }
 
