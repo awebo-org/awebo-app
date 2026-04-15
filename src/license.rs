@@ -6,7 +6,7 @@ use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-const LICENSE_VERSION: u8 = 2;
+const LICENSE_VERSION: u8 = 3;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 
@@ -214,13 +214,74 @@ fn license_path() -> PathBuf {
 }
 
 pub fn machine_id() -> String {
+    let raw = platform_machine_id();
+    let input = format!("awebo-{raw}");
+    let hash = Sha256::digest(input.as_bytes());
+    hex_encode(&hash[..16])
+}
+
+#[cfg(target_os = "macos")]
+fn platform_machine_id() -> String {
+    // Hardware UUID via IOPlatformExpertDevice – stable across reboots and updates.
+    std::process::Command::new("ioreg")
+        .args(["-rd1", "-c", "IOPlatformExpertDevice"])
+        .output()
+        .ok()
+        .and_then(|out| {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            stdout
+                .lines()
+                .find(|l| l.contains("IOPlatformUUID"))
+                .and_then(|l| l.split('=').nth(1))
+                .map(|v| v.trim().trim_matches('"').to_string())
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(fallback_machine_id)
+}
+
+#[cfg(target_os = "linux")]
+fn platform_machine_id() -> String {
+    std::fs::read_to_string("/etc/machine-id")
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|_| fallback_machine_id())
+}
+
+#[cfg(target_os = "windows")]
+fn platform_machine_id() -> String {
+    // MachineGuid from Windows registry – stable across reboots and updates.
+    std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKLM\SOFTWARE\Microsoft\Cryptography",
+            "/v",
+            "MachineGuid",
+        ])
+        .output()
+        .ok()
+        .and_then(|out| {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            stdout
+                .lines()
+                .find(|l| l.contains("MachineGuid"))
+                .and_then(|l| l.split_whitespace().last())
+                .map(|v| v.trim().to_string())
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(fallback_machine_id)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+fn platform_machine_id() -> String {
+    fallback_machine_id()
+}
+
+fn fallback_machine_id() -> String {
     let hostname = sysinfo::System::host_name().unwrap_or_default();
     let username = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_default();
-    let input = format!("awebo-{hostname}-{username}");
-    let hash = Sha256::digest(input.as_bytes());
-    hex_encode(&hash[..16])
+    format!("{hostname}-{username}")
 }
 
 fn derive_key(salt: &[u8]) -> [u8; 32] {
