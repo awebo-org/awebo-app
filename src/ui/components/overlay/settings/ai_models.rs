@@ -5,7 +5,7 @@ use crate::renderer::pixel_buffer::PixelBuffer;
 use crate::renderer::text::{draw_text_at, draw_text_clipped, measure_text_width};
 use crate::renderer::theme;
 
-use super::super::{draw_border, draw_border_rounded, fill_rounded_rect};
+use super::super::{draw_border, fill_rounded_rect};
 use super::SettingsState;
 
 const BTN_BG: (u8, u8, u8) = theme::BG_ELEVATED;
@@ -391,24 +391,19 @@ fn draw_local_section(
     let manage_label = "Manage";
     let manage_w = (manage_label.len() as f32 * 7.5 * sf) as usize + (24.0 * sf) as usize;
     let manage_x = area_x + area_w.saturating_sub(pad + manage_w);
+    let section_text_h = (15.0 * sf) as usize;
+    let manage_y = (*y)
+        .saturating_add(section_text_h / 2)
+        .saturating_sub(btn_h / 2);
     let manage_bg = if state.hovered_btn == Some(AiModelsHit::OpenModels) {
         BTN_HOVER_BG
     } else {
         BTN_BG
     };
-    fill_rounded_rect(buf, manage_x, *y, manage_w, btn_h, btn_corner, manage_bg);
-    let bw = (1.0 * sf).max(1.0) as usize;
-    draw_border_rounded(
-        buf,
-        manage_x,
-        *y,
-        manage_w,
-        btn_h,
-        bw,
-        btn_corner,
-        theme::BORDER,
+    fill_rounded_rect(
+        buf, manage_x, manage_y, manage_w, btn_h, btn_corner, manage_bg,
     );
-    let manage_text_y = *y + ((btn_h as f32 - 17.0 * sf) / 2.0) as usize;
+    let manage_text_y = manage_y + ((btn_h as f32 - 17.0 * sf) / 2.0) as usize;
     draw_text_at(
         buf,
         font_system,

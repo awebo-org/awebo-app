@@ -4,11 +4,14 @@ use cosmic_text::{Buffer, Family, FontSystem, Metrics, SwashCache};
 
 use crate::renderer::glyph_atlas::GlyphAtlas;
 use crate::renderer::pixel_buffer::PixelBuffer;
-use crate::renderer::text::draw_text_at_buffered;
+use crate::renderer::text::{
+    draw_text_at, draw_text_at_buffered, draw_text_clipped, measure_text_width,
+};
 use crate::renderer::theme;
 use crate::ui::editor::{
-    DiffRowKind, EditorMode, EditorState, GUTTER_PAD_RIGHT, HEX_FONT_SIZE, HEX_LINE_HEIGHT,
-    HEX_PAD_X, HEX_PAD_Y, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TEXT_PAD_X, TEXT_PAD_Y,
+    DiffRowKind, EditorMode, EditorState, FindBarHover, FindFocus, GUTTER_PAD_RIGHT, HEX_FONT_SIZE,
+    HEX_LINE_HEIGHT, HEX_PAD_X, HEX_PAD_Y, TEXT_FONT_SIZE, TEXT_LINE_HEIGHT, TEXT_PAD_X,
+    TEXT_PAD_Y,
 };
 
 const GUTTER_BG: (u8, u8, u8) = theme::BG;
@@ -18,6 +21,8 @@ const LINE_TEXT: (u8, u8, u8) = theme::FG_PRIMARY;
 const CURRENT_LINE_BG: (u8, u8, u8) = theme::EDITOR_CURRENT_LINE_BG;
 const SELECTION_BG: (u8, u8, u8) = theme::BG_SELECTION;
 const SEARCH_HIGHLIGHT_BG: (u8, u8, u8) = (80, 60, 20);
+const FIND_MATCH_BG: (u8, u8, u8) = (90, 70, 30);
+const FIND_CURRENT_BG: (u8, u8, u8) = (170, 100, 40);
 const CURSOR_COLOR: (u8, u8, u8) = theme::EDITOR_CURSOR;
 
 const DIFF_ADDED_BG: (u8, u8, u8) = (30, 60, 30);
@@ -98,6 +103,20 @@ pub fn draw(
     }
 
     draw_scrollbar(buf, state, &vp, sf, scrollbar_state);
+
+    if state.find_state.is_open() {
+        draw_find_bar(
+            buf,
+            font_system,
+            swash_cache,
+            state,
+            vp.x,
+            vp.y,
+            vp.w,
+            sf,
+            cursor_visible,
+        );
+    }
 }
 
 /// Hit-test a physical (x, y) click to a (line, col) in the editor.
@@ -449,6 +468,31 @@ fn draw_text_mode(
                     buf.fill_rect(draw_x, y_px, draw_w, line_h, SEARCH_HIGHLIGHT_BG);
                 }
                 search_pos = byte_end;
+            }
+        }
+
+        if state.find_state.is_open() && !state.find_state.matches.is_empty() {
+            let line = &state.lines[idx];
+            for (mi, m) in state.find_state.matches.iter().enumerate() {
+                if m.line != idx {
+                    continue;
+                }
+                let safe_start = m.byte_start.min(line.len());
+                let safe_end = m.byte_end.min(line.len());
+                let col_start = line[..safe_start].chars().count();
+                let col_end = col_start + line[safe_start..safe_end].chars().count();
+                let hl_x = (code_x + col_start * char_w).saturating_sub(scroll_x);
+                let hl_w = (col_end - col_start) * char_w;
+                if hl_x + hl_w > code_x && hl_x < clip_right {
+                    let draw_x = hl_x.max(code_x);
+                    let draw_w = (hl_x + hl_w).min(clip_right).saturating_sub(draw_x);
+                    let bg = if state.find_state.current == Some(mi) {
+                        FIND_CURRENT_BG
+                    } else {
+                        FIND_MATCH_BG
+                    };
+                    buf.fill_rect(draw_x, y_px, draw_w, line_h, bg);
+                }
             }
         }
 
@@ -1252,6 +1296,741 @@ fn draw_scrollbar(
     if let Some((tx, ty, tw, th)) = horizontal_thumb_rect(state, vp, sf) {
         buf.fill_rect(tx, ty, tw, th, h_color);
     }
+}
+
+/// Hit-test regions on the editor find bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FindBarHit {
+    ToggleExpand,
+    FindInput { rel_x: usize },
+    ToggleCase,
+    ToggleWord,
+    ToggleRegex,
+    Prev,
+    Next,
+    Close,
+    ReplaceInput { rel_x: usize },
+    ReplaceOne,
+    ReplaceAll,
+}
+
+const FIND_BAR_ROW_H: f32 = 30.0;
+const FIND_BAR_PAD_X: f32 = 6.0;
+const FIND_BAR_GAP: f32 = 4.0;
+const FIND_BAR_BTN_W: f32 = 24.0;
+const FIND_BAR_INPUT_W: f32 = 240.0;
+const FIND_BAR_COUNT_W: f32 = 80.0;
+const FIND_BAR_FONT: f32 = 12.0;
+
+/// Compute the anchored physical rect of the find bar. Returns None when closed.
+pub fn find_bar_rect(
+    state: &EditorState,
+    vp_x: usize,
+    vp_y: usize,
+    vp_w: usize,
+    sf: f32,
+) -> Option<(usize, usize, usize, usize)> {
+    if !state.find_state.is_open() {
+        return None;
+    }
+    let info_bar_h = (INFO_BAR_HEIGHT * sf) as usize + (1.0 * sf).max(1.0) as usize;
+    let row_h = (FIND_BAR_ROW_H * sf) as usize;
+    let rows = if state.find_state.show_replace { 2 } else { 1 };
+    let bar_h = rows * row_h + (8.0 * sf) as usize;
+    let pad = (8.0 * sf) as usize;
+    let bar_w = (FIND_BAR_INPUT_W * sf
+        + FIND_BAR_COUNT_W * sf
+        + FIND_BAR_BTN_W * sf * 7.0
+        + FIND_BAR_PAD_X * sf * 2.0
+        + FIND_BAR_GAP * sf * 10.0) as usize;
+    let bar_w = bar_w.min(vp_w.saturating_sub(pad * 2));
+    let x = vp_x + vp_w.saturating_sub(bar_w + pad);
+    let y = vp_y + info_bar_h + pad;
+    Some((x, y, bar_w, bar_h))
+}
+
+fn find_bar_find_row_layout(
+    state: &EditorState,
+    x: usize,
+    y: usize,
+    w: usize,
+    sf: f32,
+) -> FindRowLayout {
+    let pad_x = (FIND_BAR_PAD_X * sf) as usize;
+    let gap = (FIND_BAR_GAP * sf) as usize;
+    let btn_w = (FIND_BAR_BTN_W * sf) as usize;
+    let count_w = (FIND_BAR_COUNT_W * sf) as usize;
+
+    let mut cur = x + pad_x;
+    let chevron_x = cur;
+    cur += btn_w + gap;
+    let input_x = cur;
+
+    let right = x + w - pad_x;
+    let close_x = right - btn_w;
+    let next_x = close_x - gap - btn_w;
+    let prev_x = next_x - gap - btn_w;
+    let count_x = prev_x - gap - count_w;
+    let regex_x = count_x - gap - btn_w;
+    let word_x = regex_x - gap - btn_w;
+    let case_x = word_x - gap - btn_w;
+    let input_right = case_x - gap;
+    let input_w = input_right.saturating_sub(input_x);
+
+    let _ = state;
+    FindRowLayout {
+        row_y: y,
+        btn_w,
+        chevron_x,
+        input_x,
+        input_w,
+        case_x,
+        word_x,
+        regex_x,
+        count_x,
+        prev_x,
+        next_x,
+        close_x,
+    }
+}
+
+struct FindRowLayout {
+    row_y: usize,
+    btn_w: usize,
+    chevron_x: usize,
+    input_x: usize,
+    input_w: usize,
+    case_x: usize,
+    word_x: usize,
+    regex_x: usize,
+    count_x: usize,
+    prev_x: usize,
+    next_x: usize,
+    close_x: usize,
+}
+
+fn find_bar_replace_row_layout(
+    x: usize,
+    y: usize,
+    w: usize,
+    input_x_aligned: usize,
+    input_w_aligned: usize,
+    sf: f32,
+) -> ReplaceRowLayout {
+    let pad_x = (FIND_BAR_PAD_X * sf) as usize;
+    let gap = (FIND_BAR_GAP * sf) as usize;
+    let btn_w = (FIND_BAR_BTN_W * sf) as usize;
+
+    let right = x + w - pad_x;
+    let replace_all_x = right - btn_w;
+    let replace_one_x = replace_all_x - gap - btn_w;
+    let input_right = replace_one_x - gap;
+    let input_x = input_x_aligned;
+    let input_w = input_right
+        .saturating_sub(input_x)
+        .min(input_w_aligned + btn_w);
+
+    ReplaceRowLayout {
+        row_y: y,
+        btn_w,
+        input_x,
+        input_w,
+        replace_one_x,
+        replace_all_x,
+    }
+}
+
+struct ReplaceRowLayout {
+    row_y: usize,
+    btn_w: usize,
+    input_x: usize,
+    input_w: usize,
+    replace_one_x: usize,
+    replace_all_x: usize,
+}
+
+/// Draw the in-editor find/replace bar.
+pub fn draw_find_bar(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    state: &EditorState,
+    vp_x: usize,
+    vp_y: usize,
+    vp_w: usize,
+    sf: f32,
+    cursor_visible: bool,
+) {
+    let (x, y, w, h) = match find_bar_rect(state, vp_x, vp_y, vp_w, sf) {
+        Some(r) => r,
+        None => return,
+    };
+
+    buf.fill_rect(x, y, w, h, theme::BG_ELEVATED);
+    let border = (1.0 * sf).max(1.0) as usize;
+    buf.fill_rect(x, y, w, border, theme::BORDER);
+    buf.fill_rect(x, y + h - border, w, border, theme::BORDER);
+    buf.fill_rect(x, y, border, h, theme::BORDER);
+    buf.fill_rect(x + w - border, y, border, h, theme::BORDER);
+
+    let pad_v = ((FIND_BAR_ROW_H * sf - 22.0 * sf) / 2.0).max(2.0) as usize;
+    let row_h = (FIND_BAR_ROW_H * sf) as usize;
+    let find_row_y = y + (4.0 * sf) as usize;
+
+    let find_layout = find_bar_find_row_layout(state, x, find_row_y, w, sf);
+    let btn_h = row_h.saturating_sub(pad_v * 2);
+    let btn_y = find_layout.row_y + pad_v;
+    let metrics = Metrics::new(FIND_BAR_FONT * sf, (FIND_BAR_FONT + 4.0) * sf);
+    let hovered = state.find_state.hovered_button;
+
+    draw_find_bar_button(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.chevron_x,
+        btn_y,
+        find_layout.btn_w,
+        btn_h,
+        if state.find_state.show_replace {
+            "▾"
+        } else {
+            "▸"
+        },
+        state.find_state.show_replace,
+        hovered == Some(FindBarHover::ToggleExpand),
+        metrics,
+    );
+
+    draw_find_bar_input(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.input_x,
+        btn_y,
+        find_layout.input_w,
+        btn_h,
+        &state.find_state.find_query,
+        state.find_state.find_cursor,
+        state.find_state.find_anchor,
+        "Find",
+        state.find_state.focus == FindFocus::Find,
+        state.find_state.focus == FindFocus::Find && cursor_visible,
+        metrics,
+        sf,
+    );
+
+    draw_find_bar_toggle(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.case_x,
+        btn_y,
+        find_layout.btn_w,
+        btn_h,
+        "Aa",
+        state.find_state.case_sensitive,
+        hovered == Some(FindBarHover::ToggleCase),
+        metrics,
+        sf,
+    );
+    draw_find_bar_toggle(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.word_x,
+        btn_y,
+        find_layout.btn_w,
+        btn_h,
+        "ab",
+        state.find_state.whole_word,
+        hovered == Some(FindBarHover::ToggleWord),
+        metrics,
+        sf,
+    );
+    draw_find_bar_toggle(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.regex_x,
+        btn_y,
+        find_layout.btn_w,
+        btn_h,
+        ".*",
+        state.find_state.regex,
+        hovered == Some(FindBarHover::ToggleRegex),
+        metrics,
+        sf,
+    );
+
+    let count_text = if state.find_state.find_query.is_empty() {
+        String::new()
+    } else if state.find_state.matches.is_empty() {
+        "No results".to_string()
+    } else {
+        let cur = state.find_state.current.map(|i| i + 1).unwrap_or(0);
+        format!("{} of {}", cur, state.find_state.matches.len())
+    };
+    if !count_text.is_empty() {
+        let count_text_y = btn_y + center_offset_y(btn_h, metrics);
+        draw_text_at(
+            buf,
+            font_system,
+            swash_cache,
+            find_layout.count_x,
+            count_text_y,
+            btn_y + btn_h,
+            &count_text,
+            metrics,
+            if state.find_state.matches.is_empty() && !state.find_state.find_query.is_empty() {
+                theme::ERROR_TEXT
+            } else {
+                theme::FG_SECONDARY
+            },
+            Family::SansSerif,
+        );
+    }
+
+    draw_find_bar_button(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.prev_x,
+        btn_y,
+        find_layout.btn_w,
+        btn_h,
+        "↑",
+        false,
+        hovered == Some(FindBarHover::Prev),
+        metrics,
+    );
+    draw_find_bar_button(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.next_x,
+        btn_y,
+        find_layout.btn_w,
+        btn_h,
+        "↓",
+        false,
+        hovered == Some(FindBarHover::Next),
+        metrics,
+    );
+    draw_find_bar_button(
+        buf,
+        font_system,
+        swash_cache,
+        find_layout.close_x,
+        btn_y,
+        find_layout.btn_w,
+        btn_h,
+        "×",
+        false,
+        hovered == Some(FindBarHover::Close),
+        metrics,
+    );
+
+    if state.find_state.show_replace {
+        let replace_row_y = find_row_y + row_h;
+        let replace_layout = find_bar_replace_row_layout(
+            x,
+            replace_row_y,
+            w,
+            find_layout.input_x,
+            find_layout.input_w,
+            sf,
+        );
+        let rbtn_y = replace_layout.row_y + pad_v;
+
+        draw_find_bar_input(
+            buf,
+            font_system,
+            swash_cache,
+            replace_layout.input_x,
+            rbtn_y,
+            replace_layout.input_w,
+            btn_h,
+            &state.find_state.replace_query,
+            state.find_state.replace_cursor,
+            state.find_state.replace_anchor,
+            "Replace",
+            state.find_state.focus == FindFocus::Replace,
+            state.find_state.focus == FindFocus::Replace && cursor_visible,
+            metrics,
+            sf,
+        );
+        draw_find_bar_button(
+            buf,
+            font_system,
+            swash_cache,
+            replace_layout.replace_one_x,
+            rbtn_y,
+            replace_layout.btn_w,
+            btn_h,
+            "→",
+            false,
+            hovered == Some(FindBarHover::ReplaceOne),
+            metrics,
+        );
+        draw_find_bar_button(
+            buf,
+            font_system,
+            swash_cache,
+            replace_layout.replace_all_x,
+            rbtn_y,
+            replace_layout.btn_w,
+            btn_h,
+            "⇉",
+            false,
+            hovered == Some(FindBarHover::ReplaceAll),
+            metrics,
+        );
+    }
+}
+
+/// Compute a y-offset from a button's top that vertically centers a glyph
+/// drawn with `metrics` within a button of height `btn_h`.
+fn center_offset_y(btn_h: usize, metrics: Metrics) -> usize {
+    let lh = metrics.line_height;
+    ((btn_h as f32 - lh) / 2.0).max(0.0) as usize
+}
+
+fn draw_find_bar_button(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+    label: &str,
+    active: bool,
+    hovered: bool,
+    metrics: Metrics,
+) {
+    if active {
+        buf.fill_rect(x, y, w, h, theme::BG_SELECTION);
+    } else if hovered {
+        buf.fill_rect(x, y, w, h, theme::BG_HOVER);
+    }
+    let text_w = measure_text_width(font_system, label, metrics, Family::SansSerif) as usize;
+    let tx = x + w.saturating_sub(text_w) / 2;
+    let ty = y + center_offset_y(h, metrics);
+    draw_text_at(
+        buf,
+        font_system,
+        swash_cache,
+        tx,
+        ty,
+        y + h,
+        label,
+        metrics,
+        theme::FG_PRIMARY,
+        Family::SansSerif,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_find_bar_toggle(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+    label: &str,
+    active: bool,
+    hovered: bool,
+    metrics: Metrics,
+    sf: f32,
+) {
+    if active {
+        buf.fill_rect(x, y, w, h, theme::BG_SELECTION);
+    } else if hovered {
+        buf.fill_rect(x, y, w, h, theme::BG_HOVER);
+    }
+    let text_w = measure_text_width(font_system, label, metrics, Family::SansSerif) as usize;
+    let tx = x + w.saturating_sub(text_w) / 2;
+    let ty = y + center_offset_y(h, metrics);
+    let color = if active {
+        theme::PRIMARY
+    } else {
+        theme::FG_PRIMARY
+    };
+    draw_text_at(
+        buf,
+        font_system,
+        swash_cache,
+        tx,
+        ty,
+        y + h,
+        label,
+        metrics,
+        color,
+        Family::SansSerif,
+    );
+    if active {
+        let underline_h = (1.0 * sf).max(1.0) as usize;
+        buf.fill_rect(
+            x + (2.0 * sf) as usize,
+            y + h - underline_h - 1,
+            w.saturating_sub((4.0 * sf) as usize),
+            underline_h,
+            theme::PRIMARY,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_find_bar_input(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    x: usize,
+    y: usize,
+    w: usize,
+    h: usize,
+    text: &str,
+    cursor: usize,
+    anchor: Option<usize>,
+    placeholder: &str,
+    focused: bool,
+    caret_visible: bool,
+    metrics: Metrics,
+    sf: f32,
+) {
+    buf.fill_rect(x, y, w, h, theme::BG);
+    let border = (1.0 * sf).max(1.0) as usize;
+    let border_color = theme::BORDER;
+    buf.fill_rect(x, y, w, border, border_color);
+    buf.fill_rect(x, y + h - border, w, border, border_color);
+    buf.fill_rect(x, y, border, h, border_color);
+    buf.fill_rect(x + w - border, y, border, h, border_color);
+
+    let pad_x = (6.0 * sf) as usize;
+    let text_x = x + pad_x;
+    let text_y = y + center_offset_y(h, metrics);
+    let clip_right = x + w - pad_x;
+
+    if let Some(a) = anchor {
+        let (s, e) = if a < cursor { (a, cursor) } else { (cursor, a) };
+        if s != e {
+            let s_clamped = s.min(text.len());
+            let e_clamped = e.min(text.len());
+            let before = &text[..s_clamped];
+            let sel_text = &text[s_clamped..e_clamped];
+            let sx = text_x
+                + measure_text_width(font_system, before, metrics, Family::SansSerif) as usize;
+            let sw = measure_text_width(font_system, sel_text, metrics, Family::SansSerif) as usize;
+            let draw_x = sx.min(clip_right);
+            let draw_w = (sx + sw).min(clip_right).saturating_sub(draw_x);
+            if draw_w > 0 {
+                buf.fill_rect(
+                    draw_x,
+                    y + 2,
+                    draw_w,
+                    h.saturating_sub(4),
+                    theme::BG_SELECTION,
+                );
+            }
+        }
+    }
+
+    let (render_text, color) = if text.is_empty() {
+        (placeholder, theme::FG_MUTED)
+    } else {
+        (text, theme::FG_PRIMARY)
+    };
+    draw_text_clipped(
+        buf,
+        font_system,
+        swash_cache,
+        text_x,
+        text_y,
+        y + h,
+        clip_right,
+        text_x,
+        render_text,
+        metrics,
+        color,
+        Family::SansSerif,
+    );
+
+    if focused && caret_visible && !text.is_empty() {
+        let before = &text[..cursor.min(text.len())];
+        let cx =
+            text_x + measure_text_width(font_system, before, metrics, Family::SansSerif) as usize;
+        if cx < clip_right {
+            let caret_w = (1.0 * sf).max(1.0) as usize;
+            let caret_h = h.saturating_sub((4.0 * sf) as usize);
+            buf.fill_rect(cx, y + 2, caret_w, caret_h, theme::FG_PRIMARY);
+        }
+    } else if focused && caret_visible && text.is_empty() {
+        let caret_w = (1.0 * sf).max(1.0) as usize;
+        let caret_h = h.saturating_sub((4.0 * sf) as usize);
+        buf.fill_rect(text_x, y + 2, caret_w, caret_h, theme::FG_PRIMARY);
+    }
+}
+
+/// Hit-test a physical (px, py) against the visible find bar regions.
+pub fn find_bar_hit_test(
+    state: &EditorState,
+    px: usize,
+    py: usize,
+    vp_x: usize,
+    vp_y: usize,
+    vp_w: usize,
+    sf: f32,
+) -> Option<FindBarHit> {
+    let (x, y, w, _h) = find_bar_rect(state, vp_x, vp_y, vp_w, sf)?;
+    let row_h = (FIND_BAR_ROW_H * sf) as usize;
+    let find_row_y = y + (4.0 * sf) as usize;
+    let find_layout = find_bar_find_row_layout(state, x, find_row_y, w, sf);
+    let pad_v = ((FIND_BAR_ROW_H * sf - 22.0 * sf) / 2.0).max(2.0) as usize;
+    let btn_y = find_layout.row_y + pad_v;
+    let btn_h = row_h.saturating_sub(pad_v * 2);
+
+    let on_row = |bx: usize, bw: usize| -> bool {
+        py >= btn_y && py < btn_y + btn_h && px >= bx && px < bx + bw
+    };
+
+    if on_row(find_layout.chevron_x, find_layout.btn_w) {
+        return Some(FindBarHit::ToggleExpand);
+    }
+    if on_row(find_layout.input_x, find_layout.input_w) {
+        return Some(FindBarHit::FindInput {
+            rel_x: px - find_layout.input_x,
+        });
+    }
+    if on_row(find_layout.case_x, find_layout.btn_w) {
+        return Some(FindBarHit::ToggleCase);
+    }
+    if on_row(find_layout.word_x, find_layout.btn_w) {
+        return Some(FindBarHit::ToggleWord);
+    }
+    if on_row(find_layout.regex_x, find_layout.btn_w) {
+        return Some(FindBarHit::ToggleRegex);
+    }
+    if on_row(find_layout.prev_x, find_layout.btn_w) {
+        return Some(FindBarHit::Prev);
+    }
+    if on_row(find_layout.next_x, find_layout.btn_w) {
+        return Some(FindBarHit::Next);
+    }
+    if on_row(find_layout.close_x, find_layout.btn_w) {
+        return Some(FindBarHit::Close);
+    }
+
+    if state.find_state.show_replace {
+        let replace_row_y = find_row_y + row_h;
+        let replace_layout = find_bar_replace_row_layout(
+            x,
+            replace_row_y,
+            w,
+            find_layout.input_x,
+            find_layout.input_w,
+            sf,
+        );
+        let rbtn_y = replace_layout.row_y + pad_v;
+        let on_rrow = |bx: usize, bw: usize| -> bool {
+            py >= rbtn_y && py < rbtn_y + btn_h && px >= bx && px < bx + bw
+        };
+        if on_rrow(replace_layout.input_x, replace_layout.input_w) {
+            return Some(FindBarHit::ReplaceInput {
+                rel_x: px - replace_layout.input_x,
+            });
+        }
+        if on_rrow(replace_layout.replace_one_x, replace_layout.btn_w) {
+            return Some(FindBarHit::ReplaceOne);
+        }
+        if on_rrow(replace_layout.replace_all_x, replace_layout.btn_w) {
+            return Some(FindBarHit::ReplaceAll);
+        }
+    }
+    None
+}
+
+/// Hit-test for hover: returns which region is under (px, py), ignoring
+/// `rel_x` inside inputs (i.e. this is a coarser version of `find_bar_hit_test`
+/// used for hover highlighting).
+pub fn find_bar_hover_test(
+    state: &EditorState,
+    px: usize,
+    py: usize,
+    vp_x: usize,
+    vp_y: usize,
+    vp_w: usize,
+    sf: f32,
+) -> Option<FindBarHover> {
+    find_bar_hit_test(state, px, py, vp_x, vp_y, vp_w, sf).map(|hit| match hit {
+        FindBarHit::ToggleExpand => FindBarHover::ToggleExpand,
+        FindBarHit::FindInput { .. } => FindBarHover::FindInput,
+        FindBarHit::ToggleCase => FindBarHover::ToggleCase,
+        FindBarHit::ToggleWord => FindBarHover::ToggleWord,
+        FindBarHit::ToggleRegex => FindBarHover::ToggleRegex,
+        FindBarHit::Prev => FindBarHover::Prev,
+        FindBarHit::Next => FindBarHover::Next,
+        FindBarHit::Close => FindBarHover::Close,
+        FindBarHit::ReplaceInput { .. } => FindBarHover::ReplaceInput,
+        FindBarHit::ReplaceOne => FindBarHover::ReplaceOne,
+        FindBarHit::ReplaceAll => FindBarHover::ReplaceAll,
+    })
+}
+
+/// Returns the absolute physical rect (x, y, w, h) of the find input box,
+/// or None if the find bar is not visible.
+pub fn find_bar_find_input_rect(
+    state: &EditorState,
+    vp_x: usize,
+    vp_y: usize,
+    vp_w: usize,
+    sf: f32,
+) -> Option<(usize, usize, usize, usize)> {
+    let (x, y, w, _h) = find_bar_rect(state, vp_x, vp_y, vp_w, sf)?;
+    let row_h = (FIND_BAR_ROW_H * sf) as usize;
+    let find_row_y = y + (4.0 * sf) as usize;
+    let find_layout = find_bar_find_row_layout(state, x, find_row_y, w, sf);
+    let pad_v = ((FIND_BAR_ROW_H * sf - 22.0 * sf) / 2.0).max(2.0) as usize;
+    let btn_h = row_h.saturating_sub(pad_v * 2);
+    let btn_y = find_layout.row_y + pad_v;
+    Some((find_layout.input_x, btn_y, find_layout.input_w, btn_h))
+}
+
+/// Returns the absolute physical rect (x, y, w, h) of the replace input box,
+/// or None if the replace row isn't visible.
+pub fn find_bar_replace_input_rect(
+    state: &EditorState,
+    vp_x: usize,
+    vp_y: usize,
+    vp_w: usize,
+    sf: f32,
+) -> Option<(usize, usize, usize, usize)> {
+    if !state.find_state.show_replace {
+        return None;
+    }
+    let (x, y, w, _h) = find_bar_rect(state, vp_x, vp_y, vp_w, sf)?;
+    let row_h = (FIND_BAR_ROW_H * sf) as usize;
+    let find_row_y = y + (4.0 * sf) as usize;
+    let find_layout = find_bar_find_row_layout(state, x, find_row_y, w, sf);
+    let pad_v = ((FIND_BAR_ROW_H * sf - 22.0 * sf) / 2.0).max(2.0) as usize;
+    let btn_h = row_h.saturating_sub(pad_v * 2);
+    let replace_row_y = find_row_y + row_h;
+    let replace_layout = find_bar_replace_row_layout(
+        x,
+        replace_row_y,
+        w,
+        find_layout.input_x,
+        find_layout.input_w,
+        sf,
+    );
+    let rbtn_y = replace_layout.row_y + pad_v;
+    Some((
+        replace_layout.input_x,
+        rbtn_y,
+        replace_layout.input_w,
+        btn_h,
+    ))
 }
 
 #[cfg(test)]

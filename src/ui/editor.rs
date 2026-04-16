@@ -4,6 +4,125 @@ use std::path::{Path, PathBuf};
 
 use crate::ui::syntax::{SyntaxRegistry, Token};
 
+/// A single match location for the in-editor find bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FindMatch {
+    pub line: usize,
+    pub byte_start: usize,
+    pub byte_end: usize,
+}
+
+/// Which input of the find bar currently has keyboard focus.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FindFocus {
+    Find,
+    Replace,
+}
+
+/// Identifies a hoverable region of the find bar. Mirrors `FindBarHit`
+/// (in editor_renderer.rs) but without hit-specific payloads so that it can
+/// live in the state layer without a dependency cycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FindBarHover {
+    ToggleExpand,
+    FindInput,
+    ToggleCase,
+    ToggleWord,
+    ToggleRegex,
+    Prev,
+    Next,
+    Close,
+    ReplaceInput,
+    ReplaceOne,
+    ReplaceAll,
+}
+
+/// State of the in-editor VSCode-style find/replace bar.
+#[derive(Debug, Clone)]
+pub struct EditorFindState {
+    pub open: bool,
+    pub show_replace: bool,
+    pub focus: FindFocus,
+
+    pub find_query: String,
+    pub find_cursor: usize,
+    pub find_anchor: Option<usize>,
+
+    pub replace_query: String,
+    pub replace_cursor: usize,
+    pub replace_anchor: Option<usize>,
+
+    pub case_sensitive: bool,
+    pub whole_word: bool,
+    pub regex: bool,
+
+    pub matches: Vec<FindMatch>,
+    pub current: Option<usize>,
+
+    /// When `Some`, the user is dragging the mouse inside the named input
+    /// to extend a selection. Cleared on mouse release.
+    pub input_mouse_dragging: Option<FindFocus>,
+
+    /// Currently hovered button/input, or None. Updated by the app's
+    /// hover tracker on cursor move.
+    pub hovered_button: Option<FindBarHover>,
+}
+
+impl Default for EditorFindState {
+    fn default() -> Self {
+        Self {
+            open: false,
+            show_replace: false,
+            focus: FindFocus::Find,
+            find_query: String::new(),
+            find_cursor: 0,
+            find_anchor: None,
+            replace_query: String::new(),
+            replace_cursor: 0,
+            replace_anchor: None,
+            case_sensitive: false,
+            whole_word: false,
+            regex: false,
+            matches: Vec::new(),
+            current: None,
+            input_mouse_dragging: None,
+            hovered_button: None,
+        }
+    }
+}
+
+impl EditorFindState {
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    /// Map a physical X offset inside the find/replace input (relative to the
+    /// input's left edge, including the input's internal padding) to a byte
+    /// offset within the corresponding query string.
+    pub fn input_click_to_cursor(
+        &self,
+        focus: FindFocus,
+        rel_x: f64,
+        font_system: &mut cosmic_text::FontSystem,
+        sf: f32,
+    ) -> usize {
+        let pad_x = (6.0 * sf) as f64;
+        let local_x = (rel_x - pad_x).max(0.0) as f32;
+        let metrics = cosmic_text::Metrics::new(12.0 * sf, 16.0 * sf);
+        let s = match focus {
+            FindFocus::Find => self.find_query.as_str(),
+            FindFocus::Replace => self.replace_query.as_str(),
+        };
+        crate::renderer::text::cursor_byte_from_x(
+            font_system,
+            s,
+            metrics,
+            cosmic_text::Family::SansSerif,
+            local_x,
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditorMode {
     Text,
@@ -96,6 +215,9 @@ pub struct EditorState {
 
     /// Active search highlight term from the search panel.
     pub search_highlight: Option<String>,
+
+    /// In-editor find/replace bar state.
+    pub find_state: Box<EditorFindState>,
 }
 
 const MAX_UNDO: usize = 500;
@@ -244,6 +366,7 @@ impl EditorState {
             diff_view: None,
             diff_split_frac: 0.5,
             search_highlight: None,
+            find_state: Box::new(EditorFindState::default()),
         };
 
         match mode {
@@ -652,10 +775,21 @@ impl EditorState {
         let cursor_y = pad_y + self.cursor_line * line_h;
         let scroll = self.scroll_offset.max(0.0) as usize;
 
-        if cursor_y < scroll {
-            self.scroll_offset = cursor_y as f32;
-        } else if cursor_y + line_h > scroll + viewport_h {
-            self.scroll_offset = (cursor_y + line_h).saturating_sub(viewport_h) as f32;
+        let top_obstruction = if self.find_state.is_open() {
+            let bar_rows = if self.find_state.show_replace { 2 } else { 1 };
+            (30.0 * sf) as usize * bar_rows + (4.0 * sf) as usize
+        } else {
+            0
+        };
+        let margin = line_h * 2;
+        let effective_top = scroll + top_obstruction;
+        let effective_bottom = scroll + viewport_h;
+
+        if cursor_y < effective_top + margin {
+            let target = cursor_y.saturating_sub(top_obstruction + margin);
+            self.scroll_offset = target as f32;
+        } else if cursor_y + line_h + margin > effective_bottom {
+            self.scroll_offset = (cursor_y + line_h + margin).saturating_sub(viewport_h) as f32;
         }
     }
 
@@ -693,6 +827,190 @@ impl EditorState {
         }
         self.cursor_line = line.min(self.lines.len().saturating_sub(1));
         self.cursor_col = col.min(self.lines[self.cursor_line].len());
+    }
+
+    /// Command: open the find bar. If `show_replace`, expand with Replace row.
+    /// Pre-populates the Find input from the current single-line selection when small.
+    pub fn open_find(&mut self, show_replace: bool) {
+        if self.mode != EditorMode::Text || self.diff_view.is_some() {
+            return;
+        }
+        let preset = self
+            .selected_text()
+            .filter(|s| !s.is_empty() && !s.contains('\n') && s.len() <= 256);
+        self.find_state.open = true;
+        self.find_state.show_replace = show_replace;
+        self.find_state.focus = FindFocus::Find;
+        if let Some(text) = preset {
+            self.find_state.find_query = text;
+        }
+        self.find_state.find_cursor = self.find_state.find_query.len();
+        self.find_state.find_anchor = if self.find_state.find_query.is_empty() {
+            None
+        } else {
+            Some(0)
+        };
+        self.recompute_matches();
+    }
+
+    /// Command: close the find bar.
+    pub fn close_find(&mut self) {
+        self.find_state.open = false;
+        self.find_state.matches.clear();
+        self.find_state.current = None;
+    }
+
+    /// Command: recompute the match list based on current find query and options.
+    pub fn recompute_matches(&mut self) {
+        self.find_state.matches.clear();
+        self.find_state.current = None;
+        if self.find_state.find_query.is_empty() {
+            return;
+        }
+
+        let pattern = if self.find_state.regex {
+            self.find_state.find_query.clone()
+        } else {
+            regex::escape(&self.find_state.find_query)
+        };
+        let pattern = if self.find_state.whole_word {
+            format!(r"(?:^|\W)({pattern})(?:$|\W)")
+        } else {
+            pattern
+        };
+        let mut builder = regex::RegexBuilder::new(&pattern);
+        builder.case_insensitive(!self.find_state.case_sensitive);
+        let re = match builder.build() {
+            Ok(r) => r,
+            Err(e) => {
+                log::error!("editor find: regex compile failed: {e}");
+                return;
+            }
+        };
+
+        for (li, line) in self.lines.iter().enumerate() {
+            for caps in re.captures_iter(line) {
+                let m = if self.find_state.whole_word {
+                    match caps.get(1) {
+                        Some(m) => m,
+                        None => continue,
+                    }
+                } else {
+                    match caps.get(0) {
+                        Some(m) => m,
+                        None => continue,
+                    }
+                };
+                if m.start() == m.end() {
+                    continue;
+                }
+                self.find_state.matches.push(FindMatch {
+                    line: li,
+                    byte_start: m.start(),
+                    byte_end: m.end(),
+                });
+            }
+        }
+
+        if !self.find_state.matches.is_empty() {
+            let cursor = (self.cursor_line, self.cursor_col);
+            let idx = self
+                .find_state
+                .matches
+                .iter()
+                .position(|m| (m.line, m.byte_start) >= cursor)
+                .unwrap_or(0);
+            self.find_state.current = Some(idx);
+        }
+    }
+
+    /// Command: place cursor at the match at `idx` and select it.
+    pub fn jump_to_match(&mut self, idx: usize) {
+        let m = match self.find_state.matches.get(idx).copied() {
+            Some(m) => m,
+            None => return,
+        };
+        self.find_state.current = Some(idx);
+        self.cursor_line = m.line.min(self.lines.len().saturating_sub(1));
+        self.cursor_col = m.byte_end.min(self.lines[self.cursor_line].len());
+        self.sel_anchor = Some((m.line, m.byte_start));
+    }
+
+    /// Command: advance to the next match, wrapping.
+    pub fn find_next(&mut self) {
+        if self.find_state.matches.is_empty() {
+            return;
+        }
+        let next = match self.find_state.current {
+            Some(i) => (i + 1) % self.find_state.matches.len(),
+            None => 0,
+        };
+        self.jump_to_match(next);
+    }
+
+    /// Command: go to the previous match, wrapping.
+    pub fn find_prev(&mut self) {
+        if self.find_state.matches.is_empty() {
+            return;
+        }
+        let prev = match self.find_state.current {
+            Some(0) | None => self.find_state.matches.len() - 1,
+            Some(i) => i - 1,
+        };
+        self.jump_to_match(prev);
+    }
+
+    /// Command: replace the currently selected match with `replace_query` and advance.
+    /// Returns true if a replacement happened.
+    pub fn replace_current(&mut self) -> bool {
+        let idx = match self.find_state.current {
+            Some(i) => i,
+            None => return false,
+        };
+        let m = match self.find_state.matches.get(idx).copied() {
+            Some(m) => m,
+            None => return false,
+        };
+        if m.line >= self.lines.len() {
+            return false;
+        }
+        self.push_undo();
+        let replacement = self.find_state.replace_query.clone();
+        let line = &mut self.lines[m.line];
+        let end = m.byte_end.min(line.len());
+        let start = m.byte_start.min(end);
+        line.replace_range(start..end, &replacement);
+        self.cursor_line = m.line;
+        self.cursor_col = start + replacement.len();
+        self.sel_anchor = None;
+        self.mark_modified();
+        self.recompute_matches();
+        true
+    }
+
+    /// Command: replace every match with `replace_query`. Returns the count replaced.
+    pub fn replace_all(&mut self) -> usize {
+        if self.find_state.matches.is_empty() {
+            return 0;
+        }
+        self.push_undo();
+        let replacement = self.find_state.replace_query.clone();
+        let matches: Vec<FindMatch> = self.find_state.matches.clone();
+        let mut count = 0usize;
+        for m in matches.iter().rev() {
+            if m.line >= self.lines.len() {
+                continue;
+            }
+            let line = &mut self.lines[m.line];
+            let end = m.byte_end.min(line.len());
+            let start = m.byte_start.min(end);
+            line.replace_range(start..end, &replacement);
+            count += 1;
+        }
+        self.sel_anchor = None;
+        self.mark_modified();
+        self.recompute_matches();
+        count
     }
 }
 
@@ -1086,6 +1404,7 @@ impl EditorState {
             diff_view: None,
             diff_split_frac: 0.5,
             search_highlight: None,
+            find_state: Box::new(EditorFindState::default()),
         }
     }
 
@@ -1113,6 +1432,7 @@ impl EditorState {
             diff_view: None,
             diff_split_frac: 0.5,
             search_highlight: None,
+            find_state: Box::new(EditorFindState::default()),
         }
     }
 }
@@ -1145,6 +1465,7 @@ mod tests {
             diff_view: None,
             diff_split_frac: 0.5,
             search_highlight: None,
+            find_state: Box::new(EditorFindState::default()),
         }
     }
 
@@ -1579,5 +1900,103 @@ mod tests {
         assert!(!s.can_undo());
         s.undo();
         assert_eq!(s.lines[0], "hello");
+    }
+
+    #[test]
+    fn find_case_sensitive_vs_insensitive() {
+        let mut s = text_state(&["Foo foo FOO", "bar Foo"]);
+        s.find_state.find_query = "foo".into();
+        s.find_state.case_sensitive = false;
+        s.recompute_matches();
+        assert_eq!(s.find_state.matches.len(), 4);
+
+        s.find_state.case_sensitive = true;
+        s.recompute_matches();
+        assert_eq!(s.find_state.matches.len(), 1);
+        assert_eq!(s.find_state.matches[0].line, 0);
+        assert_eq!(s.find_state.matches[0].byte_start, 4);
+    }
+
+    #[test]
+    fn find_whole_word_excludes_substrings() {
+        let mut s = text_state(&["foo foobar foo"]);
+        s.find_state.find_query = "foo".into();
+        s.find_state.case_sensitive = true;
+        s.find_state.whole_word = false;
+        s.recompute_matches();
+        assert_eq!(s.find_state.matches.len(), 3);
+
+        s.find_state.whole_word = true;
+        s.recompute_matches();
+        assert_eq!(s.find_state.matches.len(), 2);
+        assert_eq!(s.find_state.matches[0].byte_start, 0);
+        assert_eq!(s.find_state.matches[1].byte_start, 11);
+    }
+
+    #[test]
+    fn find_regex_compile_error_is_graceful() {
+        let mut s = text_state(&["anything"]);
+        s.find_state.find_query = "(unclosed".into();
+        s.find_state.regex = true;
+        s.recompute_matches();
+        assert!(s.find_state.matches.is_empty());
+        assert!(s.find_state.current.is_none());
+    }
+
+    #[test]
+    fn find_empty_query_yields_no_matches() {
+        let mut s = text_state(&["foo bar"]);
+        s.find_state.find_query.clear();
+        s.recompute_matches();
+        assert!(s.find_state.matches.is_empty());
+    }
+
+    #[test]
+    fn replace_all_replaces_every_instance_and_undo_restores() {
+        let mut s = text_state(&["foo bar foo", "foo"]);
+        s.find_state.find_query = "foo".into();
+        s.find_state.case_sensitive = true;
+        s.find_state.replace_query = "BAZ".into();
+        s.recompute_matches();
+        let count = s.replace_all();
+        assert_eq!(count, 3);
+        assert_eq!(s.lines, vec!["BAZ bar BAZ", "BAZ"]);
+        s.undo();
+        assert_eq!(s.lines, vec!["foo bar foo", "foo"]);
+    }
+
+    #[test]
+    fn replace_current_advances_and_recomputes() {
+        let mut s = text_state(&["foo foo foo"]);
+        s.find_state.find_query = "foo".into();
+        s.find_state.case_sensitive = true;
+        s.find_state.replace_query = "X".into();
+        s.recompute_matches();
+        assert_eq!(s.find_state.matches.len(), 3);
+        s.find_state.current = Some(0);
+        assert!(s.replace_current());
+        assert_eq!(s.lines[0], "X foo foo");
+        assert_eq!(s.find_state.matches.len(), 2);
+    }
+
+    #[test]
+    fn find_next_wraps() {
+        let mut s = text_state(&["a a a"]);
+        s.find_state.find_query = "a".into();
+        s.find_state.case_sensitive = true;
+        s.recompute_matches();
+        assert_eq!(s.find_state.matches.len(), 3);
+        s.find_state.current = Some(2);
+        s.find_next();
+        assert_eq!(s.find_state.current, Some(0));
+        s.find_prev();
+        assert_eq!(s.find_state.current, Some(2));
+    }
+
+    #[test]
+    fn open_find_gated_off_in_hex_mode() {
+        let mut s = EditorState::test_hex("data.bin", vec![0u8; 16]);
+        s.open_find(false);
+        assert!(!s.find_state.is_open());
     }
 }

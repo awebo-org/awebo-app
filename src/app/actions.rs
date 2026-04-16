@@ -124,6 +124,12 @@ pub enum AppAction {
         line: Option<u32>,
     },
     FocusSearchInput,
+    /// Toggle the search panel case-sensitive flag.
+    SearchToggleCase,
+    /// Toggle the search panel whole-word flag.
+    SearchToggleWord,
+    /// Toggle the search panel regex flag.
+    SearchToggleRegex,
     /// Toggle the debug overlay.
     ToggleDebugPanel,
     /// Open the command palette.
@@ -198,6 +204,19 @@ pub enum AppAction {
     InstallUpdate,
     /// Toggle the update dropdown beneath the tab-bar badge.
     ToggleUpdateDropdown,
+
+    /// Open the in-editor find bar (Find row only).
+    EditorFindOpen,
+    /// Open the in-editor find bar with the Replace row expanded.
+    EditorFindOpenReplace,
+    /// Close the in-editor find bar.
+    EditorFindClose,
+    /// Navigate to the next match in the editor find bar.
+    EditorFindNext,
+    /// Navigate to the previous match in the editor find bar.
+    EditorFindPrev,
+    /// Replace all matches with the replacement text.
+    EditorFindReplaceAll,
 }
 
 impl super::App {
@@ -604,6 +623,18 @@ impl super::App {
             AppAction::FocusSearchInput => {
                 self.search_panel.focused = true;
             }
+            AppAction::SearchToggleCase => {
+                self.search_panel
+                    .toggle_flag(crate::ui::search_panel::SearchToggle::Case);
+            }
+            AppAction::SearchToggleWord => {
+                self.search_panel
+                    .toggle_flag(crate::ui::search_panel::SearchToggle::Word);
+            }
+            AppAction::SearchToggleRegex => {
+                self.search_panel
+                    .toggle_flag(crate::ui::search_panel::SearchToggle::Regex);
+            }
             AppAction::ToggleDebugPanel => {
                 self.overlay.debug_panel = !self.overlay.debug_panel;
             }
@@ -818,8 +849,62 @@ impl super::App {
             AppAction::ToggleUpdateDropdown => {
                 self.overlay.toggle_update_dropdown();
             }
+
+            AppAction::EditorFindOpen => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.open_find(false);
+                }
+            }
+            AppAction::EditorFindOpenReplace => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.open_find(true);
+                }
+            }
+            AppAction::EditorFindClose => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.close_find();
+                }
+            }
+            AppAction::EditorFindNext => {
+                let (sf, vh) = self.editor_viewport_metrics();
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_next();
+                    ed.ensure_cursor_visible(sf, vh);
+                }
+            }
+            AppAction::EditorFindPrev => {
+                let (sf, vh) = self.editor_viewport_metrics();
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_prev();
+                    ed.ensure_cursor_visible(sf, vh);
+                }
+            }
+            AppAction::EditorFindReplaceAll => {
+                let count = self
+                    .active_editor_state_mut()
+                    .map(|ed| ed.replace_all())
+                    .unwrap_or(0);
+                self.toast_mgr.push(
+                    format!("Replaced {count} occurrences"),
+                    crate::ui::components::toast::ToastLevel::Info,
+                );
+            }
         }
         self.request_redraw();
+    }
+
+    pub(crate) fn editor_viewport_metrics(&self) -> (f32, usize) {
+        let sf = self
+            .renderer
+            .as_ref()
+            .map(|r| r.scale_factor as f32)
+            .unwrap_or(1.0);
+        let vh = self
+            .renderer
+            .as_ref()
+            .map(|r| (r.height as usize).saturating_sub(r.tab_bar_height as usize))
+            .unwrap_or(600);
+        (sf, vh)
     }
 }
 

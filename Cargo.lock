@@ -551,7 +551,7 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "awebo"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "alacritty_terminal",
  "arboard",
@@ -575,6 +575,7 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "parking_lot",
+ "regex",
  "resvg",
  "rfd",
  "serde",

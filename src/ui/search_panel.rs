@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 
 use cosmic_text::{Family, FontSystem, Metrics, SwashCache};
+use regex::{Regex, RegexBuilder};
 
 use crate::renderer::icons::{Icon, IconRenderer, icon_for_filename};
 use crate::renderer::pixel_buffer::PixelBuffer;
@@ -15,6 +16,22 @@ const INPUT_PAD_X: f32 = 8.0;
 const INPUT_PAD_Y: f32 = 6.0;
 const INPUT_FONT_SIZE: f32 = 12.0;
 const INPUT_LINE_H: f32 = 17.0;
+
+const TOGGLE_W: f32 = 22.0;
+const TOGGLE_H: f32 = 20.0;
+const TOGGLE_GAP: f32 = 2.0;
+const TOGGLE_RIGHT_PAD: f32 = 4.0;
+const TOGGLE_FONT: f32 = 11.0;
+const TOGGLE_COUNT: usize = 3;
+
+const REGEX_ERROR_BORDER: crate::renderer::pixel_buffer::Rgb = (180, 70, 70);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchToggle {
+    Case,
+    Word,
+    Regex,
+}
 
 const RESULT_FILE_H: f32 = 24.0;
 const RESULT_LINE_H: f32 = 22.0;
@@ -66,6 +83,11 @@ pub struct SearchPanelState {
     pub hovered_idx: Option<usize>,
     pub focused: bool,
     pub searching: bool,
+    pub case_sensitive: bool,
+    pub whole_word: bool,
+    pub regex: bool,
+    pub regex_error: bool,
+    pub hovered_toggle: Option<SearchToggle>,
     generation: u64,
     receiver: Option<mpsc::Receiver<SearchResult>>,
     debounce_at: Option<std::time::Instant>,
@@ -92,6 +114,11 @@ impl Default for SearchPanelState {
             hovered_idx: None,
             focused: false,
             searching: false,
+            case_sensitive: false,
+            whole_word: false,
+            regex: false,
+            regex_error: false,
+            hovered_toggle: None,
             generation: 0,
             receiver: None,
             debounce_at: None,
@@ -135,7 +162,83 @@ impl SearchPanelState {
     pub fn text_area_clip_right(sf: f32, panel_w: usize) -> usize {
         let input_pad_x = (INPUT_PAD_X * sf) as usize;
         let input_w = panel_w.saturating_sub(input_pad_x * 2);
-        input_pad_x + input_w.saturating_sub((4.0 * sf) as usize)
+        let toggles_w = Self::toggles_reserved_width(sf);
+        let input_right = input_pad_x + input_w;
+        input_right.saturating_sub(toggles_w + (4.0 * sf) as usize)
+    }
+
+    fn toggles_reserved_width(sf: f32) -> usize {
+        let tw = (TOGGLE_W * sf) as usize;
+        let gap = (TOGGLE_GAP * sf) as usize;
+        let pad = (TOGGLE_RIGHT_PAD * sf) as usize;
+        TOGGLE_COUNT * tw + (TOGGLE_COUNT - 1) * gap + pad
+    }
+
+    /// Compute the (x, y, w, h) rect of a toggle inside the input row.
+    pub fn toggle_rect(
+        tog: SearchToggle,
+        sf: f32,
+        panel_w: usize,
+        content_y: usize,
+    ) -> (usize, usize, usize, usize) {
+        let input_pad_x = (INPUT_PAD_X * sf) as usize;
+        let input_pad_y = (INPUT_PAD_Y * sf) as usize;
+        let input_h = (INPUT_HEIGHT * sf) as usize;
+        let input_w = panel_w.saturating_sub(input_pad_x * 2);
+        let input_right = input_pad_x + input_w;
+
+        let tw = (TOGGLE_W * sf) as usize;
+        let th = (TOGGLE_H * sf) as usize;
+        let gap = (TOGGLE_GAP * sf) as usize;
+        let right_pad = (TOGGLE_RIGHT_PAD * sf) as usize;
+
+        let regex_x = input_right.saturating_sub(right_pad + tw);
+        let word_x = regex_x.saturating_sub(gap + tw);
+        let case_x = word_x.saturating_sub(gap + tw);
+
+        let input_y = content_y + input_pad_y;
+        let y = input_y + (input_h.saturating_sub(th)) / 2;
+
+        let x = match tog {
+            SearchToggle::Case => case_x,
+            SearchToggle::Word => word_x,
+            SearchToggle::Regex => regex_x,
+        };
+        (x, y, tw, th)
+    }
+
+    pub fn toggle_hit(
+        phys_x: f64,
+        phys_y: f64,
+        sf: f32,
+        panel_w: usize,
+        content_y: usize,
+    ) -> Option<SearchToggle> {
+        for t in [SearchToggle::Case, SearchToggle::Word, SearchToggle::Regex] {
+            let (x, y, w, h) = Self::toggle_rect(t, sf, panel_w, content_y);
+            if phys_x >= x as f64
+                && phys_x < (x + w) as f64
+                && phys_y >= y as f64
+                && phys_y < (y + h) as f64
+            {
+                return Some(t);
+            }
+        }
+        None
+    }
+
+    pub fn toggle_flag(&mut self, tog: SearchToggle) {
+        match tog {
+            SearchToggle::Case => self.case_sensitive = !self.case_sensitive,
+            SearchToggle::Word => self.whole_word = !self.whole_word,
+            SearchToggle::Regex => {
+                self.regex = !self.regex;
+                if !self.regex {
+                    self.regex_error = false;
+                }
+            }
+        }
+        self.schedule_search();
     }
 
     pub fn ensure_cursor_visible(&mut self, font_system: &mut FontSystem, sf: f32, panel_w: usize) {
@@ -324,15 +427,30 @@ impl SearchPanelState {
         if query.is_empty() {
             self.results.clear();
             self.searching = false;
+            self.regex_error = false;
             return;
         }
+
+        let re = match build_search_regex(&query, self.case_sensitive, self.whole_word, self.regex)
+        {
+            Ok(r) => {
+                self.regex_error = false;
+                r
+            }
+            Err(_) => {
+                self.regex_error = true;
+                self.results.clear();
+                self.searching = false;
+                return;
+            }
+        };
 
         self.searching = true;
         let (tx, rx) = mpsc::channel();
         self.receiver = Some(rx);
 
         std::thread::spawn(move || {
-            let groups = run_search(&root, &query, search_gen);
+            let groups = run_search(&root, &re, search_gen);
             let _ = tx.send(SearchResult {
                 generation: search_gen,
                 groups,
@@ -379,8 +497,30 @@ impl SearchPanelState {
     }
 }
 
-fn run_search(root: &Path, query: &str, _gen: u64) -> Vec<SearchFileGroup> {
-    let query_lower = query.to_lowercase();
+/// Build the regex used for searching. Returns Err when the user-supplied
+/// regex pattern fails to compile (only possible when `use_regex` is true).
+fn build_search_regex(
+    query: &str,
+    case_sensitive: bool,
+    whole_word: bool,
+    use_regex: bool,
+) -> Result<Regex, regex::Error> {
+    let base = if use_regex {
+        query.to_string()
+    } else {
+        regex::escape(query)
+    };
+    let pattern = if whole_word {
+        format!(r"\b(?:{base})\b")
+    } else {
+        base
+    };
+    let mut builder = RegexBuilder::new(&pattern);
+    builder.case_insensitive(!case_sensitive);
+    builder.build()
+}
+
+fn run_search(root: &Path, re: &Regex, _gen: u64) -> Vec<SearchFileGroup> {
     let mut groups: Vec<SearchFileGroup> = Vec::new();
     let mut total_matches = 0usize;
 
@@ -424,7 +564,7 @@ fn run_search(root: &Path, query: &str, _gen: u64) -> Vec<SearchFileGroup> {
                 continue;
             }
 
-            let name_match = name_str.to_lowercase().contains(&query_lower);
+            let name_match = re.is_match(&name_str);
 
             let rel = entry
                 .path()
@@ -433,7 +573,7 @@ fn run_search(root: &Path, query: &str, _gen: u64) -> Vec<SearchFileGroup> {
                 .to_string_lossy()
                 .to_string();
 
-            let content_matches = search_file_contents(&entry.path(), &query_lower);
+            let content_matches = search_file_contents(&entry.path(), re);
 
             if !name_match && content_matches.is_empty() {
                 continue;
@@ -465,7 +605,7 @@ fn run_search(root: &Path, query: &str, _gen: u64) -> Vec<SearchFileGroup> {
     groups
 }
 
-fn search_file_contents(path: &Path, query_lower: &str) -> Vec<SearchLineMatch> {
+fn search_file_contents(path: &Path, re: &Regex) -> Vec<SearchLineMatch> {
     let meta = match std::fs::metadata(path) {
         Ok(m) => m,
         Err(_) => return Vec::new(),
@@ -491,7 +631,7 @@ fn search_file_contents(path: &Path, query_lower: &str) -> Vec<SearchLineMatch> 
 
     let mut matches = Vec::new();
     for (line_idx, line) in text.lines().enumerate() {
-        if line.to_lowercase().contains(query_lower) {
+        if re.is_match(line) {
             let snippet = if line.len() > 120 {
                 format!("{}…", &line[..120])
             } else {
@@ -544,7 +684,9 @@ pub fn draw(
     let input_x = input_pad_x;
 
     let input_bg: crate::renderer::pixel_buffer::Rgb = (22, 22, 26);
-    let input_border: crate::renderer::pixel_buffer::Rgb = if state.focused {
+    let input_border: crate::renderer::pixel_buffer::Rgb = if state.regex && state.regex_error {
+        REGEX_ERROR_BORDER
+    } else if state.focused {
         theme::PRIMARY
     } else {
         (50, 50, 56)
@@ -577,7 +719,7 @@ pub fn draw(
     let text_x = icon_x + icon_sz as usize + (6.0 * sf) as usize;
     let text_y = input_y + ((input_h as f32 - INPUT_LINE_H * sf) / 2.0) as usize;
     let text_metrics = Metrics::new(INPUT_FONT_SIZE * sf, INPUT_LINE_H * sf);
-    let clip_right = input_x + input_w.saturating_sub((4.0 * sf) as usize);
+    let clip_right = SearchPanelState::text_area_clip_right(sf, panel_w);
     let scroll_px = state.text_scroll_x as usize;
     let draw_text_x = text_x.saturating_sub(scroll_px);
 
@@ -646,6 +788,8 @@ pub fn draw(
             buf.fill_rect(cursor_x, text_y, 1, cursor_h, theme::FG_PRIMARY);
         }
     }
+
+    draw_search_toggles(buf, font_system, swash_cache, state, panel_w, content_y, sf);
 
     let results_y = input_y + input_h + input_pad_y;
     let results_h = buf.height.saturating_sub(results_y);
@@ -880,6 +1024,73 @@ pub fn draw(
     }
 }
 
+fn draw_search_toggles(
+    buf: &mut PixelBuffer,
+    font_system: &mut FontSystem,
+    swash_cache: &mut SwashCache,
+    state: &SearchPanelState,
+    panel_w: usize,
+    content_y: usize,
+    sf: f32,
+) {
+    for tog in [SearchToggle::Case, SearchToggle::Word, SearchToggle::Regex] {
+        let (x, y, w, h) = SearchPanelState::toggle_rect(tog, sf, panel_w, content_y);
+        let active = match tog {
+            SearchToggle::Case => state.case_sensitive,
+            SearchToggle::Word => state.whole_word,
+            SearchToggle::Regex => state.regex,
+        };
+        let hovered = state.hovered_toggle == Some(tog);
+        let label = match tog {
+            SearchToggle::Case => "Aa",
+            SearchToggle::Word => "ab",
+            SearchToggle::Regex => ".*",
+        };
+
+        if active {
+            buf.fill_rect(x, y, w, h, theme::PRIMARY_DIM);
+        } else if hovered {
+            buf.fill_rect(x, y, w, h, theme::BG_ELEVATED);
+        }
+
+        let text_color = if active {
+            theme::PRIMARY
+        } else {
+            theme::FG_MUTED
+        };
+
+        let font_px = TOGGLE_FONT * sf;
+        let metrics = Metrics::new(font_px, (TOGGLE_FONT + 4.0) * sf);
+        let label_w = measure_text_width(font_system, label, metrics, Family::SansSerif);
+        let tx = x + (w as f32 - label_w).max(0.0) as usize / 2;
+        let ty = y + (h as f32 - (TOGGLE_FONT + 4.0) * sf) as usize / 2;
+        draw_text_at(
+            buf,
+            font_system,
+            swash_cache,
+            tx,
+            ty,
+            y + h,
+            label,
+            metrics,
+            text_color,
+            Family::SansSerif,
+        );
+
+        if active {
+            let underline_h = (1.0 * sf).max(1.0) as usize;
+            let u_pad = (3.0 * sf) as usize;
+            buf.fill_rect(
+                x + u_pad,
+                y + h.saturating_sub(underline_h + 1),
+                w.saturating_sub(u_pad * 2),
+                underline_h,
+                theme::PRIMARY,
+            );
+        }
+    }
+}
+
 pub fn hit_test(
     phys_y: f64,
     content_y: usize,
@@ -949,6 +1160,10 @@ pub fn is_in_input(phys_x: f64, phys_y: f64, content_y: usize, sf: f32, panel_w:
 mod tests {
     use super::*;
 
+    fn re(q: &str) -> Regex {
+        build_search_regex(q, false, false, false).unwrap()
+    }
+
     #[test]
     fn search_file_contents_finds_matches() {
         let dir = std::env::temp_dir().join("awebo_search_test");
@@ -956,7 +1171,7 @@ mod tests {
         let file = dir.join("test_search.txt");
         std::fs::write(&file, "Hello World\nfoo bar\nHello Again\n").unwrap();
 
-        let matches = search_file_contents(&file, "hello");
+        let matches = search_file_contents(&file, &re("hello"));
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0].line_num, 1);
         assert_eq!(matches[1].line_num, 3);
@@ -975,7 +1190,7 @@ mod tests {
         data.extend_from_slice(b"more data");
         std::fs::write(&file, &data).unwrap();
 
-        let matches = search_file_contents(&file, "hello");
+        let matches = search_file_contents(&file, &re("hello"));
         assert!(matches.is_empty());
 
         let _ = std::fs::remove_file(&file);
@@ -1036,10 +1251,128 @@ mod tests {
         std::fs::write(dir.join(".git/config"), "hello search").unwrap();
         std::fs::write(dir.join("visible.txt"), "hello search").unwrap();
 
-        let results = run_search(&dir, "hello", 1);
+        let results = run_search(&dir, &re("hello"), 1);
         assert_eq!(results.len(), 1);
         assert!(results[0].rel_path.contains("visible"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn case_sensitive_excludes_different_case() {
+        let dir = std::env::temp_dir().join("awebo_search_case");
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("case.txt");
+        std::fs::write(&file, "Hello\nhello\nHELLO\n").unwrap();
+
+        let rci = build_search_regex("hello", false, false, false).unwrap();
+        let mi = search_file_contents(&file, &rci);
+        assert_eq!(mi.len(), 3);
+
+        let rcs = build_search_regex("hello", true, false, false).unwrap();
+        let ms = search_file_contents(&file, &rcs);
+        assert_eq!(ms.len(), 1);
+        assert_eq!(ms[0].line_num, 2);
+
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn whole_word_excludes_substrings() {
+        let dir = std::env::temp_dir().join("awebo_search_word");
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("word.txt");
+        std::fs::write(&file, "foo\nfoobar\nbar foo baz\n").unwrap();
+
+        let rany = build_search_regex("foo", false, false, false).unwrap();
+        let m_any = search_file_contents(&file, &rany);
+        assert_eq!(m_any.len(), 3);
+
+        let rword = build_search_regex("foo", false, true, false).unwrap();
+        let m_word = search_file_contents(&file, &rword);
+        assert_eq!(m_word.len(), 2);
+        assert_eq!(m_word[0].line_num, 1);
+        assert_eq!(m_word[1].line_num, 3);
+
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn regex_on_matches() {
+        let dir = std::env::temp_dir().join("awebo_search_regex");
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("re.txt");
+        std::fs::write(&file, "fn foo()\nfn bar()\nstruct S;\n").unwrap();
+
+        let r = build_search_regex(r"^fn \w+", false, false, true).unwrap();
+        let matches = search_file_contents(&file, &r);
+        assert_eq!(matches.len(), 2);
+
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn regex_compile_error_sets_flag() {
+        let mut state = SearchPanelState {
+            regex: true,
+            ..Default::default()
+        };
+        state.query = "[".to_string();
+        state.trigger_search();
+        assert!(state.regex_error);
+        assert!(state.results.is_empty());
+        assert!(!state.searching);
+    }
+
+    #[test]
+    fn case_and_word_combined() {
+        let dir = std::env::temp_dir().join("awebo_search_case_word");
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("cw.txt");
+        std::fs::write(&file, "FOO\nfoo\nfoobar\nFoo\n").unwrap();
+
+        let r = build_search_regex("foo", true, true, false).unwrap();
+        let m = search_file_contents(&file, &r);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].line_num, 2);
+
+        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn regex_with_flags() {
+        let r = build_search_regex(r"\d+", false, true, true).unwrap();
+        assert!(r.is_match("foo 123 bar"));
+        assert!(!r.is_match("abc123def"));
+    }
+
+    #[test]
+    fn toggle_flag_schedules_search() {
+        let mut state = SearchPanelState::default();
+        state.query = "x".to_string();
+        assert!(!state.case_sensitive);
+        state.toggle_flag(SearchToggle::Case);
+        assert!(state.case_sensitive);
+        assert!(state.has_pending_debounce());
+    }
+
+    #[test]
+    fn clear_preserves_toggles() {
+        let mut state = SearchPanelState {
+            case_sensitive: true,
+            whole_word: true,
+            regex: true,
+            query: "foo".into(),
+            ..Default::default()
+        };
+        state.clear();
+        assert!(state.query.is_empty());
+        assert!(state.case_sensitive);
+        assert!(state.whole_word);
+        assert!(state.regex);
     }
 }

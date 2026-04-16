@@ -484,6 +484,7 @@ impl App {
                     let content_y = renderer.tab_bar_height as usize + header_h + border_w;
                     let panel_w = self.panel_layout.left_physical_width(sf);
                     let prev = self.search_panel.hovered_idx;
+                    let prev_tog = self.search_panel.hovered_toggle;
                     if self.cursor_pos.0 >= 0.0 && (self.cursor_pos.0 as usize) < panel_w {
                         self.search_panel.hovered_idx = crate::ui::search_panel::hit_test(
                             self.cursor_pos.1,
@@ -492,10 +493,21 @@ impl App {
                             &self.search_panel,
                             renderer.scale_factor,
                         );
+                        self.search_panel.hovered_toggle =
+                            crate::ui::search_panel::SearchPanelState::toggle_hit(
+                                self.cursor_pos.0,
+                                self.cursor_pos.1,
+                                sf,
+                                panel_w,
+                                content_y,
+                            );
                     } else {
                         self.search_panel.hovered_idx = None;
+                        self.search_panel.hovered_toggle = None;
                     }
-                    if self.search_panel.hovered_idx != prev {
+                    if self.search_panel.hovered_idx != prev
+                        || self.search_panel.hovered_toggle != prev_tog
+                    {
                         panel_changed = true;
                     }
                 } else {
@@ -510,6 +522,7 @@ impl App {
                     || self.side_panel.hovered_toolbar_btn.is_some()
                     || self.file_tree.hovered_idx.is_some()
                     || self.search_panel.hovered_idx.is_some()
+                    || self.search_panel.hovered_toggle.is_some()
                 {
                     panel_changed = true;
                 }
@@ -518,6 +531,7 @@ impl App {
                 self.side_panel.hovered_toolbar_btn = None;
                 self.file_tree.hovered_idx = None;
                 self.search_panel.hovered_idx = None;
+                self.search_panel.hovered_toggle = None;
                 self.file_tree.scrollbar_hovered = false;
             }
 
@@ -575,6 +589,46 @@ impl App {
                 self.git_panel.hovered_stage_all = false;
                 self.git_panel.hovered_unstage_all = false;
                 panel_changed = true;
+            }
+
+            // Editor find bar hover tracking.
+            {
+                let sf = renderer.scale_factor as f32;
+                let bar_h = renderer.tab_bar_height as usize;
+                let width = renderer.width as usize;
+                let x_off = if self.overlay.sidebar_open {
+                    self.panel_layout.left_physical_width(sf)
+                } else {
+                    0
+                };
+                let git_w = if self.overlay.git_panel_open {
+                    self.panel_layout.right_physical_width(sf)
+                } else {
+                    0
+                };
+                let right_edge = width.saturating_sub(git_w);
+                let vp_w = right_edge.saturating_sub(x_off);
+                let px = self.cursor_pos.0 as usize;
+                let py = self.cursor_pos.1 as usize;
+                let new_hover = self
+                    .tab_mgr
+                    .active_tab()
+                    .and_then(|t| t.editor_state())
+                    .filter(|ed| ed.find_state.is_open())
+                    .and_then(|ed| {
+                        crate::ui::components::editor_renderer::find_bar_hover_test(
+                            ed, px, py, x_off, bar_h, vp_w, sf,
+                        )
+                    });
+                if let Some(ed) = self
+                    .tab_mgr
+                    .active_tab_mut()
+                    .and_then(|t| t.editor_state_mut())
+                    && ed.find_state.hovered_button != new_hover
+                {
+                    ed.find_state.hovered_button = new_hover;
+                    panel_changed = true;
+                }
             }
 
             if self.overlay.user_menu_open {
@@ -834,6 +888,13 @@ impl ApplicationHandler<TerminalEvent> for App {
             WindowEvent::Resized(size) => {
                 if let Some(w) = &self.window {
                     self.is_fullscreen = w.fullscreen().is_some();
+                }
+
+                #[cfg(target_os = "macos")]
+                if !self.is_fullscreen
+                    && let Some(w) = &self.window
+                {
+                    reposition_traffic_lights(w);
                 }
 
                 if let Some(renderer) = &mut self.renderer {
@@ -1618,17 +1679,24 @@ pub fn run() {
 }
 
 /// Reposition the macOS traffic light buttons (close/minimize/zoom) to be
-/// vertically centered in our custom tab bar instead of the default titlebar.
-/// We move the buttons' shared superview so that both visuals AND hover
-/// tracking areas stay aligned.
+/// vertically centered in our custom tab bar.
+///
+/// AppKit re-lays out the standard window buttons during live resize (and on
+/// a few other events), resetting them to their default positions. So we
+/// capture each button's default origin on the first call and unconditionally
+/// re-apply the fixed offset every time this function runs.
 #[cfg(target_os = "macos")]
 fn reposition_traffic_lights(window: &Window) {
     use objc2_app_kit::NSWindowButton;
     use objc2_foundation::NSPoint;
-    use std::sync::OnceLock;
+    use std::cell::Cell;
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-    static ORIGINAL_CONTAINER_ORIGIN: OnceLock<NSPoint> = OnceLock::new();
+    thread_local! {
+        static ORIG_CLOSE: Cell<Option<NSPoint>> = const { Cell::new(None) };
+        static ORIG_MIN:   Cell<Option<NSPoint>> = const { Cell::new(None) };
+        static ORIG_ZOOM:  Cell<Option<NSPoint>> = const { Cell::new(None) };
+    }
 
     let ns_window = match window.window_handle().map(|h| h.as_raw()) {
         Ok(RawWindowHandle::AppKit(handle)) => unsafe {
@@ -1641,20 +1709,34 @@ fn reposition_traffic_lights(window: &Window) {
     };
     let Some(ns_window) = ns_window else { return };
 
-    let Some(close_btn) = ns_window.standardWindowButton(NSWindowButton::CloseButton) else {
-        return;
-    };
-    let Some(container) = (unsafe { close_btn.superview() }) else {
-        return;
-    };
-
-    let original = *ORIGINAL_CONTAINER_ORIGIN.get_or_init(|| container.frame().origin);
-
     let bar_h = crate::ui::components::tab_bar::TAB_BAR_LOGICAL_HEIGHT as f64;
-    let titlebar_h = 30.0;
-    let y_offset = (bar_h - titlebar_h) / 2.0;
+    let titlebar_h = 28.0;
+    let y_offset = (bar_h - titlebar_h) / 2.0 - 2.0;
     let extra_left = 4.0;
 
-    let target = NSPoint::new(original.x + extra_left, original.y - y_offset);
-    container.setFrameOrigin(target);
+    let entries: [(
+        NSWindowButton,
+        &'static std::thread::LocalKey<Cell<Option<NSPoint>>>,
+    ); 3] = [
+        (NSWindowButton::CloseButton, &ORIG_CLOSE),
+        (NSWindowButton::MiniaturizeButton, &ORIG_MIN),
+        (NSWindowButton::ZoomButton, &ORIG_ZOOM),
+    ];
+
+    for (kind, cache) in entries {
+        let Some(btn) = ns_window.standardWindowButton(kind) else {
+            continue;
+        };
+        let origin = cache.with(|c| {
+            if let Some(p) = c.get() {
+                p
+            } else {
+                let p = btn.frame().origin;
+                c.set(Some(p));
+                p
+            }
+        });
+        let target = NSPoint::new(origin.x + extra_left, origin.y - y_offset);
+        btn.setFrameOrigin(target);
+    }
 }

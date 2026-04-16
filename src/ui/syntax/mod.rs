@@ -239,42 +239,6 @@ impl SyntaxRegistry {
         self.ext_map.contains_key(&lower) || self.pending_ext_map.contains_key(&lower)
     }
 
-    /// Command: register a language immediately (test helper).
-    pub fn register(
-        &mut self,
-        name: &str,
-        extensions: &[&str],
-        language: tree_sitter_language::LanguageFn,
-        highlights_query: &str,
-        injections_query: &str,
-        locals_query: &str,
-    ) {
-        let mut config = match HighlightConfiguration::new(
-            language.into(),
-            name,
-            highlights_query,
-            injections_query,
-            locals_query,
-        ) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[syntax] Failed to load {name}: {e}");
-                return;
-            }
-        };
-
-        config.configure(HIGHLIGHT_NAMES);
-
-        let idx = self.languages.len();
-        for ext in extensions {
-            self.ext_map.insert(ext.to_lowercase(), idx);
-        }
-        self.languages.push(LanguageEntry {
-            config,
-            _name: name.to_string(),
-        });
-    }
-
     /// Query: highlight a single line (convenience wrapper).
     /// `line_start` is the byte offset of this line within the full file.
     pub fn highlight_line(

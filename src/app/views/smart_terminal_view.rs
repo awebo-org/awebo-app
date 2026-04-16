@@ -9,6 +9,22 @@ use winit::keyboard::{Key, NamedKey};
 use crate::ui::components::overlay::InputType;
 use crate::ui::components::tab_bar::TabBarHit;
 
+fn prev_byte_boundary(s: &str, pos: usize) -> usize {
+    let mut i = pos.saturating_sub(1);
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
+}
+
+fn next_byte_boundary(s: &str, pos: usize) -> usize {
+    let mut i = pos + 1;
+    while i < s.len() && !s.is_char_boundary(i) {
+        i += 1;
+    }
+    i.min(s.len())
+}
+
 impl super::super::App {
     pub(crate) fn handle_keyboard_input(
         &mut self,
@@ -457,6 +473,25 @@ impl super::super::App {
             if self.search_panel.focused
                 && self.panel_layout.active_tab == crate::ui::panel_layout::SidePanelTab::Search
             {
+                let alt = self.modifiers.alt_key();
+                if alt
+                    && !super_key
+                    && !ctrl
+                    && let Key::Character(c) = logical_key.as_ref()
+                {
+                    let lc = c.to_ascii_lowercase();
+                    let action = match lc.as_str() {
+                        "c" => Some(crate::app::actions::AppAction::SearchToggleCase),
+                        "w" => Some(crate::app::actions::AppAction::SearchToggleWord),
+                        "r" => Some(crate::app::actions::AppAction::SearchToggleRegex),
+                        _ => None,
+                    };
+                    if let Some(act) = action {
+                        self.dispatch(act, event_loop);
+                        self.request_redraw();
+                        return;
+                    }
+                }
                 match logical_key.as_ref() {
                     Key::Named(NamedKey::Escape) => {
                         if self.search_panel.query.is_empty() {
@@ -531,6 +566,19 @@ impl super::super::App {
                 }
                 self.cursor_blink_on = true;
                 self.cursor_blink_at = std::time::Instant::now();
+                self.request_redraw();
+                return;
+            }
+
+            if self.is_editor_active()
+                && self
+                    .active_editor_state()
+                    .map(|ed| ed.find_state.is_open())
+                    .unwrap_or(false)
+                && self.handle_editor_find_key(logical_key, text, event_loop)
+            {
+                self.cursor_blink_on = true;
+                self.cursor_blink_at = Instant::now();
                 self.request_redraw();
                 return;
             }
@@ -653,6 +701,24 @@ impl super::super::App {
                     }
                     _ => {}
                 }
+            }
+
+            if super_key
+                && matches!(logical_key.as_ref(), Key::Character(c) if c == "f" || c == "F")
+                && !self.modifiers.shift_key()
+                && self.is_editor_active()
+                && self
+                    .active_editor_state()
+                    .map(|ed| ed.mode == crate::ui::editor::EditorMode::Text && !ed.has_diff_view())
+                    .unwrap_or(false)
+            {
+                let action = if self.modifiers.alt_key() {
+                    crate::app::actions::AppAction::EditorFindOpenReplace
+                } else {
+                    crate::app::actions::AppAction::EditorFindOpen
+                };
+                self.dispatch(action, event_loop);
+                return;
             }
 
             if super_key
@@ -1696,6 +1762,22 @@ impl super::super::App {
             return;
         }
 
+        if let Some(hit) = self.active_editor_state().and_then(|ed| {
+            crate::ui::components::editor_renderer::find_bar_hit_test(
+                ed,
+                phys_x,
+                phys_y,
+                x_off,
+                bar_h,
+                right_edge.saturating_sub(x_off),
+                sf,
+            )
+        }) {
+            self.handle_find_bar_click(hit);
+            self.request_redraw();
+            return;
+        }
+
         let content_h = (renderer.height as usize).saturating_sub(bar_h);
         let shift = self.modifiers.shift_key();
 
@@ -1715,6 +1797,447 @@ impl super::super::App {
             }
             self.editor_selecting = true;
             self.request_redraw();
+        }
+    }
+
+    fn handle_find_bar_click(&mut self, hit: crate::ui::components::editor_renderer::FindBarHit) {
+        use crate::ui::components::editor_renderer::FindBarHit;
+        use crate::ui::editor::FindFocus;
+        match hit {
+            FindBarHit::ToggleExpand => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_state.show_replace = !ed.find_state.show_replace;
+                    if !ed.find_state.show_replace {
+                        ed.find_state.focus = FindFocus::Find;
+                    }
+                }
+            }
+            FindBarHit::FindInput { rel_x } => {
+                let r_opt = self.renderer.as_mut();
+                let ed_opt = self
+                    .tab_mgr
+                    .active_tab_mut()
+                    .and_then(|t| t.editor_state_mut());
+                if let (Some(r), Some(ed)) = (r_opt, ed_opt) {
+                    let sf = r.scale_factor as f32;
+                    let byte = ed.find_state.input_click_to_cursor(
+                        FindFocus::Find,
+                        rel_x as f64,
+                        &mut r.font_system,
+                        sf,
+                    );
+                    ed.find_state.focus = FindFocus::Find;
+                    ed.find_state.find_cursor = byte;
+                    ed.find_state.find_anchor = Some(byte);
+                    ed.find_state.input_mouse_dragging = Some(FindFocus::Find);
+                }
+                self.cursor_blink_on = true;
+                self.cursor_blink_at = Instant::now();
+            }
+            FindBarHit::ReplaceInput { rel_x } => {
+                let r_opt = self.renderer.as_mut();
+                let ed_opt = self
+                    .tab_mgr
+                    .active_tab_mut()
+                    .and_then(|t| t.editor_state_mut());
+                if let (Some(r), Some(ed)) = (r_opt, ed_opt) {
+                    let sf = r.scale_factor as f32;
+                    let byte = ed.find_state.input_click_to_cursor(
+                        FindFocus::Replace,
+                        rel_x as f64,
+                        &mut r.font_system,
+                        sf,
+                    );
+                    ed.find_state.focus = FindFocus::Replace;
+                    ed.find_state.replace_cursor = byte;
+                    ed.find_state.replace_anchor = Some(byte);
+                    ed.find_state.input_mouse_dragging = Some(FindFocus::Replace);
+                }
+                self.cursor_blink_on = true;
+                self.cursor_blink_at = Instant::now();
+            }
+            FindBarHit::ToggleCase => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_state.case_sensitive = !ed.find_state.case_sensitive;
+                    ed.recompute_matches();
+                }
+            }
+            FindBarHit::ToggleWord => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_state.whole_word = !ed.find_state.whole_word;
+                    ed.recompute_matches();
+                }
+            }
+            FindBarHit::ToggleRegex => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_state.regex = !ed.find_state.regex;
+                    ed.recompute_matches();
+                }
+            }
+            FindBarHit::Prev => {
+                let (sf, vh) = self.editor_viewport_metrics();
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_prev();
+                    ed.ensure_cursor_visible(sf, vh);
+                }
+            }
+            FindBarHit::Next => {
+                let (sf, vh) = self.editor_viewport_metrics();
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.find_next();
+                    ed.ensure_cursor_visible(sf, vh);
+                }
+            }
+            FindBarHit::Close => {
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.close_find();
+                }
+            }
+            FindBarHit::ReplaceOne => {
+                let (sf, vh) = self.editor_viewport_metrics();
+                if let Some(ed) = self.active_editor_state_mut() {
+                    ed.replace_current();
+                    ed.ensure_cursor_visible(sf, vh);
+                }
+            }
+            FindBarHit::ReplaceAll => {
+                let count = self
+                    .active_editor_state_mut()
+                    .map(|ed| ed.replace_all())
+                    .unwrap_or(0);
+                self.toast_mgr.push(
+                    format!("Replaced {count} occurrences"),
+                    crate::ui::components::toast::ToastLevel::Info,
+                );
+            }
+        }
+    }
+
+    pub(crate) fn handle_editor_find_key(
+        &mut self,
+        logical_key: &winit::keyboard::Key,
+        text: &Option<winit::keyboard::SmolStr>,
+        event_loop: &ActiveEventLoop,
+    ) -> bool {
+        use crate::app::actions::AppAction;
+        use crate::ui::editor::FindFocus;
+
+        let super_key = self.modifiers.super_key();
+        let ctrl = self.modifiers.control_key();
+        let shift = self.modifiers.shift_key();
+
+        match logical_key.as_ref() {
+            Key::Named(NamedKey::Escape) => {
+                self.dispatch(AppAction::EditorFindClose, event_loop);
+                return true;
+            }
+            Key::Named(NamedKey::Enter) => {
+                if shift {
+                    self.dispatch(AppAction::EditorFindPrev, event_loop);
+                } else if super_key
+                    && self
+                        .active_editor_state()
+                        .map(|ed| ed.find_state.focus == FindFocus::Replace)
+                        .unwrap_or(false)
+                {
+                    self.dispatch(AppAction::EditorFindReplaceAll, event_loop);
+                } else {
+                    self.dispatch(AppAction::EditorFindNext, event_loop);
+                }
+                return true;
+            }
+            Key::Named(NamedKey::Tab) => {
+                if let Some(ed) = self.active_editor_state_mut()
+                    && ed.find_state.show_replace
+                {
+                    ed.find_state.focus = if ed.find_state.focus == FindFocus::Find {
+                        FindFocus::Replace
+                    } else {
+                        FindFocus::Find
+                    };
+                }
+                return true;
+            }
+            _ => {}
+        }
+
+        if super_key
+            && matches!(logical_key.as_ref(), Key::Character(c) if c == "f" || c == "F")
+            && self.modifiers.alt_key()
+        {
+            if let Some(ed) = self.active_editor_state_mut() {
+                ed.find_state.show_replace = true;
+                ed.find_state.focus = FindFocus::Replace;
+            }
+            return true;
+        }
+        if super_key
+            && matches!(logical_key.as_ref(), Key::Character(c) if c == "f" || c == "F")
+            && !shift
+        {
+            if let Some(ed) = self.active_editor_state_mut() {
+                ed.find_state.focus = FindFocus::Find;
+                ed.find_state.find_cursor = ed.find_state.find_query.len();
+                ed.find_state.find_anchor = if ed.find_state.find_query.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                };
+            }
+            return true;
+        }
+
+        let with_input = |app: &mut crate::app::App,
+                          action: &dyn Fn(&mut String, &mut usize, &mut Option<usize>)|
+         -> bool {
+            if let Some(ed) = app.active_editor_state_mut() {
+                match ed.find_state.focus {
+                    FindFocus::Find => action(
+                        &mut ed.find_state.find_query,
+                        &mut ed.find_state.find_cursor,
+                        &mut ed.find_state.find_anchor,
+                    ),
+                    FindFocus::Replace => action(
+                        &mut ed.find_state.replace_query,
+                        &mut ed.find_state.replace_cursor,
+                        &mut ed.find_state.replace_anchor,
+                    ),
+                }
+                true
+            } else {
+                false
+            }
+        };
+
+        match logical_key.as_ref() {
+            Key::Named(NamedKey::Backspace) => {
+                with_input(self, &|s, cur, anchor| {
+                    if let Some(a) = *anchor
+                        && a != *cur
+                    {
+                        let (lo, hi) = if a < *cur { (a, *cur) } else { (*cur, a) };
+                        s.replace_range(lo..hi, "");
+                        *cur = lo;
+                        *anchor = None;
+                    } else if *cur > 0 {
+                        let prev = prev_byte_boundary(s, *cur);
+                        s.replace_range(prev..*cur, "");
+                        *cur = prev;
+                    }
+                });
+                self.refresh_find_matches();
+                return true;
+            }
+            Key::Named(NamedKey::Delete) => {
+                with_input(self, &|s, cur, anchor| {
+                    if let Some(a) = *anchor
+                        && a != *cur
+                    {
+                        let (lo, hi) = if a < *cur { (a, *cur) } else { (*cur, a) };
+                        s.replace_range(lo..hi, "");
+                        *cur = lo;
+                        *anchor = None;
+                    } else if *cur < s.len() {
+                        let next = next_byte_boundary(s, *cur);
+                        s.replace_range(*cur..next, "");
+                    }
+                });
+                self.refresh_find_matches();
+                return true;
+            }
+            Key::Named(NamedKey::ArrowLeft) => {
+                with_input(self, &|s, cur, anchor| {
+                    if shift {
+                        if anchor.is_none() {
+                            *anchor = Some(*cur);
+                        }
+                    } else {
+                        *anchor = None;
+                    }
+                    if *cur > 0 {
+                        *cur = prev_byte_boundary(s, *cur);
+                    }
+                });
+                return true;
+            }
+            Key::Named(NamedKey::ArrowRight) => {
+                with_input(self, &|s, cur, anchor| {
+                    if shift {
+                        if anchor.is_none() {
+                            *anchor = Some(*cur);
+                        }
+                    } else {
+                        *anchor = None;
+                    }
+                    if *cur < s.len() {
+                        *cur = next_byte_boundary(s, *cur);
+                    }
+                });
+                return true;
+            }
+            Key::Named(NamedKey::Home) => {
+                with_input(self, &|_s, cur, anchor| {
+                    if shift {
+                        if anchor.is_none() {
+                            *anchor = Some(*cur);
+                        }
+                    } else {
+                        *anchor = None;
+                    }
+                    *cur = 0;
+                });
+                return true;
+            }
+            Key::Named(NamedKey::End) => {
+                with_input(self, &|s, cur, anchor| {
+                    if shift {
+                        if anchor.is_none() {
+                            *anchor = Some(*cur);
+                        }
+                    } else {
+                        *anchor = None;
+                    }
+                    *cur = s.len();
+                });
+                return true;
+            }
+            _ => {}
+        }
+
+        if (super_key || ctrl) && matches!(logical_key.as_ref(), Key::Character(c) if c == "a") {
+            with_input(self, &|s, cur, anchor| {
+                *anchor = Some(0);
+                *cur = s.len();
+            });
+            return true;
+        }
+
+        if (super_key || ctrl)
+            && matches!(logical_key.as_ref(), Key::Character(c) if c == "c" || c == "x")
+        {
+            let cut = matches!(logical_key.as_ref(), Key::Character(c) if c == "x");
+            let selected = self
+                .active_editor_state()
+                .map(|ed| {
+                    let (s, cur, anchor) = match ed.find_state.focus {
+                        FindFocus::Find => (
+                            &ed.find_state.find_query,
+                            ed.find_state.find_cursor,
+                            ed.find_state.find_anchor,
+                        ),
+                        FindFocus::Replace => (
+                            &ed.find_state.replace_query,
+                            ed.find_state.replace_cursor,
+                            ed.find_state.replace_anchor,
+                        ),
+                    };
+                    if let Some(a) = anchor
+                        && a != cur
+                    {
+                        let (lo, hi) = if a < cur { (a, cur) } else { (cur, a) };
+                        Some(s[lo..hi].to_string())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(None);
+            if let Some(sel) = selected {
+                if let Ok(mut cb) = arboard::Clipboard::new() {
+                    let _ = cb.set_text(&sel);
+                }
+                if cut {
+                    with_input(self, &|s, cur, anchor| {
+                        if let Some(a) = *anchor
+                            && a != *cur
+                        {
+                            let (lo, hi) = if a < *cur { (a, *cur) } else { (*cur, a) };
+                            s.replace_range(lo..hi, "");
+                            *cur = lo;
+                            *anchor = None;
+                        }
+                    });
+                    self.refresh_find_matches();
+                }
+            }
+            return true;
+        }
+
+        if (super_key || ctrl) && matches!(logical_key.as_ref(), Key::Character(c) if c == "v") {
+            if let Ok(mut cb) = arboard::Clipboard::new()
+                && let Ok(pasted) = cb.get_text()
+            {
+                let cleaned: String = pasted.chars().filter(|c| !c.is_control()).collect();
+                if !cleaned.is_empty() {
+                    with_input(self, &|s, cur, anchor| {
+                        if let Some(a) = *anchor
+                            && a != *cur
+                        {
+                            let (lo, hi) = if a < *cur { (a, *cur) } else { (*cur, a) };
+                            s.replace_range(lo..hi, "");
+                            *cur = lo;
+                            *anchor = None;
+                        }
+                        s.insert_str(*cur, &cleaned);
+                        *cur += cleaned.len();
+                    });
+                    self.refresh_find_matches();
+                }
+            }
+            return true;
+        }
+
+        if !ctrl
+            && !super_key
+            && let Some(txt) = text
+        {
+            let s_in = txt.as_str();
+            if !s_in.is_empty() {
+                with_input(self, &|s, cur, anchor| {
+                    if let Some(a) = *anchor
+                        && a != *cur
+                    {
+                        let (lo, hi) = if a < *cur { (a, *cur) } else { (*cur, a) };
+                        s.replace_range(lo..hi, "");
+                        *cur = lo;
+                        *anchor = None;
+                    }
+                    for ch in s_in.chars() {
+                        if !ch.is_control() {
+                            s.insert(*cur, ch);
+                            *cur += ch.len_utf8();
+                        }
+                    }
+                });
+                self.refresh_find_matches();
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn refresh_find_matches(&mut self) {
+        let (sf, vh) = self.editor_viewport_metrics();
+        if let Some(ed) = self.active_editor_state_mut()
+            && ed.find_state.focus == crate::ui::editor::FindFocus::Find
+        {
+            ed.recompute_matches();
+            if !ed.find_state.matches.is_empty() {
+                let cur_line = ed.cursor_line();
+                let cur_col = ed.cursor_col();
+                let nearest = ed
+                    .find_state
+                    .matches
+                    .iter()
+                    .position(|m| {
+                        m.line > cur_line || (m.line == cur_line && m.byte_start >= cur_col)
+                    })
+                    .unwrap_or(0);
+                ed.jump_to_match(nearest);
+                ed.ensure_cursor_visible(sf, vh);
+            } else {
+                ed.find_state.current = None;
+            }
         }
     }
 
@@ -2313,6 +2836,14 @@ impl super::super::App {
                                     self.cursor_blink_on = true;
                                     self.cursor_blink_at = std::time::Instant::now();
                                     self.request_redraw();
+                                } else if matches!(
+                                    action,
+                                    crate::app::actions::AppAction::SearchToggleCase
+                                        | crate::app::actions::AppAction::SearchToggleWord
+                                        | crate::app::actions::AppAction::SearchToggleRegex
+                                ) {
+                                    self.dispatch(action, event_loop);
+                                    self.request_redraw();
                                 } else {
                                     self.search_panel.focused = false;
                                     match &action {
@@ -2562,6 +3093,31 @@ impl super::super::App {
                     if self.search_panel.selection_anchor == Some(self.search_panel.cursor) {
                         self.search_panel.selection_anchor = None;
                     }
+                    self.request_redraw();
+                }
+
+                let editor_input_drag = self
+                    .tab_mgr
+                    .active_tab_mut()
+                    .and_then(|t| t.editor_state_mut())
+                    .and_then(|ed| {
+                        let focus = ed.find_state.input_mouse_dragging?;
+                        ed.find_state.input_mouse_dragging = None;
+                        let (cur, anchor) = match focus {
+                            crate::ui::editor::FindFocus::Find => {
+                                (ed.find_state.find_cursor, &mut ed.find_state.find_anchor)
+                            }
+                            crate::ui::editor::FindFocus::Replace => (
+                                ed.find_state.replace_cursor,
+                                &mut ed.find_state.replace_anchor,
+                            ),
+                        };
+                        if *anchor == Some(cur) {
+                            *anchor = None;
+                        }
+                        Some(())
+                    });
+                if editor_input_drag.is_some() {
                     self.request_redraw();
                 }
 
@@ -2832,6 +3388,75 @@ impl super::super::App {
                         self.search_panel.cursor = pos;
                     }
                     self.request_redraw();
+                }
+
+                let editor_drag_focus = self
+                    .tab_mgr
+                    .active_tab()
+                    .and_then(|t| t.editor_state())
+                    .and_then(|ed| ed.find_state.input_mouse_dragging);
+                if let Some(focus) = editor_drag_focus {
+                    let sf_bar_xoff = self.renderer.as_ref().map(|r| {
+                        (
+                            r.scale_factor as f32,
+                            r.tab_bar_height as usize,
+                            r.width as usize,
+                        )
+                    });
+                    let x_off = self.side_panel_x_offset();
+                    let git_w = if self.overlay.git_panel_open {
+                        self.panel_layout.right_physical_width(
+                            self.renderer
+                                .as_ref()
+                                .map_or(1.0, |r| r.scale_factor as f32),
+                        )
+                    } else {
+                        0
+                    };
+                    if let Some((sf, bar_h, width)) = sf_bar_xoff {
+                        let right_edge = width.saturating_sub(git_w);
+                        let vp_w = right_edge.saturating_sub(x_off);
+                        let rect_opt = self
+                            .tab_mgr
+                            .active_tab()
+                            .and_then(|t| t.editor_state())
+                            .and_then(|ed| match focus {
+                                crate::ui::editor::FindFocus::Find => {
+                                    crate::ui::components::editor_renderer::find_bar_find_input_rect(
+                                        ed, x_off, bar_h, vp_w, sf,
+                                    )
+                                }
+                                crate::ui::editor::FindFocus::Replace => {
+                                    crate::ui::components::editor_renderer::find_bar_replace_input_rect(
+                                        ed, x_off, bar_h, vp_w, sf,
+                                    )
+                                }
+                            });
+                        if let Some((ix, _iy, iw, _ih)) = rect_opt
+                            && let Some(r) = self.renderer.as_mut()
+                            && let Some(ed) = self
+                                .tab_mgr
+                                .active_tab_mut()
+                                .and_then(|t| t.editor_state_mut())
+                        {
+                            let rel_x = (position.x - ix as f64).clamp(0.0, iw as f64);
+                            let byte = ed.find_state.input_click_to_cursor(
+                                focus,
+                                rel_x,
+                                &mut r.font_system,
+                                sf,
+                            );
+                            match focus {
+                                crate::ui::editor::FindFocus::Find => {
+                                    ed.find_state.find_cursor = byte;
+                                }
+                                crate::ui::editor::FindFocus::Replace => {
+                                    ed.find_state.replace_cursor = byte;
+                                }
+                            }
+                            self.request_redraw();
+                        }
+                    }
                 }
 
                 if self.mouse_forwarding
@@ -3374,6 +3999,31 @@ impl super::super::App {
                                 && self.cursor_pos.0 < right_edge
                         });
 
+                    let find_bar_hover = self
+                        .active_editor_state()
+                        .and_then(|ed| ed.find_state.hovered_button);
+                    let find_bar_button_hover = matches!(
+                        find_bar_hover,
+                        Some(
+                            crate::ui::editor::FindBarHover::ToggleExpand
+                                | crate::ui::editor::FindBarHover::ToggleCase
+                                | crate::ui::editor::FindBarHover::ToggleWord
+                                | crate::ui::editor::FindBarHover::ToggleRegex
+                                | crate::ui::editor::FindBarHover::Prev
+                                | crate::ui::editor::FindBarHover::Next
+                                | crate::ui::editor::FindBarHover::Close
+                                | crate::ui::editor::FindBarHover::ReplaceOne
+                                | crate::ui::editor::FindBarHover::ReplaceAll
+                        )
+                    );
+                    let find_bar_input_hover = matches!(
+                        find_bar_hover,
+                        Some(
+                            crate::ui::editor::FindBarHover::FindInput
+                                | crate::ui::editor::FindBarHover::ReplaceInput
+                        )
+                    );
+
                     if self.path_drag.is_active() {
                         window.set_cursor(winit::window::CursorIcon::Grabbing);
                     } else if panel_resize_active
@@ -3382,7 +4032,9 @@ impl super::super::App {
                         || self.diff_split_dragging
                     {
                         window.set_cursor(winit::window::CursorIcon::ColResize);
-                    } else if editor_text_area {
+                    } else if find_bar_button_hover {
+                        window.set_cursor(winit::window::CursorIcon::Pointer);
+                    } else if editor_text_area || find_bar_input_hover {
                         window.set_cursor(winit::window::CursorIcon::Text);
                     } else if tab_bar_interactive
                         || side_panel_interactive
@@ -3837,6 +4489,25 @@ impl super::super::App {
                             sf as f32,
                             panel_w,
                         ) {
+                            if let Some(tog) = crate::ui::search_panel::SearchPanelState::toggle_hit(
+                                self.cursor_pos.0,
+                                self.cursor_pos.1,
+                                sf as f32,
+                                panel_w,
+                                content_y,
+                            ) {
+                                return Some(match tog {
+                                    crate::ui::search_panel::SearchToggle::Case => {
+                                        AppAction::SearchToggleCase
+                                    }
+                                    crate::ui::search_panel::SearchToggle::Word => {
+                                        AppAction::SearchToggleWord
+                                    }
+                                    crate::ui::search_panel::SearchToggle::Regex => {
+                                        AppAction::SearchToggleRegex
+                                    }
+                                });
+                            }
                             return Some(AppAction::FocusSearchInput);
                         }
 
