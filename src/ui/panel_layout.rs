@@ -175,7 +175,7 @@ mod tests {
         pl.set_right_width(999.0);
         assert_eq!(pl.right_physical_width(1.0), MAX_WIDTH as usize);
         pl.set_right_width(350.0);
-        assert_eq!(pl.right_physical_width(1.0), 350 as usize);
+        assert_eq!(pl.right_physical_width(1.0), 350_usize);
     }
 
     #[test]

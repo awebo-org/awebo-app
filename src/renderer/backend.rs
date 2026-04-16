@@ -364,13 +364,13 @@ mod tests {
 
     #[test]
     fn display_impl_gpu_label() {
-        let label = format!("{}", "GPU (wgpu)");
+        let label = "GPU (wgpu)".to_string();
         assert!(label.contains("GPU"));
     }
 
     #[test]
     fn display_impl_soft_label() {
-        let label = format!("{}", "CPU (softbuffer)");
+        let label = "CPU (softbuffer)".to_string();
         assert!(label.contains("softbuffer"));
     }
 }

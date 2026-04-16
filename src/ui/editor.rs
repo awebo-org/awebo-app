@@ -1483,7 +1483,7 @@ mod tests {
     fn detect_unknown_binary() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("blob");
-        std::fs::write(&p, &[0xFF, 0xFE, 0x00, 0x01, 0x80, 0x90]).unwrap();
+        std::fs::write(&p, [0xFF, 0xFE, 0x00, 0x01, 0x80, 0x90]).unwrap();
         assert_eq!(detect_mode(&p), EditorMode::Hex);
     }
 
@@ -1509,7 +1509,7 @@ mod tests {
     fn open_hex_file() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("data.bin");
-        std::fs::write(&p, &[0u8; 64]).unwrap();
+        std::fs::write(&p, [0u8; 64]).unwrap();
         let state = EditorState::open(&p, None).unwrap();
         assert_eq!(state.mode, EditorMode::Hex);
         assert_eq!(state.raw_bytes.len(), 64);

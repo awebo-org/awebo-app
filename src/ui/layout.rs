@@ -73,8 +73,8 @@ mod tests {
 
     #[test]
     fn point_new() {
-        let p = Point::new(3.14, 2.72);
-        assert_eq!(p.x, 3.14);
+        let p = Point::new(3.25, 2.72);
+        assert_eq!(p.x, 3.25);
         assert_eq!(p.y, 2.72);
     }
 

@@ -337,7 +337,7 @@ mod tests {
         assert_eq!(buf.data[idx + 1], 0);
         assert_eq!(buf.data[idx + 2], 0);
 
-        let outside = (0 * 10 + 0) * 4;
+        let outside = 0;
         assert_eq!(buf.data[outside], 0);
     }
 

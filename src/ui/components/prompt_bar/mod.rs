@@ -971,8 +971,8 @@ mod tests {
 
     #[test]
     fn format_duration_seconds() {
-        let d = Duration::from_secs_f64(3.14);
-        assert_eq!(format_duration(d), "3.14s");
+        let d = Duration::from_secs_f64(3.25);
+        assert_eq!(format_duration(d), "3.25s");
     }
 
     #[test]

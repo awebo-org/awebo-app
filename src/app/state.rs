@@ -259,8 +259,10 @@ mod tests {
 
     #[test]
     fn toggle_user_menu_closes_shell_picker() {
-        let mut s = OverlayState::default();
-        s.shell_picker_open = true;
+        let mut s = OverlayState {
+            shell_picker_open: true,
+            ..Default::default()
+        };
         s.toggle_user_menu();
         assert!(s.user_menu_open);
         assert!(!s.shell_picker_open);

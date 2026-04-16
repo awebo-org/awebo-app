@@ -1352,8 +1352,10 @@ mod tests {
 
     #[test]
     fn toggle_flag_schedules_search() {
-        let mut state = SearchPanelState::default();
-        state.query = "x".to_string();
+        let mut state = SearchPanelState {
+            query: "x".to_string(),
+            ..Default::default()
+        };
         assert!(!state.case_sensitive);
         state.toggle_flag(SearchToggle::Case);
         assert!(state.case_sensitive);

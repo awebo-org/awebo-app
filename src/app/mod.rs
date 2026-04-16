@@ -168,6 +168,7 @@ impl PathDragState {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod path_drag_tests {
     use super::*;
     use crate::app::actions::AppAction;
