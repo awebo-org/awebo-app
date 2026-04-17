@@ -650,7 +650,7 @@ pub fn draw(
             let pill_h = (input_line_height * 0.85) as usize;
             let pill_y = text_y + ((input_line_height - pill_h as f32) / 2.0) as usize;
             let pill_r = (3.0 * sf) as usize;
-            const SLASH_CMD_BG: Rgb = (55, 20, 45);
+            const SLASH_CMD_BG: Rgb = crate::renderer::theme::PRIMARY_DIM;
             fill_rounded_rect(
                 buf,
                 text_x.saturating_sub(pill_pad),

@@ -11,8 +11,9 @@ use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
 use super::pixel_buffer::Rgb;
 
 /// Primary accent — used for active indicators, focused elements, interactive highlights.
-pub const PRIMARY: Rgb = (219, 39, 119);
-pub const PRIMARY_DIM: Rgb = (60, 20, 45);
+pub const PRIMARY: Rgb = (0, 212, 146);
+pub const PRIMARY_HOVER: Rgb = (40, 232, 168);
+pub const PRIMARY_DIM: Rgb = (0, 50, 35);
 
 pub const BG: Rgb = (0, 0, 0);
 /// The color `NamedColor::Background` resolves to (used for bg_override remapping).
@@ -24,7 +25,7 @@ pub const BG_SURFACE: Rgb = (12, 12, 14);
 /// Even more lifted (active tabs, input fields).
 pub const BG_ELEVATED: Rgb = (22, 22, 26);
 /// Selection / hover highlight.
-pub const BG_SELECTION: Rgb = (60, 32, 50);
+pub const BG_SELECTION: Rgb = (16, 50, 40);
 /// Hover on interactive elements.
 pub const BG_HOVER: Rgb = (28, 28, 34);
 
@@ -283,10 +284,6 @@ mod tests {
 
     #[test]
     fn tab_indicator_is_primary() {
-        let (r, _g, _b) = TAB_INDICATOR;
-        assert!(
-            r > 100,
-            "TAB_INDICATOR should have a strong primary channel"
-        );
+        assert_eq!(TAB_INDICATOR, PRIMARY);
     }
 }

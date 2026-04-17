@@ -229,7 +229,7 @@ pub fn draw_settings_about(
         let layouts = compute_row(&labels, cx, row_y, sf);
 
         let upgrade_bg = if hovered == Some(AboutHit::UpgradeToPro) {
-            (239, 59, 139)
+            theme::PRIMARY_HOVER
         } else {
             theme::PRIMARY
         };

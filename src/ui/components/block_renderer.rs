@@ -64,7 +64,7 @@ const ERROR_HEADER_COLOR: Rgb = theme::ERROR_TEXT;
 const SEPARATOR_COLOR: Rgb = theme::DIVIDER;
 const LINK_COLOR: Rgb = theme::PRIMARY;
 /// Subtle background for inline `code` spans.
-const CODE_BG: Rgb = (35, 24, 32);
+const CODE_BG: Rgb = (24, 30, 28);
 /// Color for horizontal rule lines.
 const HR_COLOR: Rgb = (55, 57, 65);
 

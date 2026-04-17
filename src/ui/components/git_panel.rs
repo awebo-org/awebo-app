@@ -972,7 +972,7 @@ fn draw_changes_tab(
         let btn_x = panel_x + input_pad_x;
         let btn_w = panel_w.saturating_sub(input_pad_x * 2);
         let btn_color = if state.hovered_commit_btn {
-            (235, 50, 135)
+            theme::PRIMARY_HOVER
         } else {
             theme::PRIMARY
         };
