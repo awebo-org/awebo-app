@@ -162,11 +162,7 @@ pub fn hit_test_cursor(
 
     let x_in_line = phys_x.saturating_sub(code_x);
     let line_str = &state.lines[line];
-    let char_idx = if char_w > 0 {
-        (x_in_line + char_w / 2) / char_w
-    } else {
-        0
-    };
+    let char_idx = (x_in_line + char_w / 2).checked_div(char_w).unwrap_or(0);
     let mut byte_off = 0;
     for (i, ch) in line_str.chars().enumerate() {
         if i >= char_idx {

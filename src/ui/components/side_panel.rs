@@ -112,7 +112,7 @@ pub fn draw(
     let pad_x = (TOOLBAR_PAD_X * sf) as usize;
     let icon_inset = (container_sz as f32 - icon_sz as f32) / 2.0;
 
-    let container_y = bar_h + ((header_h - container_sz) / 2).max(0);
+    let container_y = bar_h + (header_h - container_sz) / 2;
 
     let divider_y = bar_h + header_h;
 

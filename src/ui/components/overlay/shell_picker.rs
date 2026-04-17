@@ -192,11 +192,7 @@ pub fn draw_shell_picker(
                 let desc_y = ty + (LINE_HEIGHT * sf) as usize;
                 let avail_w = pw.saturating_sub(pad * 2 + (16.0 * sf) as usize);
                 let char_w = (DESC_SIZE * sf * 0.55) as usize;
-                let max_chars = if char_w > 0 {
-                    avail_w / char_w
-                } else {
-                    desc_text.len()
-                };
+                let max_chars = avail_w.checked_div(char_w).unwrap_or(desc_text.len());
                 let truncated = if desc_text.len() > max_chars && max_chars > 3 {
                     format!("{}…", &desc_text[..max_chars.saturating_sub(1)])
                 } else {

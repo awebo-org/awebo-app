@@ -880,10 +880,8 @@ impl ApplicationHandler<TerminalEvent> for App {
         event: WindowEvent,
     ) {
         match event {
-            WindowEvent::CloseRequested => {
-                if crate::dialog::confirm_quit() {
-                    event_loop.exit();
-                }
+            WindowEvent::CloseRequested if crate::dialog::confirm_quit() => {
+                event_loop.exit();
             }
 
             WindowEvent::Resized(size) => {

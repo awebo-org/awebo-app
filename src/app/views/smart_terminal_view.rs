@@ -304,10 +304,8 @@ impl super::super::App {
                             event_loop,
                         );
                     }
-                    Key::Named(NamedKey::ArrowUp) => {
-                        if self.overlay.model_picker_selected > 0 {
-                            self.overlay.model_picker_selected -= 1;
-                        }
+                    Key::Named(NamedKey::ArrowUp) if self.overlay.model_picker_selected > 0 => {
+                        self.overlay.model_picker_selected -= 1;
                     }
                     Key::Named(NamedKey::ArrowDown) => {
                         let count = if self.config.ai.ollama_enabled
@@ -4286,11 +4284,7 @@ impl super::super::App {
                         let content_w =
                             (renderer.width as usize).saturating_sub((pad + block_pad_inner) * 2);
                         let char_w_px = renderer.block_char_width as usize;
-                        let max_chars = if char_w_px > 0 {
-                            content_w / char_w_px
-                        } else {
-                            0
-                        };
+                        let max_chars = content_w.checked_div(char_w_px).unwrap_or(0);
                         if let Some(bl) = self.active_block_list() {
                             let total_h = crate::ui::components::block_renderer::total_height(
                                 bl, sf, max_chars,
@@ -4648,11 +4642,7 @@ impl super::super::App {
                 let content_w =
                     (r.width as usize).saturating_sub(left_pad + right_pad + git_panel_w);
                 let char_w_px = r.block_char_width as usize;
-                if char_w_px > 0 {
-                    content_w / char_w_px
-                } else {
-                    0
-                }
+                content_w.checked_div(char_w_px).unwrap_or(0)
             })
             .unwrap_or(0)
     }
@@ -4920,11 +4910,7 @@ impl super::super::App {
                     let block_pad_inner = (10.0 * sf) as usize;
                     let content_w = (r.width as usize).saturating_sub((pad + block_pad_inner) * 2);
                     let char_w_px = r.block_char_width as usize;
-                    if char_w_px > 0 {
-                        content_w / char_w_px
-                    } else {
-                        0
-                    }
+                    content_w.checked_div(char_w_px).unwrap_or(0)
                 })
                 .unwrap_or(0);
             let text = sel.extract_text(&bl.blocks, max_chars);
@@ -5157,11 +5143,7 @@ impl super::super::App {
                         let content_w =
                             (r.width as usize).saturating_sub((pad + block_pad_inner) * 2);
                         let char_w_px = r.block_char_width as usize;
-                        if char_w_px > 0 {
-                            content_w / char_w_px
-                        } else {
-                            0
-                        }
+                        content_w.checked_div(char_w_px).unwrap_or(0)
                     })
                     .unwrap_or(0);
 
