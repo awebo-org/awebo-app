@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/awebo.png" alt="Awebo" width="96" height="96" />
+</p>
+
 # Awebo
 
 [![CI](https://github.com/awebo-org/awebo-app/actions/workflows/ci.yml/badge.svg)](https://github.com/awebo-org/awebo-app/actions/workflows/ci.yml)
@@ -9,15 +13,8 @@
 **Local AI. Zero cloud.** A private terminal with editor, git, and sandboxed shells.
 
 <p align="center">
-  <video src="https://awebo.sh/product.mp4" controls autoplay loop muted playsinline width="720">
-    <a href="https://awebo.sh/product.mp4">Watch the product demo</a>
-  </video>
-</p>
-
-<p align="center">
-  <a href="https://github.com/awebo-org/awebo-app/releases"><strong>↓ Download</strong></a> ·
+  <a href="https://github.com/awebo-org/awebo-app/releases"><strong>Releases</strong></a> ·
   <a href="https://awebo.sh">awebo.sh</a> ·
-  <a href="https://awebo-org.lemonsqueezy.com/checkout/buy/de81be1d-d76a-4d69-a95d-9c1e94fa2c9a?media=0">Buy</a> ·
   <a href="https://discord.gg/g5YNDqEK">Discord</a>
 </p>
 
