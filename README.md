@@ -4,78 +4,80 @@
 [![Release](https://github.com/awebo-org/awebo-app/actions/workflows/release.yml/badge.svg)](https://github.com/awebo-org/awebo-app/actions/workflows/release.yml)
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL_1.1-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2024_edition-orange.svg)](https://www.rust-lang.org)
+[![Discord](https://img.shields.io/badge/discord-join-5865F2)](https://discord.gg/g5YNDqEK)
 
-A GPU-accelerated terminal emulator with built-in AI, sandboxed environments, and git integration. Built with Rust.
+**Local AI. Zero cloud.** A private terminal with editor, git, and sandboxed shells.
+
+<p align="center">
+  <video src="https://awebo.sh/product.mp4" controls autoplay loop muted playsinline width="720">
+    <a href="https://awebo.sh/product.mp4">Watch the product demo</a>
+  </video>
+</p>
+
+<p align="center">
+  <a href="https://github.com/awebo-org/awebo-app/releases"><strong>↓ Download</strong></a> ·
+  <a href="https://awebo.sh">awebo.sh</a> ·
+  <a href="https://awebo-org.lemonsqueezy.com/checkout/buy/de81be1d-d76a-4d69-a95d-9c1e94fa2c9a?media=0">Buy</a> ·
+  <a href="https://discord.gg/g5YNDqEK">Discord</a>
+</p>
+
+---
+
+## Why Awebo
+
+- **Runs on your machine.** Local LLM inference via llama.cpp — no API keys, no accounts, no prompts leaving your box. Optional Ollama backend if you already run one.
+- **Zero telemetry by default.** Nothing phones home.
+- **Works fully offline.** Every feature, including AI.
+- **Batteries included.** Editor, git panel, sandboxed shells, tabs, split views — no multiplexer required.
+- **GPU-accelerated.** wgpu backend with instanced glyph rendering; automatic CPU (softbuffer) fallback.
+- **Source-available.** Read it, audit it, build it, hack on it. See [License](#license).
 
 ## Features
 
-- **GPU-accelerated rendering** - wgpu backend with instanced glyph rendering; automatic CPU (softbuffer) fallback
-- **Built-in AI assistant** - local LLM inference via llama.cpp with GGUF model management and web search
-- **Sandboxed environments** - isolated terminal sessions powered by microsandbox with OCI image support
-- **Git integration** - built-in git panel with libgit2
-- **Syntax highlighting** - tree-sitter based highlighting in the editor and terminal views
-- **Tabs & split views** - multi-tab interface with side panels, file tree, and editor
-- **Customizable** - TOML configuration for appearance, AI, shell, and sandbox defaults
-- **Native feel** - system menus, clipboard, and macOS-native window integration
+- **Built-in AI assistant** — local GGUF models via llama.cpp; optional Ollama; built-in web search; agent mode with tool use
+- **Sandboxed environments** — isolated terminal sessions powered by microsandbox with OCI image support
+- **Built-in code editor** — tree-sitter syntax highlighting, multi-file tabs, find/replace, undo/redo, git diff view
+- **Git panel** — status, diff, staging, commit (with AI-generated messages), branch switching via libgit2
+- **Tabs & split views** — multi-tab interface with file tree, search panel, sandbox panel, session manager
+- **Smart terminal** — alacritty_terminal core with block-based output, command blocks, AI hints
+- **Customizable** — TOML configuration for appearance, AI, shell, and sandbox defaults
+- **Native macOS integration** — system menus, clipboard, HiDPI-aware rendering
 
-## Requirements
+## How Awebo compares
 
-- **macOS** (primary platform; Linux/Windows support planned)
-- Rust 2024 edition (1.85+)
-- For AI features: sufficient RAM for GGUF model loading
+See the [feature comparison on awebo.sh](https://awebo.sh/#compare).
 
-## Building from source
+## Install
+
+### macOS
+
+Universal build (Apple Silicon + Intel):
+
+**[↓ Download for Mac](https://github.com/awebo-org/awebo-app/releases)**
+
+### Linux
+
+`.deb`, `.rpm`, and AppImage on the way. Build from source in the meantime.
+
+### Windows
+
+`.exe` for x64 and ARM64 on the way.
+
+## Build from source
 
 ```bash
 git clone https://github.com/awebo-org/awebo-app.git
-cd awebo
+cd awebo-app
 cargo build --release
 ```
 
 The binary will be at `target/release/awebo`.
 
-## Releasing
+### Requirements
 
-Releases are automated via GitHub Actions. Pushing a version tag triggers the full pipeline: tests → build (aarch64 + x86_64) → DMG packaging → GitHub Release.
-
-### Stable release
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-### Pre-release (alpha → beta → rc → stable)
-
-```bash
-# Alpha - early testing, expect breaking changes
-git tag v1.0.0-alpha.1
-git push origin v1.0.0-alpha.1
-
-# Beta - feature-complete, bug fixes only
-git tag v1.0.0-beta.1
-git push origin v1.0.0-beta.1
-
-# Release candidate - final validation before stable
-git tag v1.0.0-rc.1
-git push origin v1.0.0-rc.1
-
-# Stable
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-Tags containing `-alpha`, `-beta`, or `-rc` are automatically marked as **prerelease** on GitHub.
-
-### Version format
-
-Follows [Semantic Versioning](https://semver.org): `vMAJOR.MINOR.PATCH[-prerelease.N]`
-
-| Bump | When |
-|---|---|
-| `MAJOR` | Breaking changes |
-| `MINOR` | New features, backwards-compatible |
-| `PATCH` | Bug fixes |
+- **macOS** (primary platform; Linux/Windows planned)
+- Rust 2024 edition (1.85+)
+- For AI features: sufficient RAM to load your chosen GGUF model
 
 ## Configuration
 
@@ -90,24 +92,39 @@ line_height = 1.2
 [ai]
 web_search = true
 auto_load = false
+# Optional: route inference through a local Ollama instance
+# ollama_enabled = true
+# ollama_host = "http://localhost:11434"
+# ollama_model = "llama3.1"
 
 [general]
 default_shell = "/bin/zsh"
 ```
 
-## Code Availability
+## Community
 
-Awebo is **source-available** software. The complete source code is published in this repository so you can:
+Join the [Awebo Discord](https://discord.gg/g5YNDqEK) to swap workflows, hack on features, test nightly builds, and vote on what ships next. This is where the product gets shaped — by the people who actually live in a terminal.
 
-- **Read** and audit the code
-- **Build** the application from source
-- **Modify** and create derivative works
-- **Contribute** improvements back to the project
-- **Use it freely** for personal, non-commercial purposes
+## Releasing
 
-### License
+Releases are automated via GitHub Actions. Pushing a version tag triggers the full pipeline: tests → build (aarch64 + x86_64) → DMG packaging → GitHub Release.
 
-Awebo is licensed under the [Business Source License 1.1](LICENSE) (BSL 1.1).
+```bash
+# Stable
+git tag v1.0.0
+git push origin v1.0.0
+
+# Pre-release (alpha → beta → rc → stable)
+git tag v1.0.0-alpha.1    # early testing, expect breaking changes
+git tag v1.0.0-beta.1     # feature-complete, bug fixes only
+git tag v1.0.0-rc.1       # final validation before stable
+```
+
+Tags containing `-alpha`, `-beta`, or `-rc` are automatically marked as **prerelease** on GitHub. Follows [Semantic Versioning](https://semver.org): `vMAJOR.MINOR.PATCH[-prerelease.N]`.
+
+## License
+
+Awebo is **source-available** under the [Business Source License 1.1](LICENSE). The complete source is in this repository — you can read it, audit it, build it, modify it, and use it freely for personal, non-commercial purposes.
 
 | Parameter | Value |
 |---|---|
@@ -116,23 +133,19 @@ Awebo is licensed under the [Business Source License 1.1](LICENSE) (BSL 1.1).
 | **Change Date** | 4 years from each version's release date (rolling) |
 | **Change License** | Apache License 2.0 |
 
-#### What this means in practice
+### What this means in practice
 
 - **Personal use**: Free. Build it, use it, hack on it.
-- **Commercial / production use**: Requires a [commercial license](https://awebo.sh). This supports continued development.
-- **After 4 years**: Each version automatically converts to Apache 2.0 - a permissive open-source license with no commercial restrictions.
+- **Commercial / production use**: Requires a [commercial license](https://awebo.sh/pricing). This supports continued development.
+- **After 4 years**: Each version automatically converts to Apache 2.0 — a permissive open-source license with no commercial restrictions.
 
 This model (used by Sentry, CockroachDB, HashiCorp, and others) balances open development with sustainable funding.
 
-### Commercial Licensing
-
-For commercial or production use, purchase a license at **[awebo.sh](https://awebo.sh)**.
-
 For enterprise licensing, volume discounts, or custom arrangements, contact **hello@awebo.sh**.
 
-### Third-Party Licenses
+### Third-party licenses
 
-Awebo depends on open-source libraries, each under their own licenses. Key dependencies include:
+Awebo depends on open-source libraries under their own licenses. Key dependencies:
 
 | Crate | License |
 |---|---|
@@ -145,13 +158,20 @@ Awebo depends on open-source libraries, each under their own licenses. Key depen
 | tokio | MIT |
 | git2 | Apache 2.0 / MIT |
 
-Run `cargo license` for a complete list.
+Run `cargo license` for the complete list.
 
 ## Contributing
 
-Contributions are welcome! By submitting a pull request, you agree that your contributions will be licensed under the same BSL 1.1 terms as the rest of the project (and will transition to Apache 2.0 on the same Change Date schedule).
+Contributions are welcome. By submitting a pull request, you agree that your contributions will be licensed under the same BSL 1.1 terms as the rest of the project (and will transition to Apache 2.0 on the same Change Date schedule).
+
+See [AGENTS.md](AGENTS.md) for architecture notes and contribution guidelines.
 
 ## Contact
 
 - Website: [awebo.sh](https://awebo.sh)
-- Email: hello@awebo.sh
+- Email: [hello@awebo.sh](mailto:hello@awebo.sh)
+- Discord: [discord.gg/g5YNDqEK](https://discord.gg/g5YNDqEK)
+
+---
+
+© 2026 Apptivity Patryk Pasek · VAT EU: PL6941695701
